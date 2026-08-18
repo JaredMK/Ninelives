@@ -303,6 +303,9 @@ extension CampaignState {
                 data.stickerTypes.rollCurse(path: "purge", roll: rng.next())?.id
             }
             guard !curses.isEmpty else { return nil }
+            // One weighted roll PER card (v6.55: logged so a repeat-heavy
+            // purge can be told apart from a single reused roll).
+            DebugEventLog.shared.add("purge: curses rolled = [\(curses.joined(separator: ", "))]")
             return .purge(removeCount: n, curses: curses)
 
         case "ride":

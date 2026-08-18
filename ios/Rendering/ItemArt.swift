@@ -289,100 +289,151 @@ public enum ItemArt {
             ".....KKKKKK.....",
             "................",
             "................"],
-        // cursed = the same chip corrupted: phosphor bit-rot, one displaced
-        // row, a torn rim — the template for cursing ANY chip.
+        // The CURSE PLATE (v6.57 — third pass, player directive: curses read
+        // RED/BLACK/EVIL, never green): drawn UNDER every corruption matrix —
+        // the chip's own silhouette dilated one pixel, a near-black (ink)
+        // void with two suit-red DROPS bleeding off the bottom edge. The v6.55
+        // phosphor ring still read GREEN at deal scale and the v6.52 red
+        // square cost the round silhouette; this keeps the silhouette and
+        // drops the phosphor entirely. Tokens only (K ink, R suit-red).
+        "cursedPlate": [
+            "................",
+            ".....KKKKKK.....",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKKKKKK..",
+            ".KKKKKKKKKKKKKK.",
+            ".KKKKKKKKKKKKKK.",
+            "KKKKKKKKKKKKKKKK",
+            "KKKKKKKKKKKKKKKK",
+            "KKKKKKKKKKKKKKKK",
+            "KKKKKKKKKKKKKKKK",
+            ".KKKKKKKKKKKKKK.",
+            ".KKKKKKKKKKKKKK.",
+            "..KKKKKKKKKKKK..",
+            "...KKKKKKKKKK...",
+            ".....KKKKKK.....",
+            "......R..R......"],
+        // The CURSE RIM (v6.57): drawn OVER the corruption matrix — a flat
+        // suit-red ring tracing the chip's own round outline, so EVERY cursed
+        // chip carries an unmistakable red perimeter at any size. (The plate's
+        // edge alone was mostly hidden behind the chip's own ink rim.)
+        "cursedRim": [
+            "................",
+            ".....RRRRRR.....",
+            "...RR......RR...",
+            "..R..........R..",
+            "..R..........R..",
+            ".R............R.",
+            ".R............R.",
+            ".R............R.",
+            ".R............R.",
+            ".R............R.",
+            "..R..........R..",
+            "..R..........R..",
+            "..R..........R..",
+            "...RR......RR...",
+            ".....RR.RRR.....",
+            "................"],
+        // cursed = the same chip corrupted (v6.57): a NEAR-BLACK face (cream
+        // is for honest stickers), the motif in suit-red — or cream where the
+        // motif was ink and would vanish — with the torn rim's smoke tatters
+        // kept. No phosphor anywhere. The template for cursing ANY chip.
         "stickerCursed": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCPCCKK...",
-            "..KCCCCCCCCCCK..",
-            "..KCCCCCCCCCCK..",
-            ".KCCCCCRRCCPCCK.",
-            ".KCCCCRRRRCCCCK.",
-            "....KCCRRRRRRCCK",
-            ".KCCCCRRPRCCCsK.",
-            ".KCCPCCRRCCCssK.",
-            "..KCCCCCCCCssK..",
-            "..KCCCCCPCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKRKKKK...",
+            "..KKKKKKKKKKKK..",
+            "..KKKKKKKKKKKK..",
+            ".KKKKKKRRKKRKKK.",
+            ".KKKKKRRRRKKKKK.",
+            "....KKKRRRRRRKKK",
+            ".KKKKKRRRRKKKsK.",
+            ".KKKRKKRRKKKssK.",
+            "..KKKKKKKKKssK..",
+            "..KKKKKKRKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
         // TRAPDOOR's corruption — the same torn chip family, but the middle
-        // has simply GIVEN WAY: an ink-rimmed hole into felt-deep dark.
+        // has simply GIVEN WAY: a cream-rimmed hole into felt-deep dark (the
+        // rim was ink on cream; on the black face it turns cream or vanishes).
         "stickerCursedTrapdoor": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCCCCCCCCK..",
-            "..KCCCKKKKCCCK..",
-            ".KCCCKKDDKKCCCK.",
-            ".KCCKDDDDDDKCCK.",
-            "....KDDDDDDKCCK.",
-            ".KCCKDDDDDDKCsK.",
-            ".KCCCKDDDDKCssK.",
-            "..KCCCKKKKCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKKKKKK..",
+            "..KKKCCCCKKKKK..",
+            ".KKKKCCDDCCKKKK.",
+            ".KKKCDDDDDDKKKK.",
+            "....CDDDDDCKKKK",
+            ".KKKCDDDDDCKKsK.",
+            ".KKKKCDDDDCKssK.",
+            "..KKKKCCCCKKsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
         // Leech SWARM's own corruption — same torn chip family, but a SCATTER
-        // of small leeches instead of Leech's single big one.
+        // of small red leeches instead of Leech's single big one.
         "stickerCursed2": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCPCCKK...",
-            "..KCRRCCCCCCCK..",
-            "..KCRRCCCRRCCK..",
-            ".KCCCCCCCRRCCCK.",
-            ".KCCPCCCCCCCCCK.",
-            "....KCCCCCCCCCCK",
-            ".KCCRRCCCCCCCsK.",
-            ".KCCRRCCCCPCssK.",
-            "..KCCCCRRCCCsK..",
-            "..KCCPCRRCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKRKKKK...",
+            "..KKRRKKKKKKKK..",
+            "..KKRRKKKRRKKK..",
+            ".KKKKKKKKRRKKKK.",
+            ".KKKRKKKKKKKKKK.",
+            "....KKKKKKKKKKKK",
+            ".KKKRRKKKKKKKsK.",
+            ".KKKRRKKKKRKssK.",
+            "..KKKKKRRKKKsK..",
+            "..KKKRKRRKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
         // v6.48 CURSE FAMILY — every curse keeps the torn-chip silhouette
-        // (ink rim, cream face, ripped right edge into smoke) with its OWN
+        // (red rim, BLACK face, ripped right edge into smoke) with its OWN
         // centre motif, so a cursed card reads "curse" at a glance and WHICH
-        // curse on the second look.
-        // SHRINK: a chip inside the chip — the thing is smaller than it was.
+        // curse on the second look. (v6.57: faces went black, phosphor
+        // accents went red, ink motifs flipped to cream — the cream-faced
+        // chips read as ordinary stickers at deal scale.)
+        // SHRINK: the ghost of a chip inside the chip — cream outline, red
+        // core — the thing is smaller than it was.
         "stickerCursedShrink": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCCCCCCCCK..",
-            "..KCCKKKKKKCCK..",
-            ".KCCCKCCCCKCCCK.",
-            ".KCCCKCKKCKCCCK.",
-            "....KCCKKCKCCCK",
-            ".KCCCKCCCCKCCsK.",
-            ".KCCCKKKKKKCssK.",
-            "..KCCCCCCCCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKKKKKK..",
+            "..KKKCCCCCKKKK..",
+            ".KKKKCKKKKCKKKK.",
+            ".KKKKCKRRKCKKKK.",
+            "....KKKRRKCKKKK",
+            ".KKKKCKKKKCKKsK.",
+            ".KKKKCCCCCCKssK.",
+            "..KKKKKKKKKssK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // MUTE: the Same sign, struck through red.
+        // MUTE: the Same sign, struck through red (cream sign on the black).
         "stickerCursedMute": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCCCCCCRCK..",
-            "..KCCCCCCCRRCK..",
-            ".KCCKKKKKRRCCCK.",
-            ".KCCCCCCRRCCCCK.",
-            "....KCCRRCCCCCK",
-            ".KCCKKRRKKKCCsK.",
-            ".KCCCRRCCCCCssK.",
-            "..KCRRCCCCCCsK..",
-            "..KRRCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKKKRKK..",
+            "..KKKKKKKKRRKK..",
+            ".KKKKCCCCCRRKKK.",
+            ".KKKKKKKRRKKKKK.",
+            "....KKKRRKKKKKK",
+            ".KKKKCCRRCCCKsK.",
+            ".KKKKRRKKKKKssK.",
+            "..KKRRKKKKKKsK..",
+            "..KRRKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
@@ -390,35 +441,35 @@ public enum ItemArt {
         "stickerCursedSpoiler": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCGGGGCCCK..",
-            "..KCCGGGGGGCCK..",
-            ".KCCGGRCCRGGCCK.",
-            ".KCCGGCRRCGGCCK.",
-            "....KGCRRCGCCCK",
-            ".KCCGGRCCRGGCsK.",
-            ".KCCGGGGGGGCssK.",
-            "..KCCGGGGGCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKGGGGKKKK..",
+            "..KKKGGGGGGKKK..",
+            ".KKKGGRKKRGGKKK.",
+            ".KKKGGKRRKGGKKK.",
+            "....KGKRRKGKKKK",
+            ".KKKGGRKKRGGKsK.",
+            ".KKKGGGGGGGKssK.",
+            "..KKKGGGGGKKsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // SHIELD DRAIN: the shield tipped over, phosphor spilling out.
+        // SHIELD DRAIN: the shield tipped over (cream on black), RED spilling.
         "stickerCursedDrainShield": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCKKKKKKCCK..",
-            "..KCCKPPPPKCCK..",
-            ".KCCCKPPPPKCCCK.",
-            ".KCCCKKDDKKCCCK.",
-            "....KCKDDKCCCCK",
-            ".KCCCCKKKKCCCsK.",
-            ".KCCCCCPCCCCssK.",
-            "..KCCCPPCCCCsK..",
-            "..KCCPCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKCCCCCKKKK..",
+            "..KKKCRRRRCKKK..",
+            ".KKKKCRRRRCKKKK.",
+            ".KKKKCCDDCCKKKK.",
+            "....KKCDDCKKKKK",
+            ".KKKKKCCCCKKKsK.",
+            ".KKKKKKRKKKKssK.",
+            "..KKKKRRKKKKsK..",
+            "..KKKRKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
@@ -426,17 +477,17 @@ public enum ItemArt {
         "stickerCursedFlatline": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCCCCCCCCK..",
-            "..KCCCCRCCCCCK..",
-            ".KCCCCCRRCCCCCK.",
-            ".KCCCCRCRCCCCCK.",
-            "....KCRCRCCCCCK",
-            ".KRRRRCCCRRRRsK.",
-            ".KCCCCCCCCCCssK.",
-            "..KCCCCCCCCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKKKKKK..",
+            "..KKKKKRKKKKKK..",
+            ".KKKKKKRRKKKKKK.",
+            ".KKKKKRKRKKKKKK.",
+            "....KKRKRKKKKKK",
+            ".KRRRRKKKRRRRsK.",
+            ".KKKKKKKKKKKssK.",
+            "..KKKKKKKKKKsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
@@ -444,108 +495,110 @@ public enum ItemArt {
         "stickerCursedMagnet": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCRRCCRRCCK..",
-            "..KCCRRCCRRCCK..",
-            ".KCCCRRCCRRCCCK.",
-            ".KCCCRRCCRRCCCK.",
-            "....KRRCCRRCCCK",
-            ".KCCCRRRRRRCCsK.",
-            ".KCCCCRRRRCCssK.",
-            "..KCCCCCCCCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKRRKKRRKKK..",
+            "..KKKRRKKRRKKK..",
+            ".KKKKRRKKRRKKKK.",
+            ".KKKKRRKKRRKKKK.",
+            "....KRRKKRRKKKK",
+            ".KKKKRRRRRRKKsK.",
+            ".KKKKKRRRRKKssK.",
+            "..KKKKKKKKKKsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // JAMMER: the pillar's cloth, barred shut.
+        // JAMMER: the pillar's cloth, barred shut (cream bars, red pins).
         "stickerCursedJammer": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCKKKKKKCCK..",
-            "..KCCCKPPKCCCK..",
-            ".KCKKKKKKKKKKCK.",
-            ".KCCCCKPPKCCCCK.",
-            "....KCKPPKCCCCK",
-            ".KCKKKKKKKKKKsK.",
-            ".KCCCCKPPKCCssK.",
-            "..KCCCKKKKCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKCCCCCKKKK..",
+            "..KKKKCRRCKKKK..",
+            ".KKCCCCCCCCCCKK.",
+            ".KKKKKCRRCKKKKK.",
+            "....KKCRRCKKKKK",
+            ".KKCCCCCCCCCCsK.",
+            ".KKKKKCRRCKKssK.",
+            "..KKKKCCCCKKsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // PEELER: the chip's own corner lifting away from the felt.
+        // PEELER: the chip's own corner lifting away — the lifted flap shows
+        // its CREAM underside against the black face.
         "stickerCursedPeeler": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCDDKK...",
-            "..KCCCCCDDDDK...",
-            "..KCCCCDDDDCK...",
-            ".KCCCCCKDDCCCK..",
-            ".KCCCCKCCCCCCCK.",
-            "....KCCCCCCCCCK",
-            ".KCCCCCCCCCCCsK.",
-            ".KCCCCCCCCCCssK.",
-            "..KCCCCCCCCCsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKCCKK...",
+            "..KKKKKKCCCCK...",
+            "..KKKKKCCCCKK...",
+            ".KKKKKKKCCKKKK..",
+            ".KKKKKKKKKKKKKK.",
+            "....KKKKKKKKKKK",
+            ".KKKKKKKKKKKKsK.",
+            ".KKKKKKKKKKKssK.",
+            "..KKKKKKKKKKsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // BASE DRAIN: an empty battery, one red sliver left.
+        // BASE DRAIN: an empty battery (cream outline, dark cells), one red
+        // sliver left.
         "stickerCursedDrainBase": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCKKKKCCCK..",
-            "..KCKKKDDKKKCK..",
-            ".KCCKDDDDDDKCCK.",
-            ".KCCKDDDDDDKCCK.",
-            "....KDDDDDDKCCK",
-            ".KCCKDDDDDDKCsK.",
-            ".KCCKRRDDDDKssK.",
-            "..KCKKKKKKKKsK..",
-            "..KCCCCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKCCCCKKKKK..",
+            "..KKCCCDDCCCKK..",
+            ".KKKCDDDDDDKKKK.",
+            ".KKKCDDDDDDKKKK.",
+            "....CDDDDDCKKKK",
+            ".KKKCDDDDDDCKsK.",
+            ".KKKCRRDDDDCKssK",
+            "..KKCCCCCCCCsK..",
+            "..KKKKKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // MALFUNCTION: bit-rot — a phosphor glitch fracture, one row shoved
-        // sideways (the styleguide's corrupted-icon recipe).
+        // MALFUNCTION: corruption — a RED glitch fracture, one row shoved
+        // sideways (the styleguide's corrupted-icon recipe, de-phosphored).
         "stickerCursedMalfunction": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCCPCCCCCK..",
-            "..KCCCPPCCCPCK..",
-            ".KCCCPPCCCCCCCK.",
-            "..KCCCPPPCCCCK..",
-            ".KCPCCCPPCCCCCK.",
-            "....KCCPCCCCCsK",
-            ".KCCCCPPCCPCssK.",
-            "..KCCPPCCCCCsK..",
-            "..KCCPCCCCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKKRKKKKKK..",
+            "..KKKKRRKKKRKK..",
+            ".KKKKRRKKKKKKKK.",
+            "..KKKKRRRKKKKK..",
+            ".KKRKKKRRKKKKKK.",
+            "....KKKRKKKKKsK",
+            ".KKKKKRRKKRKssK.",
+            "..KKKRRKKKKKsK..",
+            "..KKKRKKKKsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
-        // SABOTEUR: the round bomb, fuse lit.
+        // SABOTEUR: the round bomb, fuse lit (cream bomb, red spark).
         "stickerCursedSaboteur": [
             "................",
             ".....KKKKKK.....",
-            "...KKCCCCCCKK...",
-            "..KCCCCCCRPCCK..",
-            "..KCCCCCKKCCCK..",
-            ".KCCCKKKKKKCCCK.",
-            ".KCCKKKKKKKKCCK.",
-            "....KKKKKKKKCCK",
-            ".KCCKKKCCKKKCsK.",
-            ".KCCKKKKKKKKssK.",
-            "..KCCKKKKKKCsK..",
-            "..KCCCKKKCsssK..",
-            "...KKCCCCssKK...",
+            "...KKKKKKKKKK...",
+            "..KKKKKKKRRKKK..",
+            "..KKKKKRRKKKKK..",
+            ".KKKKCCCCCCKKKK.",
+            ".KKKCCCCCCCCKKK.",
+            "....CCCCCCCCKKK",
+            ".KKKCCCCCCCCCsK.",
+            ".KKKCCCCCCCCssK.",
+            "..KKKCCCCCCCsK..",
+            "..KKKKCCCCsssK..",
+            "...KKKKKKssKK...",
             ".....KK.KKK.....",
             "................",
             "................"],
@@ -2417,20 +2470,20 @@ public enum ItemArt {
             if !def.cursed && face == nil { return legacyStickerChip(def, size: size) }
             return PixelTexture.image(size: CGSize(width: side, height: side)) { cg in
                 if def.cursed {
-                    // v6.52: every curse chip sits on an EVIL plate — a
-                    // near-black blood field with a red rim — so a curse
-                    // reads as a curse at a glance wherever the chip appears
-                    // (cards, pickers, reveals, the collection).
-                    let s = CGFloat(side), px = CGFloat(k)
-                    cg.setFillColor(UIColor(red: 0.10, green: 0.02, blue: 0.03, alpha: 1).cgColor)
-                    cg.fill(CGRect(x: 0, y: 0, width: s, height: s))
-                    cg.setFillColor(CRT.suitRed.withAlphaComponent(0.85).cgColor)
-                    cg.fill(CGRect(x: 0, y: 0, width: s, height: px))
-                    cg.fill(CGRect(x: 0, y: s - px, width: s, height: px))
-                    cg.fill(CGRect(x: 0, y: 0, width: px, height: s))
-                    cg.fill(CGRect(x: s - px, y: 0, width: px, height: s))
+                    // v6.57 (third pass, player directive: red/black/evil —
+                    // the v6.55 phosphor ring still read GREEN at deal
+                    // scale): the chip rides its curse plate — the near-black
+                    // void with red drips (see cursedPlate) — and closes with
+                    // the suit-red cursedRim ring ON TOP, so a curse reads as
+                    // a curse at a glance wherever the chip appears (cards,
+                    // pickers, reveals, the collection) WITHOUT losing the
+                    // round sticker silhouette the old red square cost it.
+                    drawMatrix(cg, classArt["cursedPlate"] ?? [], ox: 0, oy: 0, cell: CGFloat(k))
                 }
                 drawMatrix(cg, chip, ox: 0, oy: 0, cell: CGFloat(k))
+                if def.cursed {
+                    drawMatrix(cg, classArt["cursedRim"] ?? [], ox: 0, oy: 0, cell: CGFloat(k))
+                }
                 if let face {
                     // The web's .dcs-ic: a centred 58% box, contain-fit.
                     let fk = max(1, Int((Double(k) * 0.58).rounded()))

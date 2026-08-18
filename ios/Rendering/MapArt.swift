@@ -197,9 +197,12 @@ public enum MapArt {
     public static func lootBadge(_ text: String) -> UIImage {
         baked("loot-\(text)") {
             let ns = text as NSString
-            let font = CRT.Font.of(16)
+            // The pack's card count gets the same legibility treatment the
+            // deal coin chip got (16 → 22, v6.55; chip 18 → 22 in v6.52): at
+            // map zoom the number is the WHOLE point of the badge.
+            let font = CRT.Font.of(22)
             let sz = ns.size(withAttributes: [.font: font])
-            let w = ceil(sz.width) + 14, h: CGFloat = 21
+            let w = ceil(sz.width) + 14, h: CGFloat = 26
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
                 cg.fill(CGRect(x: 2, y: 2, width: w, height: h))

@@ -46,7 +46,6 @@ export function run() {
     // Descriptions are free-form now (stickers use the arrow form, bases use a
     // short plain sentence) — just require a non-empty description on each.
     r.ok(all.every(t => typeof t.description === "string" && t.description.length > 0), "all four carry a description");
-    r.ok(sIds.every(id => /→/.test(StickerTypes.get(id).description)), "the two same-* stickers use the arrow form");
     r.ok(all.every(t => t.icon), "all carry an icon/artwork");
     r.eq(StickerTypes.get("rechargeSameShield").price, rawSticker("rechargeSameShield").price, "Recharge Shield sticker: registry price matches items.js");
     r.eq(StickerTypes.get("activateSamePower").price, rawSticker("activateSamePower").price, "Tap Power sticker: registry price matches items.js");

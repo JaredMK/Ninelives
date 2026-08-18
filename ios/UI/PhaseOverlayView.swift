@@ -27,6 +27,15 @@ public final class PhaseOverlayView: UIView {
     private var mapPeekChanged: ((Bool) -> Void)?
     private var dimColor: UIColor = .clear
 
+    /// Curse-cell help (v6.55): a cursed card in the reveal's well answers tap
+    /// OR hold with the curse's registry description — the deck inspector's
+    /// card-help idiom, panel at the top of the screen like every hold-help.
+    private var curseHelpPanel: PixelPanelView?
+    private let curseHelpTitle = UILabel()
+    private let curseHelpBody = UILabel()
+    /// The card whose TAP-opened curse help is currently up (nil = none).
+    private var curseHelpShownId: Int?
+
     private func beginMapPeek() {
         mapPeeking = true
         mapPeekChanged?(true)
@@ -139,6 +148,91 @@ public final class PhaseOverlayView: UIView {
         default:
             break
         }
+    }
+
+    // MARK: - Curse-cell help (mystery reveal)
+
+    /// Wire the well's curse cells to the help panel + a tap-away collapse.
+    /// Called once per reveal build — the recognizers ride the cells and die
+    /// with them (the panel is reused across cells, never rebuilt).
+    private func wireCurseCells(in wellView: UIView) {
+        for case let cell as CurseCardCell in wellView.subviews {
+            cell.onTapCell = { [weak self] c in self?.curseCellTapped(c) }
+            cell.onHoldCell = { [weak self] c, began in
+                if began { self?.showCurseHelp(for: c) } else { self?.hideCurseHelp() }
+            }
+        }
+        let away = UITapGestureRecognizer(target: self, action: #selector(curseHelpAwayTapped(_:)))
+        away.cancelsTouchesInView = false
+        addGestureRecognizer(away)
+    }
+
+    /// TAP (v6.53 idiom): tap a cursed card → its help stays up; tap the same
+    /// card again, another card, or empty felt → it collapses/switches. The
+    /// hold keeps its press-to-peek behaviour.
+    private func curseCellTapped(_ cell: CurseCardCell) {
+        if curseHelpShownId == cell.card.id, curseHelpPanel?.isHidden == false {
+            hideCurseHelp()
+        } else {
+            showCurseHelp(for: cell)
+        }
+    }
+
+    @objc private func curseHelpAwayTapped(_ g: UITapGestureRecognizer) {
+        guard curseHelpPanel?.isHidden == false else { return }
+        if let hit = hitTest(g.location(in: self), with: nil) {
+            var v: UIView? = hit
+            while let cur = v {
+                if cur is CurseCardCell { return }   // cell taps are the cell's business
+                v = cur.superview
+            }
+        }
+        hideCurseHelp()
+    }
+
+    private func showCurseHelp(for cell: CurseCardCell) {
+        let panel: PixelPanelView
+        if let existing = curseHelpPanel {
+            panel = existing
+        } else {
+            let p = PixelPanelView()
+            curseHelpTitle.textAlignment = .center
+            curseHelpBody.textAlignment = .center
+            curseHelpBody.numberOfLines = 0
+            p.addSubview(curseHelpTitle)
+            p.addSubview(curseHelpBody)
+            addSubview(p)
+            curseHelpPanel = p
+            panel = p
+        }
+        curseHelpTitle.attributedText = CRTKit.attributed(CurseCardCell.cardName(cell.card), size: 14,
+                                                          color: CRT.phosphor, display: true, glow: true)
+        // One row per curse (the deck inspector's body grammar): the NAME
+        // leads in the display font — blood-red for a curse — with the
+        // registry description in cream after it. Copy is NEVER hand-written.
+        let body = NSMutableAttributedString()
+        for (i, def) in cell.curses.enumerated() {
+            if i > 0 { body.append(NSAttributedString(string: "\n")) }
+            body.append(CRTKit.attributed(def.label, size: 14, color: CRT.suitRed, display: true))
+            body.append(CRTKit.attributed("  \(def.description)", size: 14, color: CRT.cardFace))
+        }
+        curseHelpBody.attributedText = body
+        // TOP, over the panel — the same place every other screen puts
+        // hold-help. Framed at show time: the overlay is in the hierarchy by
+        // then, so the safe area is real.
+        let w = min(bounds.width - 28, 400)
+        let bodyH = ceil(curseHelpBody.sizeThatFits(CGSize(width: w - 24, height: 400)).height)
+        panel.frame = CGRect(x: (bounds.width - w) / 2, y: safeAreaInsets.top + 8,
+                             width: w, height: bodyH + 46)
+        curseHelpTitle.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
+        curseHelpBody.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
+        panel.isHidden = false
+        curseHelpShownId = cell.card.id
+    }
+
+    private func hideCurseHelp() {
+        curseHelpPanel?.isHidden = true
+        curseHelpShownId = nil
     }
 
     // MARK: - Shared builders
@@ -941,7 +1035,7 @@ public final class PhaseOverlayView: UIView {
         copyLabel.attributedText = CRTKit.attributed(hint ?? body, size: 14, color: CRT.cardFace)
         copyLabel.textAlignment = .center
         copyLabel.numberOfLines = 0
-        let copyH = max(measure(hint ?? body, size: 14), measure(def.description, size: 14))
+        let copyH = max(measure(hint ?? body, size: 14), measure(body, size: 14))
         copyLabel.frame = CGRect(x: 20, y: v.y, width: copyW, height: max(18, copyH))
         v.content.addSubview(copyLabel)
         v.y += max(18, copyH) + 6
@@ -977,9 +1071,10 @@ public final class PhaseOverlayView: UIView {
             nameLabel.attributedText = PhaseOverlayView.tracked(def.label.uppercased(), size: 16,
                                                                 color: CRT.gold, display: true,
                                                                 kern: 1)
-            let desc = def.description
-            if !desc.isEmpty {
-                copyLabel.attributedText = CRTKit.attributed(desc, size: 14, color: CRT.cardFace)
+            // The CALLER's body, not raw def.description — the caller runs it
+            // through itemDescription so {rank}/{suit}/{color} never leak.
+            if !body.isEmpty {
+                copyLabel.attributedText = CRTKit.attributed(body, size: 14, color: CRT.cardFace)
             }
             // An ITEM unlock — the deck ta-daa's shorter cousin, so the two
             // never get confused with each other.
@@ -1108,6 +1203,36 @@ public final class PhaseOverlayView: UIView {
             art.frame.origin = CGPoint(x: 18, y: py)
             panel.addSubview(art)
             py += art.frame.height + 12
+            // A curse application: the afflicted cards are live (tap/hold
+            // still answers with the full registry help), and the curse's
+            // description now prints DIRECTLY under the well (v6.57) — one
+            // caption per afflicting curse, red display name + cream registry
+            // copy ("Cursed. " stripped; the reveal already said so). The old
+            // "Tap or hold a marked card…" say-so line is gone: the say-so IS
+            // the text. Static content sized up front — the panel never moves.
+            if case .cursed(let pairs) = well {
+                v.wireCurseCells(in: art)
+                var seen = Set<String>()
+                for def in pairs.flatMap({ $0.curses }) where seen.insert(def.id).inserted {
+                    let cap = NSMutableAttributedString()
+                    cap.append(CRTKit.attributed(def.label.uppercased() + " — ",
+                                                 size: 14, color: CRT.suitRed, display: true))
+                    cap.append(CRTKit.attributed(
+                        def.description.replacingOccurrences(of: "Cursed. ", with: ""),
+                        size: 14, color: CRT.cardFace))
+                    let label = UILabel()
+                    label.attributedText = cap
+                    label.textAlignment = .center
+                    label.numberOfLines = 0
+                    label.lineBreakMode = .byWordWrapping
+                    let capH = max(18, ceil(label.sizeThatFits(
+                        CGSize(width: panelW - 36, height: 300)).height))
+                    label.frame = CGRect(x: 18, y: py, width: panelW - 36, height: capH)
+                    panel.addSubview(label)
+                    py += capH + 4
+                }
+                py += 8
+            }
         }
 
         // 16pt, brighter (router batch): "Leech torn off your 7♥" was the
@@ -1195,6 +1320,15 @@ enum OutcomeWell {
     /// A card strip (grants, cuts, curses) plus any torn-off sticker chips
     /// beside it, so what left is seen and not just named.
     case cards([CardSpec], torn: [ItemDef])
+    /// The cards that LEFT the deck (the Old Joker's cut/purge results) —
+    /// drawn TORN, never intact (v6.56): a card that "never existed" can't
+    /// keep posing for its portrait. The art is the v6.53 blank-pickup
+    /// treatment (`ItemArt.removal`, the torn Purge card).
+    case purged([CardSpec])
+    /// Cursed cards (v6.55): each afflicted card drawn WITH its curse chip(s)
+    /// riding the top-right corner exactly as on the board. Cells answer tap
+    /// AND hold with the curse's registry help (wired by the mystery reveal).
+    case cursed([(card: CardSpec, curses: [ItemDef])])
     /// One sticker chip (granted or inflicted).
     case sticker(ItemDef)
     /// An equipped item's own tile art (traded / taken / sold).
@@ -1211,6 +1345,20 @@ enum OutcomeWell {
     static func from(_ outcome: MysteryOutcome, deckId: String) -> OutcomeWell? {
         if outcome.key == "ambush" {
             return .ambush(piles: outcome.ambushPiles ?? 4, deckId: deckId)
+        }
+        // A curse application shows the afflicted CARDS, each wearing its new
+        // chip (v6.55) — the chip alone ("a Leech exists somewhere") never
+        // landed which card was marked. The Just a Two outcome arrives with
+        // the card resolved by the caller; the Old Joker's "His marks" reveal
+        // already carries every marked card.
+        if outcome.key == "cursedSticker", !outcome.cards.isEmpty {
+            let pairs: [(card: CardSpec, curses: [ItemDef])] = outcome.cards.compactMap { c in
+                let curses = c.stickers
+                    .compactMap { GameData.shared.stickerTypes.get($0.type) }
+                    .filter(\.cursed)
+                return curses.isEmpty ? nil : (c, curses)
+            }
+            if !pairs.isEmpty { return .cursed(pairs) }
         }
         if !outcome.cards.isEmpty {
             let torn = outcome.stickerIds.compactMap { GameData.shared.stickerTypes.get($0) }
@@ -1269,7 +1417,11 @@ enum OutcomeWell {
             let rowW = CGFloat(n) * (w + 8) - 8 + chipsW
             h = 100
             for (i, c) in cards.prefix(4).enumerated() {
-                let iv = pixelImage(CardArt.image(CardArt.Face(c), scale: .half))
+                // A BLANK card in the strip is a Purge — the v6.53 torn card,
+                // same as the map's blank pickups.
+                let iv = c.blank
+                    ? pixelImage(ItemArt.removal(width: w, height: 80))
+                    : pixelImage(CardArt.image(CardArt.Face(c), scale: .half))
                 iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
                                   width: w, height: 80)
                 box.addSubview(iv)
@@ -1280,6 +1432,31 @@ enum OutcomeWell {
                                      + CGFloat(i) * (chipS + 4),
                                   y: 10 + (80 - chipS) / 2, width: chipS, height: chipS)
                 box.addSubview(iv)
+            }
+        case .purged(let cards):
+            // The .cards strip's geometry, but every cell is the torn Purge
+            // card — the card is GONE; the tear is what remains of it.
+            let n = min(cards.count, 4)
+            let w: CGFloat = 58
+            let rowW = CGFloat(n) * (w + 8) - 8
+            h = 100
+            for i in 0..<n {
+                let iv = pixelImage(ItemArt.removal(width: w, height: 80))
+                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
+                                  width: w, height: 80)
+                box.addSubview(iv)
+            }
+        case .cursed(let pairs):
+            // One cell per afflicted card (cap 4, the .cards strip's rule).
+            let n = min(pairs.count, 4)
+            let cellW: CGFloat = 62, cellH: CGFloat = 84
+            let rowW = CGFloat(n) * (cellW + 8) - 8
+            h = 104
+            for (i, pair) in pairs.prefix(4).enumerated() {
+                let cell = CurseCardCell(card: pair.card, curses: pair.curses)
+                cell.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i) * (cellW + 8),
+                                    y: (h - cellH) / 2, width: cellW, height: cellH)
+                box.addSubview(cell)
             }
         case .sticker(let def):
             let iv = pixelImage(ItemArt.sticker(def, size: 64))
@@ -1317,6 +1494,76 @@ enum OutcomeWell {
         }
         box.frame = CGRect(x: 0, y: 0, width: width, height: h)
         return box
+    }
+}
+
+/// One afflicted card in the curse reveal's well (v6.55): the card face with
+/// its curse chip(s) riding the top-right corner — the board's badge idiom
+/// (fanning leftward, −11° + idx·8° lean), same as the deal screen and the
+/// deck inspector. Tap OR hold answers with the curse's registry help; the
+/// owning PhaseOverlayView drives the help panel via the two closures.
+private final class CurseCardCell: UIView {
+    let card: CardSpec
+    let curses: [ItemDef]
+    var onTapCell: ((CurseCardCell) -> Void)?
+    var onHoldCell: ((CurseCardCell, Bool) -> Void)?
+
+    init(card: CardSpec, curses: [ItemDef]) {
+        self.card = card
+        self.curses = curses
+        super.init(frame: .zero)
+        let cardFrame = CGRect(x: 0, y: 4, width: 58, height: 80)
+        let iv = UIImageView(image: CardArt.image(CardArt.Face(card), scale: .half))
+        iv.contentMode = .scaleAspectFit
+        iv.layer.magnificationFilter = .nearest
+        iv.frame = cardFrame
+        addSubview(iv)
+        let stk: CGFloat = 30
+        for (s, def) in curses.prefix(GameData.shared.items.maxStickersPerCard).enumerated() {
+            let chip = UIImageView(image: ItemArt.sticker(def, size: stk))
+            chip.contentMode = .scaleAspectFit
+            chip.layer.magnificationFilter = .nearest
+            chip.frame = CGRect(x: cardFrame.maxX + 2 - stk - CGFloat(s) * (stk * 0.62),
+                                y: cardFrame.minY - 2, width: stk, height: stk)
+            let deg = max(-15, min(15, -11 + s * 8))
+            chip.transform = CGAffineTransform(rotationAngle: CGFloat(deg) * .pi / 180)
+            addSubview(chip)
+        }
+        // The tap/hold pair, exactly the deck inspector's card-help idiom.
+        isUserInteractionEnabled = true
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
+        hold.minimumPressDuration = 0.4
+        addGestureRecognizer(hold)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        accessibilityIdentifier = "curseCell"
+        accessibilityLabel = "\(Self.cardName(card)), cursed: \(curses.map(\.label).joined(separator: ", "))"
+        accessibilityHint = "Tap or hold to read the curse"
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    /// "K♠" / "★ Joker" — the deck inspector's naming, inlined (GameCore's
+    /// own stays internal to the engine).
+    static func cardName(_ c: CardSpec) -> String {
+        if c.joker { return "★ Joker" }
+        if c.blank { return "∅ Purge" }
+        let label = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "\(c.currentRank)"
+        return "\(label)\(c.suit)"
+    }
+
+    @objc private func tapped(_ g: UITapGestureRecognizer) {
+        onTapCell?(self)
+    }
+
+    @objc private func held(_ g: UILongPressGestureRecognizer) {
+        switch g.state {
+        case .began: onHoldCell?(self, true)
+        case .ended, .cancelled, .failed: onHoldCell?(self, false)
+        default: break
+        }
     }
 }
 

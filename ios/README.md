@@ -211,6 +211,9 @@ xcrun simctl launch <UDID> com.ninelives.shouldasaidsame \
 | `-items 1` | (launcher) bind a Pillar per column, a Base, a Same-Power |
 | `-fps 1` | draw the live frame-time readout |
 | `-demoOverlay fan\|help\|swipe` | open an overlay for a screenshot |
+| `-demoPrompt ripple\|rippleFan\|secondWind\|shuffler\|revive` | (v6.55, EventCaptureUITests) stage the engine's REAL parked consent state after the cascade and surface its PromptBar prompt; `rippleFan` also opens the pile fan on the first offered pile. `revive` (v6.56, needs `-dealPillar revive`) stage-kills the LAST pile, grows a column-0 pile to the pillar's `trigger`, and runs the genuine trigger check, so the targeting offer is the real one |
+| `-dealPillar <id>` / `-dealSamePower <id>` | (v6.55, launcher deal) pin column-0's Pillar / the equipped Same-Power — for the consent-prompt stills |
+| `-storeFreeRefresh 1` | (v6.55) arm the Queen's Restock before the store demo opens (the real openStore spend path) |
 
 A finished deal writes `Documents/deal-receipt.json` — result, guesses, and the
 run's frame timings. `make perf` runs one and prints it.

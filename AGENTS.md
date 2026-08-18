@@ -379,6 +379,34 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
 - The 🐞 entry is hidden unless debug access is on (`?debug`, or 7 quick taps
   on the build footer). The debug event log is a capped ring buffer rendering
   only the newest 50 — unbounded log rendering was a measured store-lag cause.
+- **iOS: `recT` is the item-fire chokepoint** (v6.55). Every pillar/sticker/
+  base/Same-Power/curse that fires must recT — it feeds telemetry AND the
+  debug event log (name, effect, and the `fireContext` trigger line set at
+  each action entry). A new fire path without recT is invisible on-device.
+  **Every %-chance roll goes through `rollChance`** (v6.57): it consumes the
+  same single rng draw the inline `rng.next() < chance` made, emits the
+  structured `.rollResult` (hit AND miss) for the UI's roll indicators, and
+  logs "rolled, missed" on a miss. Never add a bare inline chance roll.
+  **Gambler's flip rolls ONCE per column at Start Run** and memoizes on
+  `run.gamblerFlips` (web) / `RunState.gamblerFlips` (iOS, snapshot
+  round-tripped): every payout read — mid-deal HUD projections included — is
+  pure, so a projection can never disagree with the deal end, and no read
+  consumes the action-stream rng.
+- **iOS: mid-deal player choices use the parked-pending pattern** (v6.55):
+  the engine parks (`pendingRipple`/`pendingSecondWind`/`pendingPowerShuffle`
+  on RunState, snapshot round-tripped), the UI answers via PromptBar
+  (`answer*` methods). Never apply a consent-gated effect inline in the guess
+  path. The `*NeedsConsent` flags default false so web-parity fixtures keep
+  replaying the auto behavior. A parked Second Wind emits `.secondWindOffer`
+  (the drawn killer + recycle count) as the guess's only terminal event and
+  defers `evaluateEnd` to `answerSecondWind` — the draw visibly precedes the
+  prompt, and the held-out killer can otherwise fake an empty-deck win.
+- **Saved landings fire landing stickers** (v6.57): a wrong guess saved by the
+  Same-Charge backstop still LANDS the card (it becomes the new top), so its
+  beneficial landing stickers fire (`fireSavedLandingStickers`). Curses and
+  Trapdoor stay correct-only (the v6.52/53 fatal-landing audit stands), as do
+  PILLAR landing effects. Guard returns and Second Wind recycles never land
+  the card, so nothing fires there.
 ## Also
 
 - Storage keys use the `ninelives.*` prefix only (the native bridge mirrors

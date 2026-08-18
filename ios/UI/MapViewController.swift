@@ -515,8 +515,11 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
 
     private func composePackStack(_ n: MapNode) -> UIImage {
         let stack = MapArt.packStack(deckId: campaign.deckId)
-        let anySuit = campaign.rules().altSuits
-        let badge = MapArt.lootBadge("+\(n.packCount ?? 3)" + (anySuit ? "" : " \(n.suit ?? "")"))
+        // v6.57: the badge names the suit(s) the pack's contents draw from —
+        // `packSuits(for:)` is the grant rule's own source, so the badge can
+        // never drift from what the pack actually deals (stage suit; all four
+        // for endless/alt decks; the one seeded suit under the debug toggle).
+        let badge = MapArt.lootBadge("+\(n.packCount ?? 3) \(campaign.packSuits(for: n).joined())")
         let w = max(stack.size.width, badge.size.width)
         let h = stack.size.height + 8
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
@@ -702,7 +705,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             if pair.count == 2 {
                 return "2 cards: \(nodeCardName(pair[0])) + \(nodeCardName(pair[1]))"
             }
-            return "Pack · \(n.packCount ?? 3) cards (hidden)"
+            return "Pack · \(n.packCount ?? 3) cards · \(campaign.packSuits(for: n).joined()) (hidden)"
         default:
             if let card = campaign.nodeCard(n) ?? campaign.previewPickupCard(n) {
                 if card.joker { return "★ Joker. Never a wrong guess" }

@@ -678,6 +678,23 @@ public final class DealScene: SKScene {
 
     public func setReshuffleTitle(_ t: String) { reshuffleButton.setTitle(t) }
 
+    /// The Queen's Mulligan glow: while the deal's first reshuffle is FREE the
+    /// button wears the charged plate (phosphor border + text glow — the one
+    /// "green glow" the visual law allows; static, no animation, so the
+    /// pause-behind-overlay contract has nothing to pause).
+    public func setReshuffleGlow(_ on: Bool) {
+        reshuffleButton.setRole(on ? .charged : .plain)
+    }
+
+    /// The deal-start reminder line for a pending free reshuffle: a one-shot
+    /// phosphor cue floated above the reshuffle button (the persistent half of
+    /// the reminder is the button's own "· FREE" title + glow).
+    public func announceFreeRedeal() {
+        let c = CGPoint(x: reshuffleButton.position.x + reshuffleButton.frameSize.width / 2,
+                        y: reshuffleButton.position.y - reshuffleButton.frameSize.height - 26)
+        floatCue("FIRST RESHUFFLE FREE — THE QUEEN'S MULLIGAN", atPoint: c, color: CRT.phosphor)
+    }
+
     public func syncControls(canGuess: Bool, showReshuffle: Bool, reshuffleEnabled: Bool = true,
                              sameBlocked: Bool = false) {
         higherButton.setEnabled(canGuess)
@@ -1080,6 +1097,30 @@ public final class DealScene: SKScene {
         }
     }
 
+    /// DIAMOND RIPPLE consent (v6.55): a persistent phosphor ring on every
+    /// pile the offer would shuffle — the board-side half of the prompt, so
+    /// "shuffle these?" names piles the player can SEE (and fan-inspect).
+    /// The rings are a SEPARATE idiom from tap-target selection: a board tap
+    /// while the prompt is up (e.g. arming the fan) must not wipe them.
+    /// Static nodes, no animation — same rule as the magnet rings.
+    private var rippleRings: [Int: SKNode] = [:]
+    public func setRippleTargets(_ targets: [Int]) {
+        let want = Set(targets)
+        for (i, node) in rippleRings where !want.contains(i) {
+            node.removeFromParent()
+            rippleRings[i] = nil
+        }
+        for i in want where rippleRings[i] == nil {
+            guard let c = pileCenters[i] else { continue }
+            let box = CGSize(width: cardScale.size.width + 8, height: cardScale.size.height + 8)
+            let ring = SKSpriteNode(texture: BoardFX.ringTexture(size: box, color: CRT.phosphor, weight: 2))
+            ring.position = c
+            ring.zPosition = Layer.card + 5
+            addChild(ring)
+            rippleRings[i] = ring
+        }
+    }
+
     /// A two-pile offer (Donate): mark which pile GIVES and which RECEIVES, so
     /// the prompt can say "the FROM pile" instead of a pile number that maps to
     /// nothing the player can see.
@@ -1449,12 +1490,15 @@ public final class DealScene: SKScene {
 
     /// Fly a face-up card from the deck to a pile. The drawn card is visible
     /// the whole way — the pile's existing top stays under it until landing.
-    public func flyDraw(face: CardArt.Face, to pile: Int, onArrive: @escaping () -> Void) {
+    /// `duration` overrides the draw-flight speed (the STAGED Second Wind
+    /// evidence slows it so a screenshot can land mid-draw).
+    public func flyDraw(face: CardArt.Face, to pile: Int, duration: TimeInterval? = nil,
+                        onArrive: @escaping () -> Void) {
         guard !reduceMotion, let to = pileCenters[pile] else { onArrive(); return }
         let clone = BoardFX.faceUpCard(face, scale: cardScale)
         floatLayer.addChild(clone)
         BoardFX.fly(clone, from: deckSourcePoint(), to: to,
-                    duration: Double(BoardFX.drawFlightMS) / 1000, onArrive: onArrive)
+                    duration: duration ?? Double(BoardFX.drawFlightMS) / 1000, onArrive: onArrive)
     }
 
     /// Fly a face-down card deck → pile (a bury arriving).
@@ -1790,12 +1834,6 @@ public final class DealScene: SKScene {
             for t in targets where t != hub { pulse(t, isHub: false) }
         }
         if let hub, let label { floatCue(label, at: hub, color: CRT.gold) }
-    }
-
-    /// The synapse pulse: signal dots ride the web out of the landed pile.
-    public func synapsePulse(from pile: Int) {
-        guard !reduceMotion else { return }
-        webLayer.pulse(from: pile)
     }
 
     /// "Shoulda said same" — the taunt over a pile that died on a tie. It is

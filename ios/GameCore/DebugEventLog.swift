@@ -7,6 +7,13 @@ import Foundation
 /// campaign-level lines (price twists, purchases, mystery outcomes) added at
 /// the site that executes them. Dev tooling only — nothing in game logic
 /// reads it, it is never persisted, and it caps itself.
+///
+/// v6.55: the engine logbook now records EVERY item fire — the engine's
+/// `recT` telemetry chokepoint also writes a `⚡ label [klass] — effect ↩
+/// trigger` line (e.g. "⚡ Deep Pockets [sticker] — +2 coins ↩ J♠ on 7♥ ·
+/// pile 3 · higher"), so a fire always answers WHAT fired, WHAT it did and
+/// WHAT triggered it. Fire paths that never recT'd (several Same-Power
+/// branches, the shuffle action, a Jammer block) now do.
 public final class DebugEventLog {
     public static let shared = DebugEventLog()
     private init() {}

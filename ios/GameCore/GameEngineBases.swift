@@ -46,7 +46,11 @@ extension GameEngine {
         case "setSuit":
             let tops = alive.compactMap { board.top($0) }.filter { !$0.joker }
             return alive.count > 1 && Set(tops.map(\.suit)).count > 1
-        case "stickerHarvest":    return !alive.isEmpty
+        // STICKER HARVEST (v6.57 batch): green only when there is actually
+        // something to harvest — a stickered top card in ITS column. A bare
+        // column is amber (charged, nothing to peel), spent stays red.
+        case "stickerHarvest":
+            return alive.contains { !(board.top($0)?.stickers.isEmpty ?? true) }
         case "refreshBases":      return !refreshableBaseColumns(col).isEmpty
         case "suitDig":           return !deck.isEmpty && alive.contains { topIsSuit($0, base.suit ?? "") }
         case "lonePeek":          return run.samePower == nil && !deck.isEmpty
@@ -127,6 +131,8 @@ extension GameEngine {
         case "clubTell":
             if deck.isEmpty { return "The deck is empty." }
             return "Needs a ♣ on top of a pile in this column."
+        case "stickerHarvest":
+            return "No pile card in this column carries a sticker to harvest."
         case "suitDig":
             return "Needs a \(base.suit ?? "matching") on top of a pile in this column."
         case "spadePeek":
@@ -183,6 +189,7 @@ extension GameEngine {
 
         var res = BaseResult(col: col, effect: base.effect ?? "", label: base.label)
         let coinsBefore = run.bonusCoins
+        fireContext = "\(base.label) activated · column \(col + 1)"
         logBegin(base.label)
 
         switch base.effect {
@@ -472,6 +479,7 @@ extension GameEngine {
 
         default:
             currentEntry = nil
+            fireContext = nil
             return nil
         }
 
@@ -498,6 +506,7 @@ extension GameEngine {
         recT("base", base.id, base.label, imp)
 
         currentEntry = nil
+        fireContext = nil
         emit(.baseFired(res))
         evaluateEnd()
         return res
@@ -535,6 +544,7 @@ extension GameEngine {
             var buried = 0
             let n = def.int("value", 0) != 0 ? def.int("value", 0) : 1
             for j in targets { buried += buryTribute(j, n, def.label) }
+            if buried > 0 { recT("samePower", def.id, def.label, ["buried": Double(buried)]) }
             result.targets = targets
             result.amount = buried
 
@@ -549,6 +559,7 @@ extension GameEngine {
                 result.targets = [p]
                 result.amount = board.pileSize(p)
                 logLine("\(def.label): revived pile \(p + 1) (\(board.pileSize(p)) cards kept)")
+                recT("samePower", def.id, def.label, ["revived": 1])
             }
 
         case "linkCoins":
@@ -566,19 +577,21 @@ extension GameEngine {
             // Shuffle EVERY alive pile (composition only; hidden order).
             let targets = powerPiles("alive")
             for j in targets { board.shufflePile(j, rng) }
+            if !targets.isEmpty { recT("samePower", def.id, def.label, ["shuffled": Double(targets.count)]) }
             result.targets = targets
             result.amount = targets.count
 
         case "samePeek":
             // Peek the next upcoming card (deck-reveal treatment, like Scout).
             run.revealNextActive = true
+            recT("samePower", def.id, def.label, ["peeks": 1])
             result.amount = 1
 
         case "linkTell":
             // A hint on the next card per ALIVE PILE — a wide board buys a
             // long look ahead, a board down to one pile buys almost nothing.
-            // It rides the WHISPER window (its own pile set), so it never
-            // lights the whole board the way the old Spade Whispers did.
+            // The window length is the counted-pile tally; the hint itself
+            // shows only on the most recently landed top card (v6.58).
             // X counts only the alive piles whose top wears the climb's
             // rolled COLOUR (v6.38; Wild Suit counts as both). No variant on
             // an old save → every alive pile, the pre-roll behaviour.
@@ -590,12 +603,11 @@ extension GameEngine {
                 return colour == "red" ? red : !red
             }
             if !alive.isEmpty {
-                // v6.52: the fire RESETS the window instead of stacking onto
-                // it — a second correct Same used to leave the EARLIER call's
-                // piles hinting too (accumulated whisperPiles + summed draws),
-                // so hints appeared on piles from a Same made long before.
-                run.tellDrawsLeft = alive.count
-                run.whisperPiles = Set(alive)
+                // v6.58: Second Sight rides its OWN window (sightDrawsLeft),
+                // and the hint shows on ONE pile only — the most recently
+                // landed top card — never on every counted pile at once.
+                // The fire still RESETS rather than stacks (the v6.52 rule).
+                run.sightDrawsLeft = alive.count
                 recT("samePower", def.id, def.label, ["hints": Double(alive.count)])
             }
             result.targets = alive
@@ -620,14 +632,17 @@ extension GameEngine {
                 result.stickersApplied.append((cardId: top.id, typeId: typeId))
                 logLine("\(def.label): \(stickerTypes.get(typeId)?.label ?? typeId) onto pile \(j + 1)")
             }
+            if !hit.isEmpty { recT("samePower", def.id, def.label, ["applied": Double(hit.count)]) }
             result.targets = hit
             result.amount = hit.count
 
         case "linkPurge":
             // A CHANCE to burn one card out of the rest of the deck. Nothing
             // on the board is touched — this only shortens what is coming.
+            // The roll reports its HIT/MISS (v6.57).
             let odds = def.num("chance", 0.25)
-            if rng.next() < odds, let gone = deck.removeRandomRemaining(rng) {
+            if rollChance("samePower", def.id, def.label, odds, index: hub),
+               let gone = deck.removeRandomRemaining(rng) {
                 result.amount = 1
                 logLine("\(def.label): purged \(cardName(gone)) from the deck")
                 recT("samePower", def.id, def.label, ["purged": 1])
@@ -643,6 +658,7 @@ extension GameEngine {
             for j in targets { board.addSizeBonus(j, per) }
             let hubBonus = def.int("hubValue", 5)
             board.addSizeBonus(hub, hubBonus)
+            recT("samePower", def.id, def.label, ["fires": 1])
             result.targets = targets
             result.amount = per * targets.count + hubBonus
 

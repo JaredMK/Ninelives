@@ -233,6 +233,12 @@ public final class CampaignState {
         if let r = pillarRankVariants[def.id] {
             let label = DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)"
             out = out.replacingOccurrences(of: "{rank}", with: label)
+        } else if out.contains("{rank}") {
+            // Not locked yet (unlock popup, pre-shelf display): say what the
+            // roll WILL read instead of leaking the raw template (v6.58).
+            let words = def.effect == "rankBury" ? "your deck's scarcest rank"
+                                                 : "your deck's most common rank"
+            out = out.replacingOccurrences(of: "{rank}", with: words)
         }
         return out
     }
@@ -595,6 +601,46 @@ public final class CampaignState {
         return nodeCards[node.id]
     }
 
+    /// v6.57 DEBUG toggle (the debug panel's "1-SUIT PACKS" row): while on,
+    /// EVERY pack grants cards of ONE seeded suit per node and the map badge
+    /// shows that suit. Persisted as a `ninelives.pref.*` flag — dev-only,
+    /// reachable only with debug access; a run without the pref rolls exactly
+    /// as before.
+    public func debugSingleSuitPacksOn() -> Bool {
+        saveStore.pref("debugSingleSuitPacks") == "1"
+    }
+    public func setDebugSingleSuitPacks(_ on: Bool) {
+        saveStore.setPref("debugSingleSuitPacks", on ? "1" : "0")
+    }
+
+    /// The ONE suit a pack node's slots all draw from while the debug toggle
+    /// is on — its own keyed substream (SEED1), so the roll is stable per node
+    /// for the whole run and the map badge and the grant can never disagree.
+    public func debugPackSuit(for node: MapNode) -> String {
+        let rng = rrng(.s("debugpacksuit"), .n(node.id))
+        return allSuits[rng.index(allSuits.count)]
+    }
+
+    /// v6.57 — the suit set a pack node's contents draw from; the single
+    /// source of truth for the map's pack badge. Stage packs draw the node's
+    /// suit; endless/altSuits packs roll all four per slot; the debug toggle
+    /// collapses every pack to its one seeded suit.
+    public func packSuits(for node: MapNode) -> [String] {
+        if debugSingleSuitPacksOn() { return [debugPackSuit(for: node)] }
+        let endlessNode = node.suit == "★" || (node.phase ?? 0) >= phaseSuits.count || rules().altSuits
+        if endlessNode { return allSuits }
+        return [node.suit != nil && node.suit != "★" ? node.suit! : suitForNode(node)]
+    }
+
+    /// The suit ONE pack slot draws from — the grant rule `packSuits(for:)`
+    /// describes. Flag-off draws are byte-identical to before v6.57.
+    func packSlotSuit(_ node: MapNode, rng: RNG) -> String {
+        if debugSingleSuitPacksOn() { return debugPackSuit(for: node) }
+        let endlessNode = node.suit == "★" || (node.phase ?? 0) >= phaseSuits.count || rules().altSuits
+        return endlessNode ? allSuits[rng.index(allSuits.count)]
+            : ((node.suit != nil && node.suit != "★") ? node.suit! : suitForNode(node))
+    }
+
     /// PACK2 — DETERMINISTIC roll for ONE slot of a revealed +2 pack.
     func packSlotIdFor(_ node: MapNode, slot: Int) -> Int {
         let rng = RNG(seed: packSlotSeed(seed: runSeed, nodeId: node.id, slot: slot))
@@ -602,9 +648,7 @@ public final class CampaignState {
         // Only a Blank may lock (a `true` can only come from the pinned TEST hook).
         if special == false { return Self.specialBlank }
         let taken = reservedSet(except: nil)   // owned + all locks incl. this pack's earlier slot
-        let endlessNode = node.suit == "★" || (node.phase ?? 0) >= phaseSuits.count || rules().altSuits
-        let suit = endlessNode ? allSuits[rng.index(allSuits.count)]
-            : ((node.suit != nil && node.suit != "★") ? node.suit! : suitForNode(node))
+        let suit = packSlotSuit(node, rng: rng)
         let pool = idsOfSuit(suit).filter { !taken.contains($0) }
         if pool.isEmpty { return mintSuitCardId(suit, rank: nil, rng: rng) }
         return pool[rng.index(pool.count)]
@@ -903,10 +947,8 @@ public final class CampaignState {
             granted = pair
         } else {
             let rng = rrng(.s("pack"), .n(node.id))
-            let endlessNode = node.suit == "★" || (node.phase ?? 0) >= phaseSuits.count || rules().altSuits
             for _ in 0..<count {
-                let suit = endlessNode ? allSuits[rng.index(allSuits.count)]
-                    : ((node.suit != nil && node.suit != "★") ? node.suit! : suitForNode(node))
+                let suit = packSlotSuit(node, rng: rng)
                 let id = pickSuitDraftId(suit, rng: rng)
                 granted.append(id)
                 // Reserve IN THE LOOP (the web pushes ownedIds per slot) —
@@ -1479,6 +1521,11 @@ public final class CampaignState {
         return true
     }
 
+    /// SCREENSHOT HOOK (EventCaptureUITests' `-storeFreeRefresh 1`): arm the
+    /// Queen's Restock so the next `openStore` spends it through the real
+    /// consumption path. Debug/demo only — never called by play code.
+    public func debugGrantFreeRefresh() { freeRerollPending = true }
+
     /// (Re)open the store for a new visit: a fresh offer at base reroll cost.
     /// `node` stamps the offer's owner (defaults to the current position) so
     /// the store screen can tell a resume of THIS visit from a different shop.
@@ -1547,6 +1594,12 @@ public final class CampaignState {
         let slots: [StoreSlot?] = gifts.map { StoreSlot(kind: $0.kind.rawValue, id: $0.id) }
         storeOffer = StoreOffer(slots: slots, rerollCost: .infinity)   // never rerollable
         freeShopPending = true
+        // A rank-variant pillar in his coat locks its rank exactly like a
+        // shelf appearance would — the gift tile must show the REAL rank,
+        // never a raw "{rank}" template (v6.58, the thirsty-debt leak).
+        for slot in slots.compactMap({ $0 }) where slot.kind == "pillar" {
+            if let def = data.pillarTypes.get(slot.id) { lockPillarRankVariant(def) }
+        }
     }
 
     /// True while a gift shelf is the current offer — the store hides its

@@ -30,6 +30,10 @@ public final class GameEngine {
 
     /// The log entry in-flight cascade lines append to.
     var currentEntry: Int?
+    /// Debug logbook: WHAT TRIGGERED the item fire in flight (e.g.
+    /// "5♥ on 7♠ · pile 3 · higher"). Set at every action's entry, cleared at
+    /// its exit, cited by every ⚡ fire line `recT` writes (v6.55).
+    var fireContext: String?
 
     var listeners: [(EngineEvent) -> Void] = []
     /// Fail-silent telemetry hook (playtest balancing only — never affects play).
@@ -55,6 +59,70 @@ public final class GameEngine {
 
     func recT(_ klass: String, _ id: String, _ label: String, _ impacts: [String: Double]) {
         telemetry?(klass, id, label, impacts)
+        logFire(klass, label, impacts)
+    }
+
+    // MARK: - Probability feedback (v6.57)
+
+    /// Make an item's %-CHANCE roll and REPORT it: emits `.rollResult` (the
+    /// structured hit/miss the UI renders) and, on a miss, writes the logbook
+    /// line — a silent roll becomes a visible one. Consumes exactly ONE rng
+    /// draw, the same draw the inline `rng.next() < chance` it replaces made,
+    /// so web-trace parity holds. Call it ONLY where the roll genuinely
+    /// happens (a precondition that skips the roll must skip this too).
+    func rollChance(_ klass: String, _ id: String, _ label: String, _ chance: Double,
+                    index: Int? = nil, col: Int? = nil) -> Bool {
+        let hit = rng.next() < chance
+        emit(.rollResult(RollResult(id: id, label: label, klass: klass, chance: chance,
+                                    hit: hit, index: index, col: col)))
+        // The miss rides the same telemetry hook with a `missed` impact, so the
+        // balancing feed sees the rolls that did NOTHING too.
+        if !hit { telemetry?(klass, id, label, ["missed": 1]); logRollMiss(klass, label, chance) }
+        return hit
+    }
+
+    /// The miss line — logFire's shape, but there is no fire to itemize:
+    /// "⚡ Saboteur [sticker] — rolled, missed (10%) ↩ 5♥ on 7♠ · pile 3 · higher".
+    func logRollMiss(_ klass: String, _ label: String, _ chance: Double) {
+        let pct = jsNum(chance * 100)
+        let line = "⚡ \(label) [\(klass)] — rolled, missed (\(pct)% chance)"
+            + (fireContext.map { " ↩ \($0)" } ?? "")
+        if currentEntry != nil { logLine(line) } else { logAction(line) }
+    }
+
+    /// v6.55: EVERY item fire lands in the debug logbook through here — the
+    /// name, its EFFECT (read off the telemetry impacts), and WHAT TRIGGERED
+    /// it (`fireContext`). Debug-only: it rides `run.log`, which game logic
+    /// never reads, and drains into the DebugEventLog after every action.
+    /// Nested under the open action entry when there is one; standalone (with
+    /// the context carrying the "when") for the fires that precede it.
+    func logFire(_ klass: String, _ label: String, _ impacts: [String: Double]) {
+        var parts: [String] = []
+        for (k, v) in impacts.sorted(by: { $0.key < $1.key }) where v != 0 {
+            switch k {
+            case "coins":     parts.append("+\(jsNum(v)) coins")
+            case "coinsLost": parts.append("−\(jsNum(v)) coins")
+            case "peeks":     parts.append("peek \(Int(v))")
+            case "buried":    parts.append("buried \(Int(v))")
+            case "saves":     parts.append(v == 1 ? "save" : "\(Int(v)) saves")
+            case "shuffled":  parts.append("shuffled \(Int(v))")
+            case "moved":     parts.append("moved \(Int(v))")
+            case "applied":   parts.append(v > 1 ? "\(Int(v)) stickers applied" : "sticker applied")
+            case "hints":     parts.append("\(Int(v)) hint\(v == 1 ? "" : "s")")
+            case "kills":     parts.append("kill")
+            case "destroyed": parts.append("destroyed \(Int(v))")
+            case "purged":    parts.append("purged \(Int(v))")
+            case "revived":   parts.append("revived")
+            case "copies":    parts.append("copied \(Int(v))")
+            case "cards":     parts.append("\(Int(v)) cards")
+            case "recolored": parts.append("recolored \(Int(v))")
+            case "peeled":    parts.append("peeled \(Int(v))")
+            default:          parts.append("\(k) \(Int(v))")
+            }
+        }
+        let line = "⚡ \(label) [\(klass)] — " + (parts.isEmpty ? "fired (no effect)" : parts.joined(separator: ", "))
+            + (fireContext.map { " ↩ \($0)" } ?? "")
+        if currentEntry != nil { logLine(line) } else { logAction(line) }
     }
 
     // MARK: - Registry shortcuts
@@ -301,6 +369,7 @@ public final class GameEngine {
         run.samePowerVariant = samePowerVariant
         run.pillarRankVariants = pillarRankVariants
         currentEntry = nil
+        fireContext = nil
         // A shuffled COPY of the campaign deck — deterministic per seed.
         rng = RNG(seed: seed)
         deck = DeckManager.create(deckSpecs, rng: rng, data: data)
@@ -368,6 +437,20 @@ public final class GameEngine {
         // setup equip window. Only override when explicitly passed (engine tests
         // seed it via runConfig at create).
         if let sp = samePower { run.samePower = sp }
+        // GAMBLER: roll the deal-end coin flip ONCE per Gambler column, here at
+        // Start Run, and memoize it (run.gamblerFlips). Every later payout read
+        // — the mid-deal HUD projection AND the deal-cleared summary — shows
+        // the SAME result, and no read consumes the action-stream rng. A column
+        // JAMMED at Start Run (resolvePillarDef sees no pillar) rolls on its
+        // first payout read instead — the old behavior, confined to that edge.
+        if let pillars = run.pillars {
+            for c in 0..<pillars.count {
+                if let def = resolvePillarDef(c), def.effect == "gambler" {
+                    run.gamblerFlips?[c] = rollChance("pillar", def.id, def.label,
+                                                      def.num("chance", 0.5), col: c)
+                }
+            }
+        }
         let bound = (run.pillars ?? []).enumerated().compactMap { c, pid -> String? in
             guard let pid else { return nil }
             return "col \(c + 1)=\(pillarTypes.get(pid)?.label ?? pid)"
@@ -413,9 +496,13 @@ public final class GameEngine {
             run.tellDrawsLeft -= 1
             if run.tellDrawsLeft == 0 { run.whisperPiles.removeAll() }
         }
+        // Second Sight: this draw consumes one sighted hint.
+        if run.sightDrawsLeft > 0 { run.sightDrawsLeft -= 1 }
         // Kamikaze deck-reveal counts down one per draw.
         if run.kamikazeRevealLeft > 0 { run.kamikazeRevealLeft -= 1 }
         let pillar = pillarForPile(index)
+        // Debug logbook: the trigger every item fire this guess cites (v6.55).
+        fireContext = "\(cardName(drawn)) on \(cardName(current)) · pile \(index + 1) · \(g.rawValue)"
 
         // Strict comparisons: an equal rank only wins on a "same" guess.
         let isTie = drawn.value == current.value
@@ -466,7 +553,7 @@ public final class GameEngine {
         // Static: a ♠ landing correctly in this column has a `chance` of peeking
         // the next upcoming card. Set AFTER the reveal reset above so it persists.
         if let pillar, pillar.effect == "static", correct, matchesSuit(drawn, "♠"),
-           rng.next() < pillar.num("chance", 0.5) {
+           rollChance("pillar", pillar.id, pillar.label, pillar.num("chance", 0.5), index: index, col: col) {
             peekPillar(col, pillar)
         }
 
@@ -555,20 +642,23 @@ public final class GameEngine {
         // card blowing the pile anyway. The guess stays correct in the
         // tallies; the death bypasses every save (nothing malfunctions
         // politely). Rolled BEFORE the landing branch so the branch order
-        // stays legible.
-        let malfunctioned = correct && malfunctionTriggers(current: current)
+        // stays legible. The roll reports its HIT/MISS (v6.57).
+        let malfunctioned = correct && malfunctionTriggers(current: current, index: index, col: col)
 
         // JAMMER feedback: the landing pile's column has a pillar the curse
         // is holding down — say so once per guess (the gate itself lives in
         // resolvePillarDef, which returned nil for every read above).
         if columnJammed(col), let col, run.pillars?[safe: col] ?? nil != nil {
             emit(.pillarBlocked(col: col))
+            let jdef = stickerTypes.all().first { $0.behavior == "jammer" }
+            recT("sticker", jdef?.id ?? "jammer", jdef?.label ?? "Jammer", ["fires": 1])
         }
 
         if malfunctioned {
             board.push(index, drawn)
             curseTouch(index: index, current: current, drawn: drawn)
             board.kill(index)
+            run.lastLandedPile = nil                 // the landed top died with the pile
             let t = stickerTypes.all().first { $0.behavior == "malfunction" }
             logLine("MALFUNCTION: \(cardName(current)) blew the pile on a correct guess")
             recT("sticker", "malfunction", t?.label ?? "Malfunction", ["kills": 1])
@@ -577,6 +667,7 @@ public final class GameEngine {
             emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: false))
         } else if correct {
             board.push(index, drawn)
+            run.lastLandedPile = index               // Second Sight's display anchor
             curseTouch(index: index, current: current, drawn: drawn)
             // Scout: the placed card reveals the next deck card (display-only).
             if drawn.revealNext { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", ["peeks": 1]) }
@@ -623,7 +714,16 @@ public final class GameEngine {
             // SAME with a Joker involved and it counts as a fully correct Same.
             if g == .same {
                 sameCharge = true
-                fireSamePower(index)
+                if run.samePowerNeedsConsent, let sp = run.samePower,
+                   samePowerTypes.get(sp)?.effect == "linkShuffle" {
+                    // Consent mode (iOS, v6.55): the board-wide shuffle is the
+                    // player's call — park the fire until `answerPowerShuffle`.
+                    // The Same Charge banks either way (the call was correct).
+                    run.pendingPowerShuffle = index
+                    logLine("\(samePowerTypes.get(sp)?.label ?? "Link Shuffler") (Same-Power): parked for the player's confirm")
+                } else {
+                    fireSamePower(index)
+                }
                 emit(.sameBanked(index: index, sameCharge: sameCharge))
             }
         } else if let guardSave = findGuardSave(current, drawn) {
@@ -635,7 +735,8 @@ public final class GameEngine {
             let gdef = stickerTypes.all().first { $0.behavior == "suitImmunity" && $0.suit == guardSave.suit }
             recT("sticker", gdef?.id ?? "suitImmunity", gdef?.label ?? "Guard", ["saves": 1])
         } else if let pillar, pillar.effect == "secondWind", let col,
-                  { let saved = rng.next() < pillar.num("saveChance", 0.25)
+                  { let saved = rollChance("pillar", pillar.id, pillar.label,
+                                           pillar.num("saveChance", 0.25), index: index, col: col)
                     if !saved { secondWindMissCol = col }
                     return saved }() {
             // Second Wind: EVERY pile death in this column rolls `saveChance`
@@ -643,11 +744,28 @@ public final class GameEngine {
             // killing card are reshuffled back into the deck (no reveal) and
             // one fresh card is dealt as the new top. The used-flag stays
             // recorded for the trace/debug surface only — nothing gates on it.
-            if run.secondWindUsed != nil { run.secondWindUsed![col] = true }
-            reviveSecondWind(index, drawn)
-            firePillar(col, "secondWind", pillar.label, 0)
-            emit(.secondWind(index: index, guess: g, current: current))
-            recT("pillar", pillar.id, pillar.label, ["saves": 1, "revived": 1])
+            if run.secondWindNeedsConsent {
+                // Consent mode (iOS, v6.55): the roll HIT, but the save is now
+                // the player's call — park the exact state (the killing card is
+                // held out of the deck) until `answerSecondWind`. The turn's
+                // log entry closes below with the choice still open; the
+                // fire/decline lines land on the answer's own entry.
+                run.pendingSecondWind = PendingSecondWind(
+                    index: index, col: col, guess: g,
+                    killingCard: drawn, recycleCount: board.pileSize(index) + 1)
+                logLine("Second Wind: the save roll hit — parked for the player (saving recycles \(board.pileSize(index) + 1) cards into the deck)")
+                // v6.56 SEQUENCING: the draw visibly PRECEDES the save prompt.
+                // The killer came off the deck above; this offer event is the
+                // UI's cue to show that drawn card and the dying moment FIRST,
+                // then ask. No .resolved/.pileKilled yet — the pile's fate is
+                // undecided until `answerSecondWind` (which emits them).
+                emit(.secondWindOffer(index: index, col: col, guess: g,
+                                      current: current, drawn: drawn,
+                                      recycleCount: board.pileSize(index) + 1))
+            } else {
+                applySecondWindSave(index: index, col: col, pillar: pillar, g: g,
+                                    current: current, killingCard: drawn)
+            }
         } else if sameCharge {
             // Second Wind rolled and MISSED before this rescue — say so.
             if let mc = secondWindMissCol { emit(.secondWindMiss(index: index, col: mc)); secondWindMissCol = nil }
@@ -657,40 +775,30 @@ public final class GameEngine {
             // card LANDS normally and becomes the new pile card.
             sameCharge = false
             board.push(index, drawn)
-            // No curseTouch here (v6.52): the guess was WRONG — a saved pile
-            // does not make it a correct landing, and landing effects fire
-            // only on correct landings (the fatal-landing audit's rule).
+            run.lastLandedPile = index               // a SAVED landing is still a landing
+            // No curseTouch here (v6.52): the guess was WRONG, and CURSES fire
+            // only on correct landings (the fatal-landing audit's rule). But a
+            // SAVED landing is still a LANDING (v6.57): the card became the
+            // pile's new top, so its own beneficial landing stickers fire.
+            fireSavedLandingStickers(index: index, current: current, drawn: drawn, col: col)
             logLine("Same Charge consumed — pile saved (\(cardName(drawn)) landed on \(cardName(current)) as the new pile card)")
             emit(.sameSaved(index: index, guess: g, current: current, drawn: drawn, sameCharge: sameCharge))
+            // A saved landing can queue the same optional offers a correct one
+            // can (Shuffle / Donate) — surface them through the same path.
+            surfaceActionOffer()
         } else {
-            // Second Wind rolled and MISSED on the way to this death — say so.
-            if let mc = secondWindMissCol { emit(.secondWindMiss(index: index, col: mc)); secondWindMissCol = nil }
-            // Show the card that killed the pile as its (final) top, then kill it.
-            // No curseTouch (v6.52): a FATAL landing is not a correct landing —
-            // Spoiler and friends must not fire while the pile dies (the
-            // fatal-landing audit; Death Bounty below is the one deliberate
-            // on-death payout).
-            board.push(index, drawn)
-            board.kill(index)
-            emit(.pileKilled(index: index))
-            logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")
-            // Last Rites: a pile in this column just died — peek the next card.
-            if let pillar, pillar.effect == "lastRites" { peekPillar(col, pillar) }
-            // Death Bounty: the DRAWN (killing) card pays a consolation.
-            let db = drawn.stickers.filter { $0.type == "deathBounty" }.count
-            if db > 0 {
-                let t = stickerTypes.get("deathBounty")
-                let amt = Double(db) * (t?.value ?? 0)
-                addBonus("Last Coin", amt)
-                recT("sticker", "deathBounty", t?.label ?? "Last Coin", ["coins": amt])
-            }
-            emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: false))
+            applyPileDeath(index: index, g: g, current: current, drawn: drawn, col: col)
         }
 
         let net = run.bonusCoins - bonusBefore
         logLine("Coins this turn: \(net >= 0 ? "+" : "")\(jsNum(net)) → bonus tally \(jsNum(run.bonusCoins))")
         currentEntry = nil
-        evaluateEnd()
+        fireContext = nil
+        // A PARKED Second Wind defers end-of-deal evaluation to the answer:
+        // the killing card is held out of the deck, so `deck.isEmpty` would
+        // read one short and could call a premature win while the pile's fate
+        // is still the player's to decide (answerSecondWind re-evaluates).
+        if run.pendingSecondWind == nil { evaluateEnd() }
     }
 
     /// Suit Guard save — BIDIRECTIONAL and UNLIMITED. A guard rides a card and
@@ -713,9 +821,49 @@ public final class GameEngine {
         for c in removed { deck.returnCard(c) }      // random positions, never shown
         deck.returnCard(killingCard)                 // the card that would've killed it
         board.push(index, deck.draw())               // one new top (pile size = 1)
+        run.lastLandedPile = nil                     // dealt fresh, not landed
         // Scout: a freshly-dealt revive top is "placed" too.
         if let fresh = board.top(index), fresh.revealNext { run.revealNextActive = true }
         logLine("Second Wind: pile revived (1 fresh card); \(removed.count + 1) cards recycled into the deck (hidden)")
+    }
+
+    /// The Second Wind save itself — shared by the auto path (default, web
+    /// parity) and a consented accept.
+    func applySecondWindSave(index: Int, col: Int, pillar: ItemDef, g: Guess,
+                             current: LiveCard, killingCard: LiveCard) {
+        if run.secondWindUsed != nil { run.secondWindUsed![col] = true }
+        reviveSecondWind(index, killingCard)
+        firePillar(col, "secondWind", pillar.label, 0)
+        emit(.secondWind(index: index, guess: g, current: current))
+        recT("pillar", pillar.id, pillar.label, ["saves": 1, "revived": 1])
+    }
+
+    /// The fatal landing — shared by the inline death branch and a DECLINED
+    /// Second Wind choice (the death the parked save interrupted, run late).
+    func applyPileDeath(index: Int, g: Guess, current: LiveCard, drawn: LiveCard, col: Int?) {
+        // Second Wind rolled and MISSED on the way to this death — say so.
+        if let mc = secondWindMissCol { emit(.secondWindMiss(index: index, col: mc)); secondWindMissCol = nil }
+        // Show the card that killed the pile as its (final) top, then kill it.
+        // No curseTouch (v6.52): a FATAL landing is not a correct landing —
+        // Spoiler and friends must not fire while the pile dies (the
+        // fatal-landing audit; Death Bounty below is the one deliberate
+        // on-death payout).
+        board.push(index, drawn)
+        board.kill(index)
+        run.lastLandedPile = nil                     // the landed top died with the pile
+        emit(.pileKilled(index: index))
+        logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")
+        // Last Rites: a pile in this column just died — peek the next card.
+        if let pillar = resolvePillarDef(col), pillar.effect == "lastRites" { peekPillar(col, pillar) }
+        // Death Bounty: the DRAWN (killing) card pays a consolation.
+        let db = drawn.stickers.filter { $0.type == "deathBounty" }.count
+        if db > 0 {
+            let t = stickerTypes.get("deathBounty")
+            let amt = Double(db) * (t?.value ?? 0)
+            addBonus("Last Coin", amt)
+            recT("sticker", "deathBounty", t?.label ?? "Last Coin", ["coins": amt])
+        }
+        emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: false))
     }
 
     /// FIRST-RUN TUTORIAL: rearrange the freshly-dealt opening so pile 0's
@@ -791,11 +939,14 @@ public final class GameEngine {
     public func answerAction(_ accept: Bool) {
         guard let run, !run.pendingActions.isEmpty else { return }
         let a = run.pendingActions.removeFirst()
+        fireContext = "\(a.kind) offer · pile \(a.index + 1) · \(accept ? "accepted" : "declined")"
         logBegin((a.kind == "shuffle" ? "Shuffle" : "Donate") + (accept ? " — accepted" : " — declined"))
         if accept {
             if a.kind == "shuffle" {
                 board.shufflePile(a.index, rng)
                 logLine("pile \(a.index + 1) shuffled (order hidden)")
+                let sdef = stickerTypes.get("shuffle")
+                recT("sticker", "shuffle", sdef?.label ?? "Shuffle", ["shuffled": 1])
             } else if a.kind == "donate", let target = a.target,
                       board.isActive(a.index), board.isActive(target) {
                 let dn = stickerTypes.get("donate")?.int("count", 1) ?? 1
@@ -807,6 +958,7 @@ public final class GameEngine {
             }
         }
         currentEntry = nil
+        fireContext = nil
         emit(.actionResolved(kind: a.kind, index: a.index, target: a.target, accepted: accept))
         surfaceActionOffer()
     }
@@ -817,6 +969,7 @@ public final class GameEngine {
     public func answerTribute(_ accept: Bool) {
         guard let run, !run.pendingTributes.isEmpty else { return }
         let offer = run.pendingTributes.removeFirst()
+        fireContext = "\(offer.label) bury offer · pile \(offer.index + 1) · \(accept ? "accepted" : "declined")"
         logBegin((offer.label.isEmpty ? "Bury" : offer.label) + (accept ? " — accepted" : " — declined"))
         if accept {
             let buried = buryTribute(offer.index, offer.count, offer.label)
@@ -828,6 +981,7 @@ public final class GameEngine {
             logLine("Bury declined — no cards buried, no charge")
         }
         currentEntry = nil
+        fireContext = nil
         emit(.tributeResolved(index: offer.index, accepted: accept))
         // Chain the next queued offer (e.g. a card carrying two paid stickers).
         if let next = run.pendingTributes.first {
@@ -835,6 +989,51 @@ public final class GameEngine {
         } else {
             surfaceActionOffer()
         }
+    }
+
+    /// Resolve a consent-mode Second Wind (v6.55): the roll had ALREADY hit
+    /// when the choice was parked — `save` applies it (the pile's cards and
+    /// the held killing card recycle into the deck, one fresh top is dealt),
+    /// `!save` lets the pile die the death the roll interrupted. The pile is
+    /// untouched while parked, so its top is still the guess's `current`.
+    /// A no-op with nothing pending.
+    public func answerSecondWind(_ save: Bool) {
+        guard let run, let pending = run.pendingSecondWind else { return }
+        run.pendingSecondWind = nil
+        fireContext = "Second Wind save roll · pile \(pending.index + 1) · \(save ? "saved" : "declined")"
+        logBegin("Second Wind — " + (save ? "saved" : "declined"))
+        if save, let pillar = resolvePillarDef(pending.col), pillar.effect == "secondWind",
+           board.isActive(pending.index), let current = board.top(pending.index) {
+            applySecondWindSave(index: pending.index, col: pending.col, pillar: pillar,
+                                g: pending.guess, current: current, killingCard: pending.killingCard)
+        } else if !save, board.isActive(pending.index), let current = board.top(pending.index) {
+            logLine("the player let the pile die (\(pending.recycleCount) cards stay out of the deck)")
+            applyPileDeath(index: pending.index, g: pending.guess, current: current,
+                           drawn: pending.killingCard, col: pending.col)
+        }
+        // (If the board somehow moved on while parked, the choice just lapses —
+        // the held card stays out of play rather than resurrecting a dead pile.)
+        currentEntry = nil
+        fireContext = nil
+        // The recycle DRAWS a card (the win check) and a declined save kills
+        // the pile (the loss check) — end-of-deal evaluation belongs here now.
+        evaluateEnd()
+    }
+
+    /// Resolve a consent-mode Link Shuffler (v6.55): confirm fires the equipped
+    /// power on the parked hub (its own recT/log lines nest under this entry);
+    /// decline skips the shuffle — the Same Charge the call banked stays banked.
+    /// A no-op with nothing pending.
+    public func answerPowerShuffle(_ accept: Bool) {
+        guard let run, let hub = run.pendingPowerShuffle else { return }
+        run.pendingPowerShuffle = nil
+        let label = run.samePower.flatMap { samePowerTypes.get($0)?.label } ?? "Link Shuffler"
+        fireContext = "\(label) confirm · pile \(hub + 1) · \(accept ? "confirmed" : "declined")"
+        logBegin("\(label) — " + (accept ? "confirmed" : "declined"))
+        if !accept { logLine("the piles keep their order") }
+        if accept { fireSamePower(hub) }
+        currentEntry = nil
+        fireContext = nil
     }
 
     // MARK: - Public reads (the renderer's window into the run)
@@ -871,7 +1070,8 @@ public final class GameEngine {
         // pile and `tellDrawsLeft` only decides how many draws that pile keeps
         // hinting for — it never lights the rest of the board.
         guard run.tellPiles.contains(index)
-                || (run.tellDrawsLeft > 0 && run.whisperPiles.contains(index)) else { return nil }
+                || (run.tellDrawsLeft > 0 && run.whisperPiles.contains(index))
+                || (run.sightDrawsLeft > 0 && run.lastLandedPile == index) else { return nil }
         guard let deck, !deck.isEmpty, board.isActive(index) else { return nil }
         guard let top = board.top(index), let next = deck.peek(1).first else { return nil }
         // A Joker pile can never be called wrong — its hint is always SAME

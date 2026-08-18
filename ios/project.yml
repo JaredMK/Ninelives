@@ -30,7 +30,12 @@ targets:
     platform: iOS
     sources:
       - path: GameCore
+        # Stale Finder-duplicate scratch copies ("Foo 2.swift", gitignored as
+        # `* [0-9].*`) — xcodegen's glob would otherwise compile them and the
+        # duplicate declarations break the build.
+        excludes: ["**/* [0-9].*"]
       - path: Data
+        excludes: ["**/* [0-9].*"]
       - path: Resources
         buildPhase: resources
     info:
@@ -59,9 +64,11 @@ targets:
     platform: iOS
     sources:
       - path: App
-        excludes: ["GameCore-Info.plist", "Info.plist"]
+        excludes: ["GameCore-Info.plist", "Info.plist", "**/* [0-9].*"]
       - path: Rendering
+        excludes: ["**/* [0-9].*"]
       - path: UI
+        excludes: ["**/* [0-9].*"]
       # VT323 + Press Start 2P, unwrapped from the web's .woff2 by
       # Tools/convert-fonts.py and registered through UIAppFonts below.
       - path: Assets
@@ -125,7 +132,9 @@ targets:
   ShouldaSaidSameUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [UITests]
+    sources:
+      - path: UITests
+        excludes: ["**/* [0-9].*"]
     dependencies:
       - target: ShouldaSaidSame
     settings:
@@ -141,6 +150,7 @@ targets:
     platform: iOS
     sources:
       - path: Tests
+        excludes: ["**/* [0-9].*"]
       - path: Fixtures
         buildPhase: resources
     dependencies:

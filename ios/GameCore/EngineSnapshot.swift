@@ -74,6 +74,9 @@ extension GameEngine {
             "reviveUsed": boolArr(r.reviveUsed),
             "colStreak": intArr(r.colStreak),
             "secondWindUsed": boolArr(r.secondWindUsed),
+            "gamblerFlips": r.gamblerFlips.map { flips in
+                .object(flips.reduce(into: [:]) { $0["\($1.key)"] = .bool($1.value) })
+            } ?? .null,
             "kamikazeRevealLeft": .number(Double(r.kamikazeRevealLeft)),
             "bonusCoins": .number(r.bonusCoins),
             "bonusEvents": .array(r.bonusEvents.pairs.map {
@@ -83,6 +86,8 @@ extension GameEngine {
             "tellPiles": .array(r.tellPiles.sorted().map { .number(Double($0)) }),
             "whisperPiles": .array(r.whisperPiles.sorted().map { .number(Double($0)) }),
             "tellDrawsLeft": .number(Double(r.tellDrawsLeft)),
+            "sightDrawsLeft": .number(Double(r.sightDrawsLeft)),
+            "lastLandedPile": r.lastLandedPile.map { .number(Double($0)) } ?? .null,
             "compoundUpdates": .object(r.compoundUpdates.reduce(into: [:]) { $0["\($1.key)"] = .number(Double($1.value)) }),
             "snowballUpdates": .object(r.snowballUpdates.reduce(into: [:]) { $0["\($1.key)"] = .number(Double($1.value)) }),
             "stickerPeels": .object(r.stickerPeels.reduce(into: [:]) { $0["\($1.key)"] = .number(Double($1.value)) }),
@@ -103,6 +108,21 @@ extension GameEngine {
         if let pr = r.pendingRipple {
             rd["pendingRipple"] = .object(["piles": .array(pr.piles.map { .number(Double($0)) }),
                                            "col": pr.col.map { .number(Double($0)) } ?? .null])
+        }
+        // v6.55 consent pendings: a kill with a choice still open must resume
+        // INTO the prompt. The Second Wind killing card lives ONLY here while
+        // parked (not in the deck, not on a pile), so it rides the blob as a
+        // full card record; the pile's top is still the guess's `current`.
+        if let sw = r.pendingSecondWind {
+            rd["pendingSecondWind"] = .object([
+                "index": .number(Double(sw.index)), "col": .number(Double(sw.col)),
+                "guess": .string(sw.guess.rawValue),
+                "recycleCount": .number(Double(sw.recycleCount)),
+                "killing": card(sw.killingCard),
+            ])
+        }
+        if let ps = r.pendingPowerShuffle {
+            rd["pendingPowerShuffle"] = .number(Double(ps))
         }
         out["run"] = .object(rd)
         return out
@@ -183,6 +203,14 @@ extension GameEngine {
                 if let k = Int(kv.key), let n = kv.value.asNumber { out[k] = Int(n) }
             }
         }
+        /// column → flip-won for Gambler memos; nil when the blob says null
+        /// (column-agnostic run), like the `ints`/`bools` helpers.
+        func boolDict(_ v: JSONValue?) -> [Int: Bool]? {
+            guard let o = v?.asObject else { return nil }
+            return o.reduce(into: [:]) { out, kv in
+                if let k = Int(kv.key), let b = kv.value.asBool { out[k] = b }
+            }
+        }
 
         let r: RunState = run
         r.phase = rd["phase"]?.asString ?? "active"
@@ -206,6 +234,7 @@ extension GameEngine {
         r.reviveUsed = bools(rd["reviveUsed"])
         r.colStreak = ints(rd["colStreak"])
         r.secondWindUsed = bools(rd["secondWindUsed"])
+        r.gamblerFlips = boolDict(rd["gamblerFlips"])
         r.kamikazeRevealLeft = Int(rd["kamikazeRevealLeft"]?.asNumber ?? 0)
         r.bonusCoins = rd["bonusCoins"]?.asNumber ?? 0
         r.bonusEvents = OrderedTally()
@@ -218,6 +247,8 @@ extension GameEngine {
         r.tellPiles = Set(ints(rd["tellPiles"]) ?? [])
         r.whisperPiles = Set(ints(rd["whisperPiles"]) ?? [])
         r.tellDrawsLeft = Int(rd["tellDrawsLeft"]?.asNumber ?? 0)
+        r.sightDrawsLeft = Int(rd["sightDrawsLeft"]?.asNumber ?? 0)
+        r.lastLandedPile = rd["lastLandedPile"]?.asNumber.map { Int($0) }
         r.compoundUpdates = intDict(rd["compoundUpdates"])
         r.snowballUpdates = intDict(rd["snowballUpdates"])
         r.stickerPeels = intDict(rd["stickerPeels"])
@@ -239,6 +270,17 @@ extension GameEngine {
         if let pr = rd["pendingRipple"]?.asObject, let ps = pr["piles"]?.asArray {
             r.pendingRipple = (piles: ps.compactMap { $0.asNumber.map(Int.init) },
                                col: pr["col"]?.asNumber.map(Int.init))
+        }
+        if let sw = rd["pendingSecondWind"]?.asObject, let i = sw["index"]?.asNumber,
+           let kc = sw["killing"].flatMap({ card($0) }) {
+            r.pendingSecondWind = PendingSecondWind(
+                index: Int(i), col: Int(sw["col"]?.asNumber ?? 0),
+                guess: Guess(rawValue: sw["guess"]?.asString ?? "") ?? .higher,
+                killingCard: kc,
+                recycleCount: Int(sw["recycleCount"]?.asNumber ?? 0))
+        }
+        if let ps = rd["pendingPowerShuffle"]?.asNumber {
+            r.pendingPowerShuffle = Int(ps)
         }
         return true
     }

@@ -144,9 +144,45 @@ public final class DeckInspectViewController: UIViewController {
         // recognizer's business.
         guard let v = g.view else { return }
         if let hit = v.hitTest(g.location(in: v), with: nil),
-           helpCards[ObjectIdentifier(hit)] != nil { return }
+           helpCards[ObjectIdentifier(hit)] != nil || helpItems[ObjectIdentifier(hit)] != nil { return }
         helpPanel.isHidden = true
         helpShownCardId = nil
+        helpShownItemKey = nil
+    }
+
+    /// Equipped items answer the SAME tap/hold idiom as the cards (v6.56):
+    /// tap sticks/toggles, hold peeks. Copy is the registry description —
+    /// never hand-written here.
+    @objc private func itemHeld(_ g: UILongPressGestureRecognizer) {
+        switch g.state {
+        case .began:
+            guard let iv = g.view, let item = helpItems[ObjectIdentifier(iv)] else { return }
+            showItemHelp(item)
+        case .ended, .cancelled, .failed:
+            helpPanel.isHidden = true
+            helpShownItemKey = nil
+        default: break
+        }
+    }
+
+    @objc private func itemTapped(_ g: UITapGestureRecognizer) {
+        guard let iv = g.view, let item = helpItems[ObjectIdentifier(iv)] else { return }
+        if helpShownItemKey == item.key, !helpPanel.isHidden {
+            helpPanel.isHidden = true
+            helpShownItemKey = nil
+        } else {
+            showItemHelp(item)
+        }
+    }
+
+    private func showItemHelp(_ item: (key: String, label: String, desc: String)) {
+        helpTitle.attributedText = CRTKit.attributed(item.label, size: 14,
+                                                     color: CRT.gold, display: true)
+        helpBody.attributedText = CRTKit.attributed(item.desc, size: 14, color: CRT.cardFace)
+        helpPanel.isHidden = false
+        helpShownCardId = nil
+        helpShownItemKey = item.key
+        view.setNeedsLayout()
     }
 
     private func showHelp(for c: CardSpec) {
@@ -177,13 +213,19 @@ public final class DeckInspectViewController: UIViewController {
         helpBody.attributedText = body
         helpPanel.isHidden = false
         helpShownCardId = c.id
+        helpShownItemKey = nil
         view.setNeedsLayout()
     }
 
     /// Card lookup for the tap/hold recognizers (views don't carry models).
     private var helpCards: [ObjectIdentifier: CardSpec] = [:]
+    /// Equipped-item lookup for the same recognizers (v6.56): kind:id is the
+    /// toggle key, label + registry description are the help copy.
+    private var helpItems: [ObjectIdentifier: (key: String, label: String, desc: String)] = [:]
     /// The card whose TAP-opened help is currently up (nil = none).
     private var helpShownCardId: Int?
+    /// The equipped item whose TAP-opened help is currently up (nil = none).
+    private var helpShownItemKey: String?
 
     private func build() {
         let deck = campaign.getRunDeck().sorted { a, b in
@@ -261,6 +303,7 @@ public final class DeckInspectViewController: UIViewController {
         let stkMax = 6
         let pitch = (ch - 7) + 8
         helpCards.removeAll()
+        helpItems.removeAll()
         for (i, c) in deck.enumerated() {
             let row = i / cols, col = i % cols
             let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
@@ -317,6 +360,8 @@ public final class DeckInspectViewController: UIViewController {
         }
         /// One family-shaped cell: the item's own art (its silhouette IS the
         /// shape) or a dashed outline of the family size when the slot is empty.
+        /// A filled cell answers tap OR hold with the item's registry help
+        /// (v6.56) — the same idiom the cards above use.
         func shapeCell(kind: String, id: String?, x: CGFloat, artSize: CGSize, rowH: CGFloat) {
             let ax = x + (eqW - artSize.width) / 2
             if let id, let def = (kind == "pillar" ? GameData.shared.pillarTypes.get(id)
@@ -327,6 +372,19 @@ public final class DeckInspectViewController: UIViewController {
                 art.contentMode = .scaleAspectFit
                 art.layer.magnificationFilter = .nearest
                 art.frame = CGRect(x: ax, y: y, width: artSize.width, height: artSize.height)
+                art.isUserInteractionEnabled = true
+                helpItems[ObjectIdentifier(art)] = (key: "\(kind):\(id)",
+                                                    label: def.label,
+                                                    desc: campaign.itemDescription(def))
+                let hold = UILongPressGestureRecognizer(target: self, action: #selector(itemHeld(_:)))
+                hold.minimumPressDuration = 0.4
+                art.addGestureRecognizer(hold)
+                art.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(itemTapped(_:))))
+                art.isAccessibilityElement = true
+                art.accessibilityTraits = .button
+                art.accessibilityIdentifier = "deckItem-\(kind)-\(id)"
+                art.accessibilityLabel = def.label
+                art.accessibilityHint = "Tap or hold for help"
                 content.addSubview(art)
                 let name = CRTKit.label(def.label, size: 14, color: CRT.cardFace)
                 name.textAlignment = .center
@@ -353,23 +411,28 @@ public final class DeckInspectViewController: UIViewController {
             _ = rowH
         }
         rowCaption("PILLARS")
+        // Icon scale (v6.56): the old 42×52/64×34/44×44 read as smudges.
+        // These match how items read elsewhere — the shelf's per-kind caps
+        // (pillar 100 tall, base 46, Same-Power 84) and the result well's
+        // 64pt item tile — sized to the ~112pt cell so the silhouette and
+        // glyph are legible at a glance without crowding the name line.
         for c in 0..<3 {
             shapeCell(kind: "pillar", id: campaign.columnPillar(c),
                       x: 16 + CGFloat(c) * (eqW + eqGap),
-                      artSize: CGSize(width: 42, height: 52), rowH: 70)
+                      artSize: CGSize(width: 56, height: 70), rowH: 88)
         }
-        y += 52 + 18 + 8
+        y += 70 + 18 + 8
         rowCaption("BASES")
         for c in 0..<3 {
             shapeCell(kind: "base", id: campaign.columnBase(c),
                       x: 16 + CGFloat(c) * (eqW + eqGap),
-                      artSize: CGSize(width: 64, height: 34), rowH: 52)
+                      artSize: CGSize(width: 88, height: 46), rowH: 64)
         }
-        y += 34 + 18 + 8
+        y += 46 + 18 + 8
         rowCaption("SAME POWER")
         shapeCell(kind: "samepower", id: campaign.getSamePower(), x: 16,
-                  artSize: CGSize(width: 44, height: 44), rowH: 62)
-        y += 44 + 18 + 32
+                  artSize: CGSize(width: 60, height: 60), rowH: 78)
+        y += 60 + 18 + 32
 
         content.frame = CGRect(x: 0, y: 0, width: w, height: y)
         scroll.contentSize = CGSize(width: w, height: y)

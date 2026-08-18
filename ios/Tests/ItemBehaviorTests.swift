@@ -602,7 +602,38 @@ final class ItemBehaviorTests: XCTestCase {
         }
         XCTAssertEqual(Set(res2.targets), Set(redTops),
                        "Second Sight counts exactly the red-topped alive piles")
-        XCTAssertEqual(e2.run.tellDrawsLeft, redTops.count)
+        // v6.58: Second Sight rides its own window — the count still comes
+        // from the red-topped piles, but the DISPLAY anchors to the most
+        // recently landed top card, not the counted set.
+        XCTAssertEqual(e2.run.sightDrawsLeft, redTops.count)
+        XCTAssertEqual(e2.run.tellDrawsLeft, 0, "Second Sight no longer rides the whisper window")
+    }
+
+    /// SECOND SIGHT (v6.58): during the window the hint shows ONLY on the
+    /// pile that most recently landed a living top card — a correct landing
+    /// moves the hint, a fatal landing clears it, and no other pile ever
+    /// hints (the batch-4 "tell shows on every pile" bug).
+    func testSecondSightHintsOnlyOnLastLandedPile() {
+        let e = IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♥")],
+                          deckOrder: [IV.spec(50, 9), IV.spec(51, 3), IV.spec(52, 12), IV.spec(53, 4)],
+                          samePower: "linkTell", samePowerVariant: "red")
+        e.debugFireSamePower(0)
+        XCTAssertEqual(e.run.sightDrawsLeft, 3, "three red tops bought three sighted draws")
+        XCTAssertNil(e.run.lastLandedPile, "nothing has landed yet — nowhere to hint")
+        XCTAssertTrue((0..<3).allSatisfy { e.pileHint($0) == nil },
+                      "the window alone lights NO pile")
+        e.guess(0, .higher)                       // 9 on 5 — lands correctly
+        XCTAssertEqual(e.run.lastLandedPile, 0)
+        XCTAssertNotNil(e.pileHint(0), "the just-landed pile hints")
+        XCTAssertNil(e.pileHint(1), "no other pile hints")
+        XCTAssertNil(e.pileHint(2), "no other pile hints")
+        e.guess(1, .higher)                       // 3 on 8 — fatal
+        XCTAssertNil(e.run.lastLandedPile, "the landed top died with its pile")
+        XCTAssertTrue((0..<3).allSatisfy { e.pileHint($0) == nil },
+                      "a death shows no hint anywhere")
+        e.guess(2, .higher)                       // 12 on 6 — lands correctly
+        XCTAssertEqual(e.run.lastLandedPile, 2)
+        XCTAssertNil(e.pileHint(2), "the window (3 draws) is spent — no hint")
     }
 
     /// THE SIX SHOP ITEMS (router batch 3). Bulk Rate flattens the Purge

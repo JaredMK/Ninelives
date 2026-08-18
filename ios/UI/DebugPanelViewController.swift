@@ -9,7 +9,8 @@ import GameCore
 /// Sections, all riding EXISTING campaign/engine mutators so the normal save
 /// path keeps working (debug coins/grants persisting is desired):
 ///   DEAL     — seed + next-draw display, peek 6, force-next-card rank grid,
-///              deck → 1, WIN NOW / LOSE NOW, autopilot + fps toggles
+///              deck → 1, WIN NOW / LOSE NOW, autopilot + fps toggles,
+///              1-suit packs variant (v6.57)
 ///              (greyed out when no deal is live)
 ///   ECONOMY  — +10 / +50 / +100 coins
 ///   DECK     — +1 / +5 / +10 random cards, or one exact suit+rank pick
@@ -290,6 +291,22 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
                 guard let self else { return }
                 self.flow.setDebugFPS(!self.flow.debugFPSOn())
                 self.note("fps hud \(self.flow.debugFPSOn() ? "on" : "off")")
+                self.build()
+            },
+        ], height: 32)
+        // v6.57 — the single-suit-pack variant: every pack on the route grants
+        // ONE seeded suit per node and the map badge shows that suit. Persisted
+        // (ninelives.pref.debugSingleSuitPacks); the map picks it up on its next
+        // render, packs already revealed/committed keep their cards.
+        buttonRow([
+            Btn("1-suit packs: \(flow.campaign.debugSingleSuitPacksOn() ? "on" : "off")",
+                role: flow.campaign.debugSingleSuitPacksOn() ? .charged : .plain) { [weak self] in
+                guard let self else { return }
+                let c = self.flow.campaign
+                c.setDebugSingleSuitPacks(!c.debugSingleSuitPacksOn())
+                self.note(c.debugSingleSuitPacksOn()
+                    ? "1-suit packs on; each pack's suit shows on its map node"
+                    : "1-suit packs off")
                 self.build()
             },
         ], height: 32)

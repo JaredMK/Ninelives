@@ -511,16 +511,26 @@ enum IVBases {
                         XCTAssertTrue(e.board.top(0)!.stickers.isEmpty, "\(c): the card is bare")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-bareCardBuriesNothing", allowed: .all,
+                // v6.58 gate: a column with no stickered top card idles amber —
+                // the charge is neither green nor spendable.
+                IV.Scenario("mustNotFire-bareColumnIdles", allowed: [],
                     build: { baseEngine(def) },
                     fire: { e in
-                        let r = e.baseActivate(col: 0, targetIndex: 0)
-                        XCTAssertEqual(r?.harvested, 0, "nothing to harvest")
-                        XCTAssertEqual(r?.buried, 0, "nothing buried")
+                        XCTAssertFalse(e.baseAvailable(0), "no stickered top in the column: idle, not ready")
+                        XCTAssertNil(e.baseActivate(col: 0, targetIndex: 0), "cannot fire on a bare column")
                     },
-                    expect: { _, _, _ in }),
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): charge kept") }),
+                IV.Scenario("mustNotFire-otherColumnStickerDoesNotArm", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"),
+                                                    IV.spec(3, 6, "♣", ["tell"])]) },
+                    fire: { e in
+                        XCTAssertFalse(e.baseAvailable(0), "a sticker in ANOTHER column does not arm it")
+                        XCTAssertNil(e.baseActivate(col: 0, targetIndex: 0))
+                    },
+                    expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): charge kept") }),
                 IV.Scenario("mustNotFire-needsTarget", allowed: [],
-                    build: { baseEngine(def) },
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠", ["tell"]),
+                                                    IV.spec(2, 8, "♥"), IV.spec(3, 6)]) },
                     fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no target given") },
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
             ]
@@ -731,6 +741,7 @@ enum IVBases {
                                                 f.pileCounts.reduce(0, +) + 1, "\(c): buried somewhere")
                 case "samePeek", "linkTell":
                     XCTAssertTrue(e.run.revealNextActive || e.run.tellDrawsLeft > 0
+                                    || e.run.sightDrawsLeft > 0
                                     || !(e.run.whisperPiles.isEmpty), "\(c): a hint armed")
                 default:
                     break   // structural: the result event is the contract

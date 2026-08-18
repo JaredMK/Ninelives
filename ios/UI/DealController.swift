@@ -97,6 +97,9 @@ public final class DealController {
     /// Cards LANDED this deal, per suit — the suit unlock counters read this.
     /// A LANDING is what counts, not a draw: the card has to reach a pile.
     private var suitsLanded: [String: Int] = [:]
+    /// Deal-end scoring rolls (Gambler's flip) already floated this deal — the
+    //  payout is re-read several times at deal end and each read re-rolls.
+    private var dealEndRollsShown = Set<String>()
 
     /// Debug-launcher entry (owns a throwaway campaign).
     public init(setup: Setup, scene: DealScene) {
@@ -162,6 +165,72 @@ public final class DealController {
     /// "still out there" counts, so a full bar and a held-back card look the
     /// same. (The gold count plaque keeps showing this deal's real draws left —
     /// that number is the draw pile, not the deck.)
+    // MARK: - External deck mutations (the histogram invalidation hook)
+
+    /// Live-card twins of the boot-time `suitTotals`/`rankTotals` (CardSpec
+    /// helpers) — the composition of the deal AS IT STANDS (draw pile + every
+    /// pile's cards, buried and dead included: they never leave the deal).
+    private func liveSuitTotals(_ cards: [LiveCard]) -> [String: Int] {
+        var t: [String: Int] = [:]
+        for c in cards where !c.joker && !c.blank { t[c.suit, default: 0] += 1 }
+        return t
+    }
+    private func liveRankTotals(_ cards: [LiveCard]) -> [Int: Int] {
+        var t: [Int: Int] = [:]
+        for c in cards where !c.blank { t[c.joker ? 0 : c.value, default: 0] += 1 }
+        return t
+    }
+
+    /// Re-derive the band's cached composition after the campaign deck was
+    /// mutated UNDER this deal — an inventory suit sticker (changeSuitTo /
+    /// changeSuitRandom) applied from a picker the flow presents over the
+    /// deal screen. The web repaints its always-on strip the moment the swap
+    /// lands ("the swap changed the deck composition → refresh the histogram
+    /// now", index.html:30186); here the band repaints only on engine actions,
+    /// so an external apply left the suit counts stale until the next guess.
+    ///
+    /// The new suit writes through to every live card the deal still holds
+    /// (LiveCards are references, so the deck's `remainingSuitCounts` agrees),
+    /// then the cached totals re-derive — a subset deal still folds up to the
+    /// whole run deck (computeSittingOut's rule). Engine-side suit changes
+    /// (a Base's setSuit) already write the campaign first, so the diff is a
+    /// no-op on every ordinary refresh.
+    private func revalidateComposition() {
+        guard let engine, engine.board != nil else { return }
+        let specs = Dictionary(uniqueKeysWithValues: campaign.getRunDeck().map { ($0.id, $0) })
+        let liveCards = engine.deck.peekAll() + engine.board.piles.flatMap(\.cards)
+        for card in liveCards {
+            guard let spec = specs[card.id], !card.joker, spec.suit != card.suit else { continue }
+            card.suit = spec.suit
+            card.red = DeckManager.suits.first { $0.symbol == spec.suit }?.red ?? card.red
+        }
+        let liveSuit = liveSuitTotals(liveCards)
+        let liveRank = liveRankTotals(liveCards)
+        if isCampaign, let p = plan, p.subsetIds != nil {
+            let fullSuit = suitTotals(campaign.getRunDeck())
+            let fullRank = rankTotals(campaign.getRunDeck())
+            for (k, v) in fullSuit { sittingOutSuit[k] = max(0, v - (liveSuit[k] ?? 0)) }
+            for (k, v) in fullRank { sittingOutRank[k] = max(0, v - (liveRank[k] ?? 0)) }
+            dealSuitTotals = fullSuit
+            dealRankTotals = fullRank
+        } else {
+            sittingOutSuit = [:]
+            sittingOutRank = [:]
+            dealSuitTotals = liveSuit
+            dealRankTotals = liveRank
+        }
+    }
+
+    /// The histogram invalidation hook (v6.57): call the MOMENT an external
+    /// path mutates the deck's composition (a suit sticker applied from
+    /// inventory) so the band's counts refresh immediately, not on the next
+    /// engine action. refreshHUD also revalidates on every campaign refresh,
+    /// so any later repaint self-heals too.
+    public func noteDeckCompositionChanged() {
+        revalidateComposition()
+        refreshAll()
+    }
+
     private func computeSittingOut(plan p: DealPlan) {
         sittingOutRank = [:]
         sittingOutSuit = [:]
@@ -175,31 +244,47 @@ public final class DealController {
     }
 
     private func bootDebug(_ setup: Setup) {
-        let layout = CampaignLayout.layoutForPiles(setup.pileCount, pillars: setup.pillars)
+        // SCREENSHOT HOOKS (EventCaptureUITests, v6.55): `-dealPillar <id>`
+        // pins the debug deal's column-0 Pillar and `-dealSamePower <id>` its
+        // equipped Same-Power — consent-prompt states (Second Wind, Link
+        // Shuffler) that simctl can't reach through the launcher's dials.
+        // `-dealBase <id>` (v6.57) does the same for the column-0 Base (the
+        // coin-pop evidence fires a real paying Base).
+        let d = UserDefaults.standard
+        var pillars = setup.pillars
+        if let pid = d.string(forKey: "dealPillar"), !pillars.isEmpty { pillars[0] = pid }
+        var bases = setup.bases
+        if let bid = d.string(forKey: "dealBase"), !bases.isEmpty { bases[0] = bid }
+        debugBases = bases
+        let samePower = d.string(forKey: "dealSamePower") ?? setup.samePower
+        let layout = CampaignLayout.layoutForPiles(setup.pileCount, pillars: pillars)
         let specs = debugDeck(setup)
         dealSuitTotals = suitTotals(specs)
         dealRankTotals = rankTotals(specs)
         sittingOutRank = [:]
         sittingOutSuit = [:]
+        dealEndRollsShown = []
         engine = GameEngine(
             deckSpecs: specs,
             pileCount: layout.piles,
             runConfig: RunConfig(cols: layout.cols,
                                  sameCharge: setup.sameCharge,
-                                 samePower: setup.samePower,
-                                 samePowerVariant: campaign.samePowerVariant(setup.samePower),
+                                 samePower: samePower,
+                                 samePowerVariant: campaign.samePowerVariant(samePower),
                                  pillarRankVariants: campaign.pillarRankVariants,
                                  noStickers: campaign.rules().noStickers))
         engine.on { [weak self] in self?.handle($0) }
         engine.start(seedOverride: setup.seed)
-        engine.startRun(pillars: setup.pillars, bases: setup.bases, samePower: .some(setup.samePower))
+        engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
         DebugEventLog.shared.resetEngineCursor()
         engine.run.rippleNeedsConsent = onRippleOffer != nil && !reduceMotion
+        engine.run.secondWindNeedsConsent = onSecondWindOffer != nil && !reduceMotion
+        engine.run.samePowerNeedsConsent = onPowerShuffleOffer != nil && !reduceMotion
         _ = specs
         scene.slotsVisible = true   // debug deals are campaign-shaped
         scene.isZen = false
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
-        scene.setPillars(setup.pillars, bases: setup.bases)
+        scene.setPillars(pillars, bases: bases)
         refreshAll()
         startCascade()
     }
@@ -208,6 +293,7 @@ public final class DealController {
         dealSuitTotals = suitTotals(p.deckForDeal)
         dealRankTotals = rankTotals(p.deckForDeal)
         computeSittingOut(plan: p)
+        dealEndRollsShown = []
         // Pillars are read BEFORE the layout: a `columnPiles` Pillar (Fourth
         // Seat) widens its own column, so the board's real pile count is the
         // layout's, not the plan's.
@@ -240,6 +326,8 @@ public final class DealController {
         // on pile 1, an Ace on the deck) BEFORE anything renders.
         if isZen { preDealArrange?(engine) }
         engine.run.rippleNeedsConsent = onRippleOffer != nil && !reduceMotion
+        engine.run.secondWindNeedsConsent = onSecondWindOffer != nil && !reduceMotion
+        engine.run.samePowerNeedsConsent = onPowerShuffleOffer != nil && !reduceMotion
         // MID-DEAL RESUME (anti-savescum): a kill mid-deal left an exact
         // snapshot. Restore it over the freshly-dealt engine (same plan, same
         // seed) and the deal CONTINUES — same piles, same remaining deck
@@ -263,8 +351,8 @@ public final class DealController {
         if restoredMidDeal {
             // The board is already mid-deal: no composition reveal, no deal
             // cascade. Hand control straight back and re-surface any prompt
-            // the kill interrupted (a paid bury, a shuffle offer, a ripple
-            // consent, a revive target).
+            // the kill interrupted (a paid bury, a shuffle offer, a ripple /
+            // second-wind / shuffler consent, a revive target).
             interactionLocked = false
             drainPrompts()
             return
@@ -284,6 +372,14 @@ public final class DealController {
         }
     }
 
+    /// The deal's first reshuffle is on the Queen (her Mulligan boon set this
+    /// deal's redeal cost to 0): true only until the first guess or the first
+    /// reshuffle spends the offer.
+    private var freeRedealAvailable: Bool {
+        isCampaign && redealCost == 0 && reshuffleIndex == 0
+            && engine != nil && engine.run.totalGuesses == 0
+    }
+
     /// The deal-out cascade: blank beat, then each pile's card flies in from
     /// the deck character. Control is handed over when the last card lands.
     private func startCascade() {
@@ -293,8 +389,11 @@ public final class DealController {
         let n = engine.board.size
         let tops: [CardArt.Face?] = (0..<n).map { engine.board.top($0).map(CardArt.Face.init) }
         scene.dealCascade(tops: tops) { [weak self] in
-            self?.interactionLocked = false
-            self?.refreshAll()
+            guard let self else { return }
+            self.interactionLocked = false
+            self.refreshAll()
+            // The Queen's Mulligan announces itself once, at deal start.
+            if self.freeRedealAvailable { self.scene.announceFreeRedeal() }
         }
     }
 
@@ -552,6 +651,12 @@ public final class DealController {
             // Any sticker the power put on a board card is written through to
             // the CAMPAIGN card, so it survives the deal (Sticker Spray).
             for s in res.stickersApplied { _ = campaign.applySticker(s.cardId, s.typeId) }
+            // A coin-granting power (linkCoins: +value per alive pile) carries
+            // its total in res.amount — float the grant on the hub so it pops
+            // like every other coin source (v6.57 resource pops).
+            if res.effect == "linkCoins", res.amount > 0 {
+                scene.floatCue("+\(res.amount)", at: res.hub, color: CRT.gold)
+            }
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.powerFeedback(hub: res.hub, targets: res.targets, label: res.label)
                 done()
@@ -560,6 +665,31 @@ public final class DealController {
         case .reviveOffer(let col, _):
             // Surfaced after the triggering guess settles (drainPrompts).
             pendingReviveCol = col
+
+        case .secondWindOffer(let index, _, _, _, let drawn, _):
+            // v6.56 SEQUENCING: the killer's draw and the dying beat play
+            // FIRST; the save prompt surfaces only once the card has landed
+            // (drainPrompts gates on secondWindDrawInFlight). Reduced motion
+            // skips the flight, so nothing gates there.
+            guard !reduceMotion else { break }
+            flySecondWindKiller(drawn: drawn, to: index)
+
+        case .rollResult(let r):
+            // v6.57 probability feedback: every item %-roll announces its
+            // outcome AT the pile/column it concerned — a one-shot float, hit
+            // AND miss (on a hit the effect's own cue follows; on a miss this
+            // is the whole story). Priority 0 keeps the engine's emission
+            // order: the roll reports BEFORE its effect's cue.
+            //
+            // A COLUMN-ONLY roll (no pile) is a deal-end scoring flip
+            // (Gambler). The live-bonus read recomputes the scoring payout on
+            // every refresh, which would re-roll (and re-float) mid-deal — so
+            // column-only rolls render only once the deal is actually over,
+            // and only ONCE per item: finish() re-reads the payout for the
+            // reward line and the outcome fold, and each read re-flips.
+            guard r.index != nil || (isOver && !dealEndRollsShown.contains(r.id)) else { break }
+            if r.index == nil { dealEndRollsShown.insert(r.id) }
+            floatRollIndicator(r)
 
         case .revived(_, let index):
             scene.floatCue("REVIVED", at: index, color: CRT.phosphor)
@@ -641,13 +771,31 @@ public final class DealController {
                     Sound.shared.good()
                 }
                 self.scene.refreshWeb()
-                self.scene.synapsePulse(from: index)
+                // COMPOUND pays live (recT only, no dedicated engine event) —
+                // pop the grant so EVERY coin source floats (v6.57 resource
+                // pops). `current` is a LiveCard reference: the engine has
+                // already bumped compoundHits, so the pay is (hits−1)×step,
+                // read from the registry — never a hardcoded number.
+                if current.stickers.contains(where: { $0.type == "compound" }) {
+                    let step = GameData.shared.stickerTypes.get("compound")?.num("step", 1) ?? 1
+                    let pay = Double(current.compoundHits - 1) * step
+                    if pay > 0 { self.scene.floatCue("+\(Int(pay))", at: index, color: CRT.gold) }
+                }
                 if drawn.joker {
                     Sound.shared.joker()
                     self.scene.floatCue("★", at: index, color: CRT.gold)
                 }
             } else {
                 Sound.shared.death()
+                // LAST COIN (deathBounty): the killing card pays its
+                // consolation with no dedicated engine event — float it as
+                // the pile dies (v6.57 resource pops).
+                let bounties = drawn.stickers.filter { $0.type == "deathBounty" }.count
+                if bounties > 0 {
+                    let each = GameData.shared.stickerTypes.get("deathBounty")?.value ?? 0
+                    let amt = Double(bounties) * each
+                    if amt > 0 { self.scene.floatCue("+\(Int(amt))", at: index, color: CRT.gold) }
+                }
                 if fatalTie {
                     self.scene.shouldaNudge(at: index)
                     self.scene.run(.sequence([.wait(forDuration: 0.34), .run { Sound.shared.sameMiss() }]))
@@ -667,6 +815,13 @@ public final class DealController {
         if reduceMotion {
             land()
             if fatal { flushPendingFinish() }
+            return
+        }
+        // A declined Second Wind replays `.resolved` for the killer the offer
+        // already flew to the pile (v6.56) — land it in place, never fly twice.
+        if skipResolvedFlightFor == index {
+            skipResolvedFlightFor = nil
+            land()
             return
         }
         scene.beginHold(index)
@@ -938,7 +1093,7 @@ public final class DealController {
     }
 
     public func guess(_ g: Guess, pile: Int? = nil) {
-        guard !interactionLocked, !isOver, !promptActive else { return }
+        guard !interactionLocked, !isOver, !promptActive, !secondWindDrawInFlight else { return }
         guard let target = pile ?? scene.currentSelection else { return }
         guard engine.board.isActive(target), !engine.deck.isEmpty else { return }
         // The DIRECTIONAL guess cue lives here, not in the button handler, so a
@@ -964,12 +1119,25 @@ public final class DealController {
     public var onTributeOffer: ((TributeOffer, @escaping (Bool) -> Void) -> Void)?
     /// Ask about an optional post-landing action (shuffle / donate).
     public var onActionOffer: ((PendingAction, @escaping (Bool) -> Void) -> Void)?
-    /// Diamond Ripple consent: (piles it would shuffle, answer-callback).
-    public var onRippleOffer: ((Int, @escaping (Bool) -> Void) -> Void)?
+    /// Diamond Ripple consent: (the piles it would shuffle, answer-callback).
+    public var onRippleOffer: (([Int], @escaping (Bool) -> Void) -> Void)?
+    /// Second Wind consent (v6.55): (dying pile, cards the save recycles,
+    /// answer-callback) — save it or let it die.
+    public var onSecondWindOffer: ((Int, Int, @escaping (Bool) -> Void) -> Void)?
+    /// Link Shuffler consent (v6.55): (power label, alive piles it would
+    /// shuffle, answer-callback).
+    public var onPowerShuffleOffer: ((String, Int, @escaping (Bool) -> Void) -> Void)?
     /// Revive targeting: (dead piles, fire(target?) — nil = skip).
     public var onReviveOffer: (([Int], @escaping (Int?) -> Void) -> Void)?
     private var promptActive = false
     private var pendingReviveCol: Int?
+    /// v6.56 sequencing: a parked Second Wind offer's killer card is still
+    /// flying to the pile. The save prompt waits for the landing, and guesses
+    /// are locked while the pile's fate is visibly undecided.
+    private var secondWindDrawInFlight = false
+    /// A DECLINED Second Wind replays `.resolved` for the killer the offer
+    /// already flew to the pile — the pile index whose re-flight to skip.
+    private var skipResolvedFlightFor: Int?
 
     /// Surface queued offers ONE at a time; with no UI handler installed
     /// (debug/auto-play) the deterministic default is DECLINE — never silently
@@ -978,8 +1146,11 @@ public final class DealController {
         guard !isOver else {
             while !engine.run.pendingTributes.isEmpty { engine.answerTribute(false) }
             while !engine.run.pendingActions.isEmpty { engine.answerAction(false) }
-            // A ripple the deal-end cut short resolves the web's way (auto).
+            // Choices the deal-end cut short resolve the web's way (auto).
             engine.answerRipple(true)
+            engine.answerSecondWind(true)
+            engine.answerPowerShuffle(true)
+            scene.setRippleTargets([])
             return
         }
         if let t = engine.run.pendingTributes.first {
@@ -1029,13 +1200,73 @@ public final class DealController {
             }
             promptActive = true
             let piles = pending.piles
-            handler(piles.count) { [weak self] accept in
+            // The board-side half of the question: ring the piles on offer.
+            // They stay lit while the player fan-inspects, and clear only on
+            // an explicit answer (never on a FAN or scrim tap).
+            scene.setRippleTargets(piles)
+            handler(piles) { [weak self] accept in
                 guard let self else { return }
                 self.promptActive = false
+                self.scene.setRippleTargets([])
                 self.engine.answerRipple(accept)
                 if accept {
                     Sound.shared.ripple()        // Diamond Ripple: a travelling riffle
                     for i in piles { self.scene.shuffleWiggle(at: i) }
+                }
+                self.drainPrompts()
+                self.refreshAll()
+            }
+            return
+        }
+        // Second Wind consent (v6.55): the save roll hit; the player chooses
+        // the recycle-save or the death. No-UI default is the web's way — SAVE.
+        if let pending = engine.run.pendingSecondWind {
+            // The killer's draw is still animating (v6.56 sequencing): the
+            // prompt waits for the landing — the offer flight's completion
+            // re-drains. Guesses stay locked meanwhile (secondWindDrawInFlight
+            // is checked in guess()).
+            guard !secondWindDrawInFlight else { return }
+            guard let handler = onSecondWindOffer, !reduceMotion else {
+                engine.answerSecondWind(true)
+                drainPrompts()
+                return
+            }
+            promptActive = true
+            scene.setActionTargets([pending.index])
+            handler(pending.index, pending.recycleCount) { [weak self] accept in
+                guard let self else { return }
+                self.promptActive = false
+                self.scene.setActionTargets([])
+                // The killer already flew and settled when the offer arrived —
+                // a decline's replayed `.resolved` must not fly it twice.
+                if !accept { self.skipResolvedFlightFor = pending.index }
+                self.engine.answerSecondWind(accept)
+                self.drainPrompts()
+                self.refreshAll()
+            }
+            return
+        }
+        // Link Shuffler consent (v6.55): a correct Same parked the board-wide
+        // shuffle. No-UI default is the web's way — FIRE.
+        if engine.run.pendingPowerShuffle != nil {
+            guard let handler = onPowerShuffleOffer, !reduceMotion else {
+                engine.answerPowerShuffle(true)
+                drainPrompts()
+                return
+            }
+            promptActive = true
+            let alive = alivePiles()
+            let label = engine.run.samePower
+                .flatMap { GameData.shared.samePowerTypes.get($0)?.label } ?? "Link Shuffler"
+            scene.setActionTargets(alive)
+            handler(label, alive.count) { [weak self] accept in
+                guard let self else { return }
+                self.promptActive = false
+                self.scene.setActionTargets([])
+                self.engine.answerPowerShuffle(accept)
+                if accept {
+                    Sound.shared.shufflePile()
+                    for i in alive { self.scene.shuffleWiggle(at: i) }
                 }
                 self.drainPrompts()
                 self.refreshAll()
@@ -1061,6 +1292,135 @@ public final class DealController {
     /// The revive-offer piles for tap routing while targeting.
     public func deadPiles() -> [Int] {
         (0..<engine.board.size).filter { !engine.board.isActive($0) }
+    }
+
+    // MARK: - Second Wind sequencing (v6.56)
+
+    /// The parked Second Wind's killer card flies to the pile and the pile
+    /// takes its dying beat; the save prompt surfaces ON LANDING. Shared by
+    /// the live `.secondWindOffer` event and the staged `-demoPrompt` path so
+    /// both demonstrate the v6.56 sequencing identically. The STAGED path
+    /// flies at 6× draw speed so a screenshot can land mid-draw (evidence
+    /// still); live offers fly at draw speed.
+    private func flySecondWindKiller(drawn: LiveCard, to index: Int, staged: Bool = false) {
+        secondWindDrawInFlight = true
+        animQueue.add(priority: 0) { [weak self] done in
+            guard let self else { done(); return }
+            self.scene.flyDraw(face: CardArt.Face(drawn), to: index,
+                               duration: staged ? 1.5 : nil) {
+                Sound.shared.place()
+                self.scene.pileLandPop(index)
+                self.scene.pileWince(index)   // the dying beat — fate undecided
+                self.secondWindDrawInFlight = false
+                done()
+                self.drainPrompts()           // NOW ask: save or let it die
+            }
+        }
+    }
+
+    // MARK: - Roll indicators (v6.57 probability feedback)
+
+    /// "Label N% — HIT" (gold) / "…— MISS" (muted), floated one-shot at the
+    /// pile the roll concerned — or its column's Pillar plaque when the roll
+    /// is column-scoped (Second Wind's verdict, Gambler's end-of-deal flip).
+    /// Priority 0 preserves the engine's emission order through the animation
+    /// queue: the roll reports BEFORE its effect's own cue.
+    private func floatRollIndicator(_ r: RollResult) {
+        let pct = Int((r.chance * 100).rounded())
+        let text = "\(r.label) \(pct)% — \(r.hit ? "HIT" : "MISS")"
+        let color = r.hit ? CRT.gold : CRT.muted
+        animQueue.add(priority: 0) { [weak self] done in
+            if let i = r.index { self?.scene.floatCue(text, at: i, color: color) }
+            else if let c = r.col { self?.scene.floatCueAtPillar(text, col: c, color: color) }
+            done()
+        }
+    }
+
+    // MARK: - Screenshot staging (DealFeedbackUITests' hooks, v6.57)
+
+    /// `-demoRollFX hit|miss`: ONE roll indicator through the real
+    /// presentation path (pile-scoped), since simctl can't make a genuine
+    /// 10%/50% roll land on cue — the `-demoCurseFX` precedent.
+    public func debugStageRollIndicator(hit: Bool) {
+        floatRollIndicator(hit
+            ? RollResult(id: "static", label: "Static", klass: "pillar",
+                         chance: 0.5, hit: true, index: 1)
+            : RollResult(id: "saboteur", label: "Saboteur", klass: "sticker",
+                         chance: 0.1, hit: false, index: 2))
+    }
+
+    /// `-demoSuitCounts 1`: push the WORST-CASE suit tallies ("13/27" —
+    /// two-digit remaining over two-digit total) through the real deck-panel
+    /// sync, so the histogram-overlap fix has pixel evidence at the widest
+    /// the tally text can get.
+    public func debugStressSuitCounts() {
+        guard let engine else { return }
+        scene.syncDeckPanel(counts: engine.deck.remainingCounts(),
+                            suitCounts: ["♥": 13, "♦": 9, "♣": 12, "♠": 7],
+                            total: engine.deck.remaining(),
+                            remaining: engine.deck.remaining(),
+                            deckId: campaign.deckId,
+                            mood: mood(),
+                            tier: isZen ? "regular" : campaign.difficultyTier,
+                            suitTotals: ["♥": 27, "♦": 18, "♣": 21, "♠": 13],
+                            rankTotals: dealRankTotals,
+                            showJoker: !isZen)
+    }
+
+    /// `-demoSuitRefresh 1`: apply a changeSuitTo sticker to a card still in
+    /// the draw pile through the REAL campaign mutation + invalidation hook —
+    /// the screenshot proves the band's suit counts refresh the moment the
+    /// sticker lands (task 16's fix), no second trigger needed.
+    public func debugApplySuitStickerToDeckCard() {
+        guard let engine else { return }
+        let runIds = Set(campaign.getRunDeck().map(\.id))
+        guard let card = engine.deck.peekAll().first(where: {
+            runIds.contains($0.id) && !$0.joker && !$0.blank
+        }), let def = GameData.shared.stickerTypes.all().first(where: {
+            $0.behavior == "changeSuitTo" && $0.suit != nil && $0.suit != card.suit
+        }) else { return }
+        _ = campaign.applyStickerDirect(card.id, def.id)
+        noteDeckCompositionChanged()
+    }
+
+    // MARK: - Screenshot staging (EventCaptureUITests' `-demoPrompt …` hooks)
+
+    /// Stage + surface the parked Diamond Ripple consent (the engine hook
+    /// builds the real pending state); returns the offered piles so the demo
+    /// can open the fan overlay on one.
+    @discardableResult
+    public func debugSurfaceRipple() -> [Int] {
+        let piles = engine.debugStageRipplePending()
+        drainPrompts()
+        return piles
+    }
+
+    /// Stage + surface the parked Second Wind save/die choice. v6.56: the
+    /// staged offer plays the SAME sequencing as a live one — the staged
+    /// killer (the engine really drew it) flies to the pile first, and the
+    /// prompt surfaces on its landing.
+    public func debugSurfaceSecondWind() {
+        engine.debugStageSecondWindPending()
+        if let pending = engine.run.pendingSecondWind, !reduceMotion {
+            flySecondWindKiller(drawn: pending.killingCard, to: pending.index, staged: true)
+        } else {
+            drainPrompts()
+        }
+    }
+
+    /// Stage + surface the parked Link Shuffler confirm.
+    public func debugSurfacePowerShuffle() {
+        engine.debugStagePowerShufflePending()
+        drainPrompts()
+    }
+
+    /// Stage + surface the Revive pillar's targeting offer (v6.56): the
+    /// repaint lands BEFORE the prompt arms, so the stage-killed pile reads
+    /// dead (and highlighted) when the player is asked to tap it.
+    public func debugSurfaceRevive() {
+        _ = engine.debugStageReviveOffer()
+        refreshAll()
+        drainPrompts()
     }
 
     // MARK: - Base activation (tap-to-fire)
@@ -1148,9 +1508,14 @@ public final class DealController {
     public func promptDismissed() { promptActive = false }
 
     private func currentBaseId(_ col: Int) -> String? {
-        if case .debug(let setup) = mode { return setup.bases[safe: col] ?? nil }
+        // Debug deals: the `-dealBase` override resolved at boot, NOT the raw
+        // setup dials — reading setup here left the staged plaque unfireable.
+        if case .debug = mode { return debugBases?[safe: col] ?? nil }
         return campaign.columnBase(col)
     }
+
+    /// The debug deal's `-dealBase`-resolved bases (set in bootDebug).
+    private var debugBases: [String?]?
 
     /// Board reads the auto-play harness needs.
     public func alivePiles() -> [Int] {
@@ -1195,7 +1560,8 @@ public final class DealController {
     public func minAliveCards() -> Int { engine?.board.minAliveCards() ?? 0 }
     /// Whether a guess would be accepted right now (the cascade lock included).
     public var canAcceptGuess: Bool {
-        engine != nil && !interactionLocked && !isOver && !promptActive && !engine.deck.isEmpty
+        engine != nil && !interactionLocked && !isOver && !promptActive
+            && !secondWindDrawInFlight && !engine.deck.isEmpty
     }
     /// Guesses resolved this deal — 0 means the board is still as dealt.
     public var totalGuessesMade: Int { engine?.run.totalGuesses ?? 0 }
@@ -1230,7 +1596,7 @@ public final class DealController {
         guard let id = pillarId(for: col), let def = GameData.shared.pillarTypes.get(id) else { return nil }
         // The column rides the NAME (router batch) — "Applies to column N"
         // read like a second sentence of rules.
-        return ("\(def.label) · column \(col + 1)", def.description)
+        return ("\(def.label) · column \(col + 1)", campaign.itemDescription(def))
     }
 
     /// The Base plaque's hold-help (the web's basePeekHtml): name + effect and
@@ -1453,6 +1819,10 @@ public final class DealController {
 
     private func refreshHUD() {
         guard let engine else { return }
+        // An inventory suit sticker applied over the deal mutates the campaign
+        // deck with no engine event — revalidate so the band's suit counts
+        // never repaint stale (v6.57; the no-op diff costs nothing otherwise).
+        if isCampaign { revalidateComposition() }
         scene.syncHUD(phaseIndex: campaign.phaseIndex,
                       altSuits: campaign.rules().altSuits,
                       phasesTotal: campaign.phasesTotal(),
@@ -1505,7 +1875,12 @@ public final class DealController {
         let sameBlocked = scene.currentSelection.map { engine.pileMuted($0) } ?? false
         // The web names the price on the button: `↺ RESHUFFLE · ◉ 10`
         // (campaign only — Zen has no reshuffle; debug deals are free).
-        scene.setReshuffleTitle(isCampaign ? "↺ RESHUFFLE · ◉ \(Int(redealCost))" : "↺ RESHUFFLE")
+        // The Queen's Mulligan reads FREE and wears the charged (phosphor)
+        // glow while the deal's first reshuffle is still unspent (v6.55).
+        scene.setReshuffleTitle(isCampaign
+            ? (freeRedealAvailable ? "↺ RESHUFFLE · FREE" : "↺ RESHUFFLE · ◉ \(Int(redealCost))")
+            : "↺ RESHUFFLE")
+        scene.setReshuffleGlow(freeRedealAvailable)
         // Web parity (renderReshuffleBtn): the offer hides only once the first
         // guess is made; an UNAFFORDABLE price shows the button disabled, not
         // hidden.
@@ -1575,9 +1950,17 @@ public final class DealController {
             scene.gatherToDeck { [weak self] in
                 guard let self else { return }
                 self.engine.start(seedOverride: RNG.generateSeed())
-                self.engine.startRun(pillars: setup.pillars, bases: setup.bases,
-                                     samePower: .some(setup.samePower))
+                // The `-dealPillar`/`-dealBase`/`-dealSamePower` overrides
+                // survive a reshuffle too — otherwise the re-deal drops the
+                // staged item while its plaque still shows.
+                let d = UserDefaults.standard
+                var pillars = setup.pillars
+                if let pid = d.string(forKey: "dealPillar"), !pillars.isEmpty { pillars[0] = pid }
+                self.engine.startRun(pillars: pillars, bases: self.debugBases ?? setup.bases,
+                                     samePower: .some(d.string(forKey: "dealSamePower") ?? setup.samePower))
                 self.engine.run.rippleNeedsConsent = self.onRippleOffer != nil && !self.reduceMotion
+                self.engine.run.secondWindNeedsConsent = self.onSecondWindOffer != nil && !self.reduceMotion
+                self.engine.run.samePowerNeedsConsent = self.onPowerShuffleOffer != nil && !self.reduceMotion
                 self.refreshAll()
                 self.startCascade()
             }

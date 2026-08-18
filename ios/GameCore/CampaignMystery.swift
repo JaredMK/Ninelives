@@ -160,6 +160,7 @@ extension CampaignState {
             guard !eligible.isEmpty else { return nil }
             let at = eligible[rng.index(eligible.count)]
             guard applyStickerToCard(&baseDeck[at], t.id, rng: rng) else { return nil }
+            DebugEventLog.shared.add("curse: \(t.label) afflicts \(cardName(baseDeck[at])) (path \(cursePath))")
             return MysteryOutcome(key: key, title: "Cursed",
                                   desc: "\(t.label) afflicts your \(cardName(baseDeck[at]))",
                                   stickerId: t.id, stickerLabel: t.label,
@@ -231,7 +232,7 @@ extension CampaignState {
         case "freeRefresh":
             freeRerollPending = true
             return MysteryOutcome(key: key, title: "Restock",
-                                  desc: "The next shop's first REFRESH costs nothing")
+                                  desc: "The next shop's first restock costs nothing")
 
         case "freeRedeal":
             freeRedealPending = true

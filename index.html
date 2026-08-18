@@ -6558,7 +6558,7 @@ const NativeApp = (() => {
            built at open time from the LIVE shelf renderers. margin-left:auto
            clusters it beside Refresh on the right, clear of the coins on the
            left. -->
-      <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Refresh</button>
+      <button class="store-reroll" id="rerollBtn" type="button"><span class="ico-slot" data-ico="reroll"></span> Restock</button>
       <button class="store-help-btn" id="storeHelpBtn" type="button" aria-label="Store item types" aria-expanded="false"><span class="ico">?</span></button>
     </div>
 
@@ -6994,7 +6994,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v6.51 · balance batch: Bury 1/2 retired, mystery same-powers, compound resets";
+const APP_VERSION = "v6.57 · roll hit/miss feedback, saved-landing stickers, Gambler +10 unconditioned, pack suit indicators, Restock rename";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10201,7 +10201,7 @@ function makeRegistry(list) {
 ---------------------------------------------------------------- */
 const StickerTypes = (() => {
   // ALL sticker data (price / tier / description + effect knobs like rankDelta,
-  // tributeCount, coinCost, peelChance, step, per, max, count) lives in
+  // tributeCount, coinCost, step, per, max, count) lives in
   // items.js — edit THAT file to tune stickers. This registry just indexes it
   // and bakes the neural SVG glyph onto each type's icon (replaces the emoji).
   const reg = makeRegistry(ItemData.stickers);
@@ -13880,17 +13880,18 @@ const GameEngine = (() => {
           const n = Math.max(0, best - 1);   // cards beneath the top of that pile
           if (n > 0) { const amt = n * (t.value || 1); bonus += amt; lines.push({ label: t.label, detail: n + " buried (largest ♥ pile)", amount: amt, col }); }
         } else if (t.effect === "gambler") {
-          // 50/50: +value or nothing — but ONLY if this column has an alive pile
-          // with a ♥ top. Always emit a line so the outcome shows.
-          const hasHeart = colIdxs(col).some(i => board.isActive(i) && cardMatchesSuit(board.top(i), "♥"));
-          if (!hasHeart) {
-            lines.push({ label: t.label, detail: "no ♥ top in column — no flip", amount: 0, col, effect: "gambler" });
-          } else {
-            const won = rng() < itemNum(t, "chance", 0.5);
-            const amt = won ? (t.value || 0) : 0;
-            bonus += amt;
-            lines.push({ label: t.label, detail: won ? "won the flip (+" + amt + ")" : "lost the flip (+0)", amount: amt, col, effect: "gambler" });
+          // The flip is memoized at Start Run (run.gamblerFlips) — this read
+          // NEVER re-rolls, so a projection and the deal end can't disagree.
+          // Fallback (no memo: the column was jammed at Start Run): roll on
+          // the first payout read, then memoize.
+          let won = run.gamblerFlips ? run.gamblerFlips[col] : undefined;
+          if (won === undefined) {
+            won = rng() < itemNum(t, "chance", 0.5);
+            if (run.gamblerFlips) run.gamblerFlips[col] = won;
           }
+          const amt = won ? (t.value || 0) : 0;
+          bonus += amt;
+          lines.push({ label: t.label, detail: won ? "won the flip (+" + amt + ")" : "lost the flip (+0)", amount: amt, col, effect: "gambler" });
         }
         // NOTE: suitBounty is NOT scored here — it's paid LIVE during play into
         // the bonus tally (see guess()), so adding it again here would double it.
@@ -13995,6 +13996,12 @@ const GameEngine = (() => {
         colStreak: cols ? new Array(cols.length).fill(0) : null,
         // Per-column "Second Wind already spent this run" flags.
         secondWindUsed: cols ? new Array(cols.length).fill(false) : null,
+        // Gambler: the deal-end coin flip is rolled ONCE per Gambler column at
+        // Start Run and memoized here (column index → bool), so every payout
+        // PROJECTION (the HUD reward line re-reads pillarPayout per render)
+        // shows the SAME result the deal end pays — and no read ever consumes
+        // the action-stream rng. Null for column-agnostic legacy/test runs.
+        gamblerFlips: cols ? {} : null,
         // Compound: { cardId: newHits } accrued this run, written back to the
         // persistent card on a win so N survives to future runs.
         compoundUpdates: {},
@@ -14105,6 +14112,21 @@ const GameEngine = (() => {
       // would stay at the deal-entry value → fireSamePower no-ops). Only override
       // when explicitly passed (engine tests seed it via runConfig at create).
       if (samePower !== undefined) run.samePower = samePower || null;
+      // GAMBLER: roll the deal-end coin flip ONCE per Gambler column, here at
+      // Start Run, and memoize it on the run (run.gamblerFlips[col]). Every
+      // later payout read — the mid-deal HUD projection AND the deal-cleared
+      // summary — shows the SAME result, and no read consumes the
+      // action-stream rng. A column JAMMED at Start Run (resolvePillarDef sees
+      // no pillar) rolls on its first payout read instead — the old behavior,
+      // confined to that edge.
+      if (run.pillars) {
+        for (let c = 0; c < run.pillars.length; c++) {
+          const def = resolvePillarDef(c);
+          if (def && def.effect === "gambler") {
+            run.gamblerFlips[c] = rng() < itemNum(def, "chance", 0.5);
+          }
+        }
+      }
       const bound = (run.pillars || [])
         .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
         .filter(Boolean);
@@ -14369,8 +14391,22 @@ const GameEngine = (() => {
         // becomes the new pile card; the pile survives and continues from it.
         sameCharge = false;
         board.push(index, drawn);
+        // A SAVED landing is still a LANDING (v6.57): the card's own beneficial
+        // landing stickers fire. Curses (curseTouch) and Trapdoor stay
+        // correct-only (the fatal-landing audit's rule), as do the column's
+        // PILLAR landing effects — those reward a CORRECT landing.
+        if (drawn.revealNext) { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", { peeks: 1 }); }
+        if (run.tellPiles && drawn.stickers && drawn.stickers.some(s => s.type === "tell")) {
+          run.tellPiles.add(index);
+          recT("sticker", "tell", "Tell", { peeks: 1 });
+        }
+        maybeLandingBonus(index, drawn);
+        maybeExpansionStickers(index, current, drawn, col);
+        maybeStickerTribute(index, drawn);
+        maybeStickerActions(index, drawn);
         logLine("Same Charge consumed — pile saved (" + cardName(drawn) + " landed on " + cardName(current) + " as the new pile card)");
         emit("same-saved", { index, guess, current, drawn, board, deck, run, sameCharge });
+        surfaceActionOffer();
       } else {
         // Show the card that killed the pile as its (final) top, then kill it.
         board.push(index, drawn);
@@ -30181,7 +30217,7 @@ const UIRenderer = (() => {
   function updateRerollButton() {
     const cost = campaign.storeRerollCost();
     el.rerollBtn.disabled = !campaign.canReroll();
-    el.rerollBtn.innerHTML = glyph("reroll") + " Refresh · " + COIN_SVG + cost;
+    el.rerollBtn.innerHTML = glyph("reroll") + " Restock · " + COIN_SVG + cost;
   }
 
   /* ---- buy-time sticker application (replaces setup placement for stickers) ----
@@ -31239,10 +31275,10 @@ const UIRenderer = (() => {
     // sell confirm.
     if (campaign.getCoins() < campaign.storeRerollCost()) return;   // unaffordable (the button shows it)
     document.body.classList.add("store-confirm");
-    showActionBar("Refresh the whole shelf for " + COIN_SVG + " " + campaign.storeRerollCost() + "?", [
+    showActionBar("Restock the whole shelf for " + COIN_SVG + " " + campaign.storeRerollCost() + "?", [
       { label: "Cancel", cls: "no", onClick: closeRerollConfirm },
-      { label: "Refresh", cls: "primary", onClick: confirmReroll },
-    ], [], { help: "The price climbs with each Refresh within a visit.", dismiss: closeRerollConfirm });
+      { label: "Restock", cls: "primary", onClick: confirmReroll },
+    ], [], { help: "The price climbs with each Restock within a visit.", dismiss: closeRerollConfirm });
   }
   function closeRerollConfirm() {
     if (!document.body.classList.contains("store-confirm")) return;   // not ours — leave any other bar alone
@@ -31268,7 +31304,7 @@ const UIRenderer = (() => {
     if (campaign.rerollStore()) {
       Sound.refresh();           // whoosh-ding on a store refresh
       selectedStickerSlot = null; selectedMixedSlot = null;
-      el.storeMsg.textContent = "Refreshed the offer.";
+      el.storeMsg.textContent = "Restocked the offer.";
       if (engine) engine.logAction("Store: refreshed the offer");
       renderStore();
       refreshDebug();

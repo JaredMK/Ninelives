@@ -32,7 +32,7 @@
      description  the store/help popup text — the single source of truth
                   (the game never hardcodes effect text)
      …tunables    any other numeric field is an effect knob (value, step,
-                  threshold, digCount, peelChance, …) — safe to hand-edit
+                  threshold, digCount, chance, …) — safe to hand-edit
      unlock       OPTIONAL item-unlock gate: { type, stat, count }. ABSENT = a
                   starting item, always available — the ship state: no entry
                   carries this field, so every roll pool is identical to the
@@ -106,7 +106,7 @@ const NINELIVES_ITEMS = {
     slots: 6,
     typeCap: 3,
     reroll: { baseCost: 5, step: 1 },
-    classWeights: { sticker: 40, pillar: 20, base: 20, pack: 8, card: 8, samepower: 4 },
+    classWeights: { sticker: 40, pillar: 20, base: 15, card: 10, pack: 10, samepower: 5 },
     tierWeights: { common: 100, uncommon: 50, rare: 20 },
     // MYSTERY SAME-POWER: the samepower class no longer rolls a concrete
     // Same-Power onto the shelf. It yields ONE unknown slot at this fixed
@@ -131,7 +131,7 @@ const NINELIVES_ITEMS = {
       // 1% → 3 stickers, 5% → 2, 25% → 1, else clean.
       stickerStep: 1,
       stickerOdds: [[0.01, 3], [0.06, 2], [0.31, 1]],
-      description: "A single card. Swap it into your deck, replacing a card of your choice. Each sticker it carries adds 1 to the price.",
+      description: "Swap card into deck",
     },
     // The debug-toggleable permanent 6th store slot: fixed price, never
     // depletes, each purchase runs the choose-a-card-to-remove flow.
@@ -151,7 +151,7 @@ const NINELIVES_ITEMS = {
   /* --------------------------------------------------------------------
      STICKERS — card-bound modifiers ("Imprints"). A card may hold any
      number of stickers, duplicates included. `rankDelta`, `tributeCount`,
-     `coinCost`, `value`, `step`, `per`, `max`, `peelChance`, `count` are
+     `coinCost`, `value`, `step`, `per`, `max`, `count` are
      effect knobs.
      SUIT-TIMING PRICING convention: a ♣ item costs its ♦/♥ twin's price −1;
      a ♠ item costs −2 (floor 1).
@@ -218,7 +218,6 @@ const NINELIVES_ITEMS = {
     // count = buried cards moved to the smallest pile per accepted Donate.
     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", count: 1, tier: "common", price: 1,
       description: "Move 1 buried card from this pile to the smallest pile", suits: ["♦"]  },
-    // peelChance = probability (0–1) the sticker destroys itself after burying.
     // UNGATED on purpose: with Bury 1 retired, Quick Bury is the cardsBuried
     // unlock ladder's only seed source (chicken-and-egg otherwise).
     { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "rare", price: 7,
@@ -366,7 +365,7 @@ const NINELIVES_ITEMS = {
       description: "This column starts the deal with 1 extra pile (up to 4)" },
     { id: "secondWind", unlock: { type: "behavior", stat: "pilesLost", count: 30 }, label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 6, saveChance: 0.25,
-      description: "Each pile that dies in this column has a 25% chance to be saved, but all its buried cards return to the deck" },
+      description: "Each pile that dies in this column has a 25% chance to offer its rescue: take it and all the pile's cards return to the deck, or refuse and let it die" },
     { id: "greedy", unlock: { type: "milestone", stat: "endlessStagesReached", count: 1 }, label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 10, tier: "rare", price: 5,
       description: "At deal end → +10 coins if every pile in this column survived and no other pillar is on the board" },
@@ -446,10 +445,10 @@ const NINELIVES_ITEMS = {
     { id: "excavator", unlock: { type: "behavior", stat: "cardsBuried", count: 120 }, label: "Excavator", icon: "⛏️",
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 3,
       description: "At deal end → +1 coin per buried card in this column's largest pile with a ♥ top card" },
-    // chance = probability (0–1) the flip pays `value` (needs a ♥ top here).
+    // chance = probability (0–1) the flip pays `value` (no suit requirement).
     { id: "gambler", label: "Gambler", icon: "🎲",
-      kind: "scoring", effect: "gambler", value: 5, chance: 0.5, tier: "uncommon", price: 5,
-      description: "At deal end → 50/50: +5 coins or nothing (requires a ♥ top card in this column)" },
+      kind: "scoring", effect: "gambler", value: 10, chance: 0.5, tier: "uncommon", price: 5,
+      description: "At deal end → 50/50: +10 coins or nothing" },
     { id: "lastRites", unlock: { type: "behavior", stat: "dealsWonLegendary", count: 1 }, label: "Last Rites", icon: "🕯️",
       kind: "live", effect: "lastRites", tier: "rare", price: 10,
       description: "When a pile in this column dies → peek at the next card" },
@@ -597,7 +596,7 @@ const NINELIVES_ITEMS = {
     { id: "linkTell", unlock: { type: "behavior", stat: "correctSames", count: 16 }, label: "Second Sight", icon: "🔮",
       effect: "linkTell", tier: "rare", price: 9,
       // {color} is the climb-fixed red-or-black roll (substituted live).
-      description: "Trigger: You make a correct Same\nEffect: The next X cards show a tell (higher/lower/same indicator) hint, where X is the number of alive piles with a {color} top card" },
+      description: "Trigger: You make a correct Same\nEffect: For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a {color} top card" },
     // Sprays the CALLED pile's whole column. Each sticker is rolled from the
     // grantable pool and is PERMANENT — it stays on the card after the deal.
     { id: "linkSticker", unlock: { type: "behavior", stat: "stickersApplied", count: 70 }, label: "Sticker Spray", icon: "🎨",

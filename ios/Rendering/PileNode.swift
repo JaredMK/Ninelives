@@ -132,15 +132,17 @@ public final class PileNode: SKNode {
         hintChip?.removeFromParent()
         hintChip = nil
         guard let dir, !isDead, cardCount > 0 else { return }
-        // v6.52: the chip sits ON the card face (mid-height) — at the seam it
-        // read as belonging to either this card or the one above — larger
-        // (18 → 22), with the peeked-card family's faint pulsing glow.
-        // SKAction only: one alpha pulse on the chip, one on its glow child.
+        // v6.52 moved the chip off the row seam ON to the card face; v6.58
+        // moves it off the CENTRE too — mid-face sat squarely on the rank
+        // numeral, the one glyph a guess hangs on. It now sits in the leading
+        // band ABOVE the numeral, sized down with the card so it still fits
+        // at the 12-pile (half) scale. Glow + pulse unchanged.
         let glyph = dir == .higher ? "▲" : (dir == .lower ? "▼" : "＝")
         let text = glyph as NSString
-        let font = CRT.Font.of(22)
+        let fontSize: CGFloat = cardScale == .full ? 22 : (cardScale == .three ? 18 : 14)
+        let font = CRT.Font.of(fontSize)
         let tsz = text.size(withAttributes: [.font: font])
-        let w = max(28, ceil(tsz.width) + 12), h: CGFloat = 26
+        let w = max(fontSize + 6, ceil(tsz.width) + 12), h: CGFloat = fontSize + 4
         let img = PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
             cg.setFillColor(CRT.shadow.cgColor)
             cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
@@ -157,7 +159,19 @@ public final class PileNode: SKNode {
         let n = SKSpriteNode(texture: PixelTexture.texture(from: img))
         n.size = img.size
         n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        n.position = CGPoint(x: cardScale.size.width / 2, y: cardScale.size.height * 0.5)
+        // The card is anchored TOP-LEFT (0,1), so its face spans y ∈ [-h, 0]:
+        // face positions are NEGATIVE. (v6.53 used +h/2 — UIKit thinking, +y
+        // is DOWN in UIKit, UP in SpriteKit — which floated the chip onto the
+        // pile above; keep every face offset negative.) The numeral block is
+        // vertically centred (CardNode: blockH = rank·0.72 + suit), and VT323
+        // carries heavy internal leading, so the numeral's INK starts around
+        // topPad + 0.11·rankSize down the face. Centre the chip in that empty
+        // band, clamped fully on-card so it never crosses the row seam.
+        let faceH = cardScale.size.height
+        let inkTop = (faceH - (cardScale.rankSize * 0.72 + cardScale.suitSize)) / 2
+                   + cardScale.rankSize * 0.11
+        let chipY = max(img.size.height / 2 + 1, inkTop / 2)
+        n.position = CGPoint(x: cardScale.size.width / 2, y: -chipY)
         n.zPosition = Layer.card + 5
         let glow = SKSpriteNode(texture: n.texture)
         glow.size = CGSize(width: img.size.width * 1.3, height: img.size.height * 1.3)

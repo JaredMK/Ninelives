@@ -86,7 +86,6 @@ public enum BoardFX {
     public static let deathFlashDelayMS = 340  // beat after the card settles
     public static let deathFlashMS = 340       // red flash length
     public static let deathDissolveAfterMS = 300  // flash start → dissolve
-    public static let synapsePulseMS = 520
 
     /// The flight arc: mid-point lifted like the web's
     /// `lift = -min(34, max(10, dist * 0.16))` (scene y is up-positive when

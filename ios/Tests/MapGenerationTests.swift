@@ -458,4 +458,94 @@ final class MapGenerationTests: XCTestCase {
                            "seed \(seed): v4 opening deals tie on pile count")
         }
     }
+
+    // MARK: - v6.57 pack suit composition
+
+    private func runCampaign(deck: String, store: KeyValueStore = MemoryStore(),
+                             seed: UInt32 = 909) -> CampaignState {
+        let c = CampaignState(store: store)
+        c.setDeck(deck); c.setTier("regular"); c.setSeedOverride(seed); c.reset()
+        return c
+    }
+
+    /// The badge's source of truth IS the grant rule: Pinky (altSuits) rolls
+    /// every pack slot across ALL FOUR suits; Mamma (the suit-staged deck,
+    /// altSuits false) draws each pack from its node's phase suit — and the
+    /// grant path agrees with both.
+    func testPackSuitsMirrorTheGrantRule() {
+        let pink = runCampaign(deck: "pink")
+        XCTAssertTrue(pink.rules().altSuits, "Pinky's packs draw from all four suits")
+        let packs = pink.runMap!.nodes.filter { $0.type == "pack" }
+        XCTAssertFalse(packs.isEmpty, "the seed must produce pack nodes")
+        for n in packs {
+            XCTAssertEqual(Set(pink.packSuits(for: n)), Set(DeckManager.suits.map(\.symbol)),
+                           "pack #\(n.id): an alt deck's packs draw from all four suits")
+        }
+        let mamma = runCampaign(deck: "mamma")
+        XCTAssertFalse(mamma.rules().altSuits, "Mamma is the suit-staged deck")
+        let mpacks = mamma.runMap!.nodes.filter { $0.type == "pack" }
+        XCTAssertFalse(mpacks.isEmpty)
+        for n in mpacks {
+            XCTAssertEqual(mamma.packSuits(for: n), [n.suit ?? ""],
+                           "pack #\(n.id): a stage pack draws its phase suit")
+            XCTAssertNotEqual(n.suit, "★")
+        }
+        // The grant agrees: Mamma's sealed pack yields only the node's suit.
+        if let sealed = mpacks.first(where: { ($0.packCount ?? 3) >= 3 }) {
+            for card in mamma.resolvePack(sealed) where !card.blank && !card.joker {
+                XCTAssertEqual(card.suit, sealed.suit,
+                               "Mamma's stage pack dealt off-suit rank \(card.currentRank)")
+            }
+        }
+    }
+
+    /// The debug toggle is OFF by default (a plain run never sees it) and
+    /// persists through the store. Set BEFORE the run generates, it collapses
+    /// every pack to ONE seeded suit — stable per node, shown by packSuits —
+    /// and the grant path honors it for both sealed and revealed +2 packs
+    /// (the +2 pair commits at map generation, so the flag must precede it).
+    func testDebugSingleSuitPacksToggle() {
+        let store = MemoryStore()
+        let off = runCampaign(deck: "pink", store: store)
+        XCTAssertFalse(off.debugSingleSuitPacksOn(), "dev flag defaults off")
+        guard let offPack = off.runMap!.nodes.first(where: { $0.type == "pack" && ($0.packCount ?? 3) >= 3 })
+        else { XCTFail("no sealed pack on this seed"); return }
+        let before = off.packSuits(for: offPack)
+
+        off.setDebugSingleSuitPacks(true)
+        // Persistence: a fresh campaign over the SAME store reads the flag back.
+        XCTAssertTrue(CampaignState(store: store).debugSingleSuitPacksOn(),
+                      "the toggle persists like every other pref")
+
+        // ON from before the run generates (how a relaunched app reads it).
+        let c = runCampaign(deck: "pink", store: store)
+        XCTAssertTrue(c.debugSingleSuitPacksOn())
+        let packs = c.runMap!.nodes.filter { $0.type == "pack" }
+        XCTAssertFalse(packs.isEmpty)
+        for n in packs {
+            XCTAssertEqual(c.packSuits(for: n), [c.debugPackSuit(for: n)],
+                           "pack #\(n.id): the badge shows the pack's one suit")
+            XCTAssertEqual(c.debugPackSuit(for: n), c.debugPackSuit(for: n),
+                           "pack #\(n.id): the seeded suit is stable across calls")
+        }
+        // The grant itself: a sealed pack now yields only its one suit.
+        if let sealed = packs.first(where: { ($0.packCount ?? 3) >= 3 }) {
+            let suit = c.debugPackSuit(for: sealed)
+            for card in c.resolvePack(sealed) where !card.blank && !card.joker {
+                XCTAssertEqual(card.suit, suit, "single-suit pack dealt off-suit rank \(card.currentRank)")
+            }
+        }
+        // …and a revealed +2 pack's committed pair too.
+        if let two = packs.first(where: { $0.packCount == 2 && !c.nodeCleared($0.id) }) {
+            for card in c.packNodeCards(two) where !card.blank && !card.joker {
+                XCTAssertEqual(card.suit, c.debugPackSuit(for: two),
+                               "revealed +2 pack committed an off-suit card")
+            }
+        }
+
+        // Toggling back off restores the stage-suit composition exactly.
+        c.setDebugSingleSuitPacks(false)
+        let cPack = c.runMap!.nodes.first { $0.id == offPack.id }!
+        XCTAssertEqual(c.packSuits(for: cPack), before)
+    }
 }

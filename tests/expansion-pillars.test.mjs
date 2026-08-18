@@ -4,7 +4,7 @@
 import { loadGame, makeRunner } from "./_harness.mjs";
 
 export function run() {
-  const { GameEngine, DeckManager, PillarTypes } = loadGame();
+  const { GameEngine, DeckManager, PillarTypes, ItemData } = loadGame();
   const r = makeRunner("expansion-pillars.test.mjs");
 
   const baseDeck = () => DeckManager.buildStandardDeck();
@@ -140,28 +140,50 @@ export function run() {
     r.ok(ex && ex.amount === 2, "Excavator pays +1 per buried card in the largest ♥-topped pile (2 × 1 = 2)");
   }
 
-  // ---- Gambler: 50/50 +5 or +0 (only with a ♥ top in the column) --------
+  // ---- Gambler: 50/50 +10 or +0 (no suit requirement — the flip always runs) ----
   {
+    const pay = ItemData.pillars.find(p => p.id === "gambler").value;
     let sawWin = false, sawLoss = false, alwaysLine = true;
     for (let seed = 1; seed <= 30; seed++) {
       const e = GameEngine.create(baseDeck(), 10, { cols: COLS });
       e.start(seed); e.startRun(["gambler", null, null], [null, null, null]);
-      e.getBoard().top(0).suit = "♥";   // ensure a ♥ top in the column so the flip runs
       const pp = winPayout(e);
       const g = pp.lines.find(l => l.label === "Gambler");
       if (!g) { alwaysLine = false; continue; }
-      if (g.amount === 5) sawWin = true;
+      if (g.amount === pay) sawWin = true;
       if (g.amount === 0) sawLoss = true;
     }
     r.ok(alwaysLine, "Gambler always emits a result line");
-    r.ok(sawWin && sawLoss, "Gambler produces both +5 and +0 outcomes across seeds");
-    // With NO ♥ top in the column, there is no flip (+0, no win possible).
+    r.ok(sawWin && sawLoss, "Gambler produces both +value and +0 outcomes across seeds");
+    // The flip is rolled ONCE per Gambler column at Start Run and memoized:
+    // every projection read agrees with the deal end, and re-reads never
+    // re-roll (the display-vs-tally mismatch fix).
+    {
+      const e3 = GameEngine.create(baseDeck(), 10, { cols: COLS });
+      e3.start(11); e3.startRun(["gambler", null, null], [null, null, null]);
+      const proj1 = e3.pillarPayout().lines.find(l => l.label === "Gambler");
+      const proj2 = e3.pillarPayout().lines.find(l => l.label === "Gambler");
+      r.ok(proj1 && proj2 && proj1.amount === proj2.amount && proj1.detail === proj2.detail,
+           "repeated mid-deal projections return the SAME flip");
+      const end = winPayout(e3).lines.find(l => l.label === "Gambler");
+      r.ok(end && end.amount === proj1.amount && end.detail === proj1.detail,
+           "the deal-end payout IS the memoized projection");
+      // Web persistence is a replay from the deal seed: a "resumed" deal (fresh
+      // engine, same seed) rolls the same memo at its Start Run.
+      const e4 = GameEngine.create(baseDeck(), 10, { cols: COLS });
+      e4.start(11); e4.startRun(["gambler", null, null], [null, null, null]);
+      r.ok(e4.pillarPayout().lines.find(l => l.label === "Gambler").amount === proj1.amount,
+           "a same-seed resume re-derives the identical flip (web needs no persisted key)");
+    }
+    // No ♥ top in the column: the flip STILL runs (the requirement is gone).
     const e2 = GameEngine.create(baseDeck(), 10, { cols: COLS });
     e2.start(7); e2.startRun(["gambler", null, null], [null, null, null]);
     for (const i of [0, 1, 2]) e2.getBoard().top(i).suit = "♠";   // clear ♥ tops in col 0
     const pp2 = winPayout(e2);
     const g2 = pp2.lines.find(l => l.label === "Gambler");
-    r.ok(g2 && g2.amount === 0, "Gambler pays 0 with no ♥ top in its column");
+    r.ok(g2 && (g2.amount === 0 || g2.amount === pay),
+         "Gambler flips even with no ♥ top in its column");
+    r.ok(g2 && !/no ♥ top/.test(g2.detail), "the no-flip line is gone");
   }
 
   // (Echo was removed in the rebalance — its test is gone.)

@@ -36,6 +36,20 @@ public struct PendingAction: Sendable, Equatable {
     public var target: Int?
 }
 
+/// A Second Wind save roll that HIT, parked for the player's call (iOS
+/// consent mode): save the pile (its cards + the killer recycle into the deck)
+/// or let it die. The killing card is HELD here — out of deck and piles —
+/// until `answerSecondWind` settles it.
+public struct PendingSecondWind {
+    public var index: Int
+    public var col: Int
+    public var guess: Guess
+    public var killingCard: LiveCard
+    /// Cards the save would recycle into the deck (the pile + the killer) —
+    /// the X the prompt states.
+    public var recycleCount: Int
+}
+
 /// One debug-logbook entry — ground-truth, appended where effects execute.
 public struct LogEntry: Sendable, Equatable {
     public var title: String
@@ -100,6 +114,18 @@ public final class RunState {
     /// The ♦-top piles a consented Diamond Ripple would shuffle (captured at
     /// the landing) + the landing pile's column (for the fired pulse).
     public var pendingRipple: (piles: [Int], col: Int?)?
+    /// Same consent discipline as `rippleNeedsConsent`, for the two effects
+    /// v6.55 turns into player choices: Second Wind's save (save it or let it
+    /// die) and the Link Shuffler Same-Power (shuffle or keep the order).
+    /// DEFAULT FALSE — the web auto-applies both, and every fixture/trace runs
+    /// with them unset.
+    public var secondWindNeedsConsent = false
+    public var samePowerNeedsConsent = false
+    /// A Second Wind roll that hit, awaiting `answerSecondWind`.
+    public var pendingSecondWind: PendingSecondWind?
+    /// A correct Same with the Link Shuffler equipped, awaiting
+    /// `answerPowerShuffle` — the value is the hub pile the Same was called on.
+    public var pendingPowerShuffle: Int?
 
     /// Live bonus-coin tally + its itemization.
     public var bonusCoins: Double = 0
@@ -108,6 +134,12 @@ public final class RunState {
     /// Per-column consecutive-correct-guess streak.
     public var colStreak: [Int]?
     public var secondWindUsed: [Bool]?
+    /// Gambler: the deal-end coin flip is rolled ONCE per Gambler column at
+    /// Start Run and memoized here (column → won), so every payout PROJECTION
+    /// (the HUD re-reads `pillarPayout()` per render) shows the SAME result the
+    /// deal end pays — no read ever consumes the action-stream rng. Nil for
+    /// column-agnostic legacy/test runs. Round-trips the mid-deal snapshot.
+    public var gamblerFlips: [Int: Bool]?
 
     /// Accrued this run, written back to the persistent card on a WIN.
     public var compoundUpdates: [Int: Int] = [:]
@@ -124,6 +156,12 @@ public final class RunState {
     public var whisperPiles = Set<Int>()
     /// How many upcoming DRAWS still carry a whole-board Tell-style hint.
     public var tellDrawsLeft = 0
+    /// SECOND SIGHT window (v6.58): for this many upcoming draws the hint
+    /// shows on ONE pile only — the most recently landed top card.
+    public var sightDrawsLeft = 0
+    /// The pile whose LIVING top most recently landed (nil after a death,
+    /// a revive's fresh deal, or before any landing). Second Sight's anchor.
+    public var lastLandedPile: Int? = nil
 
     /// Debug logbook — dev tooling only, never read by game logic.
     public var log: [LogEntry] = []
@@ -143,6 +181,7 @@ public final class RunState {
             basesUsed = Array(repeating: false, count: n)
             colStreak = Array(repeating: 0, count: n)
             secondWindUsed = Array(repeating: false, count: n)
+            gamblerFlips = [:]
         }
     }
 }
@@ -180,6 +219,32 @@ public struct RunConfig {
     }
 }
 
+/// The structured outcome of one item's %-CHANCE roll (v6.57 probability
+/// feedback). Emitted at the moment the roll is made — BEFORE the effect's
+/// own events on a hit — so the UI can show the roll and then its verdict.
+/// A roll that never happens (its precondition failed, e.g. Saboteur with no
+/// Pillar/Base left to destroy) emits NOTHING: only real draws are reported.
+public struct RollResult: Sendable, Equatable {
+    /// The item's registry id ("saboteur", "secondWind", "linkPurge", …).
+    public var id: String
+    /// Its player-facing label (from the item def).
+    public var label: String
+    /// "sticker" | "pillar" | "samePower" — the telemetry class.
+    public var klass: String
+    /// The probability the roll was made against (0–1), read live from the def.
+    public var chance: Double
+    public var hit: Bool
+    /// The pile the roll concerns, when pile-scoped.
+    public var index: Int?
+    /// The column the roll concerns, when column-scoped.
+    public var col: Int?
+    public init(id: String, label: String, klass: String, chance: Double, hit: Bool,
+                index: Int? = nil, col: Int? = nil) {
+        self.id = id; self.label = label; self.klass = klass
+        self.chance = chance; self.hit = hit; self.index = index; self.col = col
+    }
+}
+
 /// What the engine emits. The renderer subscribes; the engine never touches it.
 public enum EngineEvent {
     case dealt
@@ -204,6 +269,16 @@ public enum EngineEvent {
     case samePower(SamePowerResult)
     /// Second Wind rolled on a dying pile in its column and did NOT save it.
     case secondWindMiss(index: Int, col: Int)
+    /// An item's %-chance roll was made — the structured HIT/MISS the UI
+    /// renders as a roll indicator (v6.57). Emitted at roll time; on a hit the
+    /// effect's own events follow.
+    case rollResult(RollResult)
+    /// Second Wind's save roll HIT in consent mode and the choice is parked
+    /// (v6.56 sequencing): the killing card was drawn and is HELD OUT of the
+    /// deck; the pile is untouched. The UI shows the drawn card and the dying
+    /// moment FIRST, then asks save-or-die; `answerSecondWind` produces the
+    /// `.secondWind` (accept) or `.pileKilled` + `.resolved` (decline) events.
+    case secondWindOffer(index: Int, col: Int, guess: Guess, current: LiveCard, drawn: LiveCard, recycleCount: Int)
     /// Flypaper stuck a random sticker to the card that just landed.
     case pillarSticker(col: Int, pileIndex: Int, cardId: Int, typeId: String)
     /// A Tie-Safe STICKER turned a directional tie into a save (v6.50: it

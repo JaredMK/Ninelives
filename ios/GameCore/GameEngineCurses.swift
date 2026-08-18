@@ -87,12 +87,16 @@ extension GameEngine {
         // SABOTEUR: `chance` to destroy the column's Base or Pillar (random
         // between whichever exist). The engine clears its own copy and emits;
         // the flow makes it stick on the campaign, like static volatility.
+        // The roll only happens while a target exists, and reports its
+        // HIT/MISS (v6.57).
         if hasCurse(drawn, "saboteur"), let col = run.pileColumns?[index] {
             let t = stickerTypes.all().first { $0.behavior == "saboteur" }
             var targets: [(kind: String, id: String)] = []
             if let pid = run.pillars?[safe: col] ?? nil { targets.append(("pillar", pid)) }
             if let bid = run.bases?[safe: col] ?? nil { targets.append(("base", bid)) }
-            if !targets.isEmpty, rng.next() < (t?.num("chance", 0.1) ?? 0.1) {
+            if !targets.isEmpty,
+               rollChance("sticker", t?.id ?? "saboteur", t?.label ?? "Saboteur",
+                          t?.num("chance", 0.1) ?? 0.1, index: index, col: col) {
                 let victim = targets[rng.index(targets.count)]
                 if victim.kind == "pillar" { run.pillars?[col] = nil }
                 else { run.bases?[col] = nil }
@@ -121,10 +125,12 @@ extension GameEngine {
 
     /// MALFUNCTION: guessing correctly AGAINST a malfunction top card rolls
     /// `chance` that the card blows the pile anyway. The guess stays counted
-    /// as correct (it was); the pile still dies, past every save.
-    func malfunctionTriggers(current: LiveCard) -> Bool {
+    /// as correct (it was); the pile still dies, past every save. The roll
+    /// reports its HIT/MISS (v6.57).
+    func malfunctionTriggers(current: LiveCard, index: Int, col: Int?) -> Bool {
         guard hasCurse(current, "malfunction") else { return false }
         let t = stickerTypes.all().first { $0.behavior == "malfunction" }
-        return rng.next() < (t?.num("chance", 0.1) ?? 0.1)
+        return rollChance("sticker", t?.id ?? "malfunction", t?.label ?? "Malfunction",
+                          t?.num("chance", 0.1) ?? 0.1, index: index, col: col)
     }
 }

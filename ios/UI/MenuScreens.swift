@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.54"
-    static let note = "ios: every event wears a name, every outcome shows its face, and nothing slips out the side door."
+    static let version = "v6.58"
+    static let note = "ios: the shelf rolls new odds, variable items say their rank, Second Sight follows the last landing, and the harvest waits for a sticker."
     static let line = "build \(version) · \(note)"
 }
 
@@ -740,13 +740,14 @@ final class DeckSelectViewController: MenuScreenBase {
     /// the REAL safe-area insets — viewDidLoad runs with zeros, and seams
     /// baked from them put the title in the Dynamic Island — and (b) fit
     /// `avail` EXACTLY. A hand-kept height budget drifted 48pt once, which
-    /// silently engaged the base class's scale-to-fit transform; the deck
-    /// carousel's slide animation then stomped that transform to identity,
+    /// silently engaged the base class's scale-to-fit transform; the old
+    /// whole-page carousel slide then stomped that transform to identity,
     /// growing the content around its centre and shoving the title into the
     /// island after every swipe. So: pass 1 builds with floor seams to
     /// MEASURE the natural height, pass 2 distributes the true leftover —
-    /// content height == avail, the scale branch never engages, and there is
-    /// no transform for the slide to fight.
+    /// content height == avail, the scale branch never engages. (v6.57: the
+    /// swipe now animates the sprite alone and never touches `content`'s
+    /// transform — but the exact fit still keeps the scale branch dormant.)
     private func build() {
         builtInsetSignature = currentInsetSignature()
         // The bottom margin RESERVES the pager-dot band: the dots pin to the
@@ -1028,29 +1029,42 @@ final class DeckSelectViewController: MenuScreenBase {
     private func cycleDeck(_ dir: Int) {
         deckIndex = (deckIndex + dir + GameFlowController.decks.count) % GameFlowController.decks.count
         tierIndex = 0
-        // Carousel slide (web: the deck carousel translates on swipe) —
-        // snapshot the old page, slide it out as the fresh build slides in.
+        // v6.57 SCROLL ISOLATION: ONLY the character sprite moves between
+        // decks. The old carousel snapshotted the whole `content` page and
+        // slid it out — title, identity, high score, tier chips, START and
+        // all translated with it. Now the rebuild swaps everything else IN
+        // PLACE (the seams are geometry-fixed, so every frame lands exactly
+        // where the old one sat) while the outgoing sprite ghosts one way
+        // and the fresh sprite slides in from the other. Transform/opacity
+        // only, one short self-terminating animator — and `content`'s
+        // transform is never touched, so the EXACTFIT1 scale-to-fit branch
+        // has nothing left to fight.
         let shift = view.bounds.width * 0.6 * CGFloat(dir > 0 ? 1 : -1)
-        let ghost = content.snapshotView(afterScreenUpdates: false)
-        if let ghost {
-            ghost.frame = content.frame
-            scroll.addSubview(ghost)
+        let oldSprite = content.viewWithTag(777)
+        let ghost = oldSprite?.snapshotView(afterScreenUpdates: false)
+        if let ghost, let oldSprite {
+            ghost.frame = oldSprite.convert(oldSprite.bounds, to: scroll)
         }
         build()
         view.layoutIfNeeded()
-        content.transform = CGAffineTransform(translationX: shift, y: 0)
-        content.alpha = 0.6
-        let slide = UIViewPropertyAnimator(duration: 0.28, curve: .easeOut) {
-            self.content.transform = .identity
-            self.content.alpha = 1
+        guard let sprite = content.viewWithTag(777) else { return }
+        let d = GameFlowController.decks[deckIndex]
+        let unlocked = deckUnlocked(d)
+        if let ghost { scroll.addSubview(ghost) }
+        sprite.transform = CGAffineTransform(translationX: shift, y: 0)
+        sprite.alpha = 0
+        let slide = UIViewPropertyAnimator(duration: 0.22, curve: .easeOut) {
+            sprite.transform = .identity
+            sprite.alpha = unlocked ? 1 : 0.72
             ghost?.transform = CGAffineTransform(translationX: -shift, y: 0)
             ghost?.alpha = 0
         }
-        slide.addCompletion { _ in ghost?.removeFromSuperview() }
-        slide.startAnimation()
-        // Character perk (web dcPerk: squash-and-stretch) — unlocked decks only.
-        let d = GameFlowController.decks[deckIndex]
-        if deckUnlocked(d), let sprite = content.viewWithTag(777) {
+        slide.addCompletion { _ in
+            ghost?.removeFromSuperview()
+            // Character perk (web dcPerk: squash-and-stretch) — unlocked decks
+            // only, chained AFTER the slide so the two never fight over the
+            // sprite's transform.
+            guard unlocked else { return }
             UIView.animateKeyframes(withDuration: 0.45, delay: 0) {
                 UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.38) {
                     sprite.transform = CGAffineTransform(translationX: 0, y: -3).scaledBy(x: 0.96, y: 1.06)
@@ -1063,6 +1077,7 @@ final class DeckSelectViewController: MenuScreenBase {
                 }
             }
         }
+        slide.startAnimation()
     }
 }
 

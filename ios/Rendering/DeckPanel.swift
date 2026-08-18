@@ -135,6 +135,14 @@ public final class DeckPanel: SKNode {
         // Zen passes showSuits: false (v6.52) — a fresh standard deck's suit
         // tallies say nothing there, and the column crowded the histogram
         // into the "11/13" overlap. The histogram reclaims the width.
+        //
+        // The column's width is MEASURED, never fixed (v6.57): the old 46pt
+        // reservation let "♥ 12/16"-scale tallies bleed over the first rank
+        // bar. The histogram origin rides the WIDEST tally this deal can ever
+        // show — n is at most t, so "s t/t" is the worst case at any count —
+        // measured with the label's own font, so no count width (1/1 … 13/27)
+        // can collide with the bars, and the column never jitters as n moves.
+        var suitColW: CGFloat = 0
         if showSuits {
             var sy: CGFloat = -pad - 6
             for s in ["♥", "♦", "♣", "♠"] {
@@ -148,11 +156,13 @@ public final class DeckPanel: SKNode {
                 label.position = CGPoint(x: pad, y: sy)
                 suitLayer.addChild(label)
                 sy -= 15
+                let widest = "\(s) \(t)/\(t)" as NSString
+                suitColW = max(suitColW, widest.size(withAttributes: [.font: CRT.Font.of(16)]).width)
             }
         }
 
         // ---- rank histogram (middle): one column per rank, 2..A left→right ----
-        let histX = pad + (showSuits ? 46 : 0)
+        let histX = pad + (showSuits ? ceil(suitColW) + 6 : 0)
         let deckW: CGFloat = 62
         let histW = size.width - histX - deckW - pad * 2
         // +1 column for ★ (jokers), which sit at rank 0 and are therefore

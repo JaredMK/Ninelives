@@ -173,6 +173,14 @@ public final class DealViewController: UIViewController {
                 scene.onMenuTapped = { [weak self] in self?.onMenu?() }
                 wireOffers()
             }
+            // `-demoPrompt …` (EventCaptureUITests, v6.55): the DEBUG deal gets
+            // the offer closures too, so its staged consent prompts are the
+            // real PromptBar path. Without the arg nothing changes — the
+            // parity/autoplay debug deals keep the engine's auto defaults.
+            if UserDefaults.standard.string(forKey: "demoPrompt") != nil,
+               case .debug = mode, controller.onRippleOffer == nil {
+                wireOffers()
+            }
             view.addSubview(promptBar)
             promptBar.frame = view.bounds
             promptBar.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -227,6 +235,54 @@ public final class DealViewController: UIViewController {
                     }
                 }
             }
+            // `-demoPrompt ripple|rippleFan|secondWind|shuffler|revive`
+            // (EventCaptureUITests, v6.55; revive added v6.56): stage a REAL
+            // parked consent/targeting state after the cascade settles (the
+            // DealController debug hooks build the engine's genuine pending
+            // structs; the rippleFan variant then opens the pile fan on the
+            // first offered pile, as a FAN tap would). Needs the deal's own
+            // args too: `-dealPillar secondWind`, `-dealSamePower linkShuffle`,
+            // `-dealPillar revive`.
+            if let demo = UserDefaults.standard.string(forKey: "demoPrompt") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) { [weak self] in
+                    guard let self, let c = self.controller else { return }
+                    switch demo {
+                    case "ripple", "rippleFan":
+                        let piles = c.debugSurfaceRipple()
+                        if demo == "rippleFan", let first = piles.first {
+                            if !self.scene.isFanHintOn { self.scene.toggleFanHint() }
+                            self.showPileFanOverlay(first)
+                        }
+                    case "secondWind":
+                        c.debugSurfaceSecondWind()
+                    case "shuffler":
+                        c.debugSurfacePowerShuffle()
+                    case "revive":   // v6.56: needs `-dealPillar revive`
+                        c.debugSurfaceRevive()
+                    default: break
+                    }
+                }
+            }
+            // `-demoRollFX hit|miss` / `-demoSuitCounts 1` / `-demoSuitRefresh 1`
+            // (DealFeedbackUITests, v6.57): evidence stills for the roll
+            // indicators, the histogram's widest suit tallies and the
+            // sticker-apply count refresh — staged AFTER the cascade settles,
+            // the `-demoPrompt` precedent. `-demoBaseFire 1` taps the column-0
+            // Base plaque (a REAL fire through basePlaqueTapped) for the
+            // resource-grant pop evidence.
+            let d = UserDefaults.standard
+            if d.string(forKey: "demoRollFX") != nil || d.bool(forKey: "demoSuitCounts")
+                || d.bool(forKey: "demoSuitRefresh") || d.bool(forKey: "demoBaseFire") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) { [weak self] in
+                    guard let self, let c = self.controller else { return }
+                    if let which = d.string(forKey: "demoRollFX") {
+                        c.debugStageRollIndicator(hit: which != "miss")
+                    }
+                    if d.bool(forKey: "demoSuitCounts") { c.debugStressSuitCounts() }
+                    if d.bool(forKey: "demoSuitRefresh") { c.debugApplySuitStickerToDeckCard() }
+                    if d.bool(forKey: "demoBaseFire") { c.basePlaqueTapped(col: 0) }
+                }
+            }
         } else {
             scene.size = view.bounds.size
             scene.safeInsets = view.safeAreaInsets
@@ -241,6 +297,10 @@ public final class DealViewController: UIViewController {
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         UIApplication.shared.isIdleTimerDisabled = true
+        // Returning from a full-screen cover (the deck inspection) revalidates
+        // the deck band: a suit sticker applied while the deal was covered
+        // repaints the histogram counts NOW, not on the next guess (v6.57).
+        controller?.noteDeckCompositionChanged()
     }
 
     public override func viewWillDisappear(_ animated: Bool) {
@@ -318,11 +378,14 @@ public final class DealViewController: UIViewController {
             ]) { [weak self] in self?.controller.promptDismissed() }
         }
         // Diamond Ripple: the sticker asks before shuffling every ♦-top pile.
-        controller.onRippleOffer = { [weak self] count, answer in
+        // MODAL + passthrough (v6.55): the rings DealController lit stay
+        // tappable — FAN inspects what's underneath BEFORE deciding — and a
+        // FAN or scrim tap no longer declines; only Keep/Shuffle settle it.
+        controller.onRippleOffer = { [weak self] piles, answer in
             guard let self else { answer(true); return }
             self.promptBar.show(
-                "Diamond Ripple: shuffle \(count) diamond-top pile\(count == 1 ? "" : "s")?",
-                help: "Optional. Keep leaves those piles exactly as they are.",
+                "Diamond Ripple: shuffle the \(piles.count) highlighted diamond-top pile\(piles.count == 1 ? "" : "s")?",
+                help: "Optional. FAN peeks what's underneath first; Keep leaves those piles exactly as they are.",
                 actions: [
                     .init("Keep", role: .plain) { [weak self] in
                         self?.promptBar.hide(); answer(false)
@@ -330,7 +393,38 @@ public final class DealViewController: UIViewController {
                     .init("Shuffle", role: .cta) { [weak self] in
                         self?.promptBar.hide(); answer(true)
                     },
-                ]) { answer(false) }
+                ], passthrough: true)
+        }
+        // Second Wind (v6.55): the 25% save roll hit — the player calls it.
+        // MODAL: a stray tap must never kill the pile.
+        controller.onSecondWindOffer = { [weak self] _, count, answer in
+            guard let self else { answer(true); return }
+            self.promptBar.show(
+                "Second Wind: save the highlighted pile?",
+                help: "Save it and its \(count) card\(count == 1 ? "" : "s") (pile + killer) return to the deck, hidden, and it draws one fresh top. Let it die and the pile is gone.",
+                actions: [
+                    .init("Let it die", role: .plain) { [weak self] in
+                        self?.promptBar.hide(); answer(false)
+                    },
+                    .init("Save · recycle \(count)", role: .cta) { [weak self] in
+                        self?.promptBar.hide(); answer(true)
+                    },
+                ])
+        }
+        // Link Shuffler (v6.55): the board-wide shuffle asks before firing.
+        controller.onPowerShuffleOffer = { [weak self] label, count, answer in
+            guard let self else { answer(true); return }
+            self.promptBar.show(
+                "\(label): shuffle all \(count) alive pile\(count == 1 ? "" : "s")?",
+                help: "Your correct Same triggered it. No keeps every pile's order as it is.",
+                actions: [
+                    .init("No", role: .plain) { [weak self] in
+                        self?.promptBar.hide(); answer(false)
+                    },
+                    .init("Shuffle all", role: .cta) { [weak self] in
+                        self?.promptBar.hide(); answer(true)
+                    },
+                ])
         }
     }
 
@@ -346,12 +440,21 @@ public final class DealViewController: UIViewController {
         // asking for a target with nothing on screen indicating one.
         scene.setActionTargets(kind == .pile ? piles : [])
         scene.setPillarTargets(kind == .pillar ? piles : [])
+        // PASSTHROUGH + NO scrim-dismiss (v6.56): the pick's answer IS a board
+        // tap, so the bar must not eat it. Without passthrough the full-screen
+        // scrim claimed every touch (`point(inside:)` = the whole bounds), the
+        // board tap recognizer's `touch.view === view` gate (the 5e8644f fix)
+        // refused it, and the scrim's own tap handler then resolved the pick
+        // as a silent SKIP — the revive-targeting bug, third recurrence of the
+        // recognizer/overlay conflict. The pick now settles ONLY through Skip
+        // or a target tap — the ripple consent's modal idiom (v6.55) and
+        // v6.25's no-stray-tap rule, applied to targeting.
         promptBar.show(prompt, help: nil, actions: [
             .init("Skip", role: .plain) { [weak self] in
                 self?.promptBar.hide()
                 self?.finishTargetPick(nil)
             },
-        ]) { [weak self] in self?.finishTargetPick(nil) }
+        ], passthrough: true)
     }
 
     private func finishTargetPick(_ target: Int?) {
@@ -420,14 +523,22 @@ public final class DealViewController: UIViewController {
 
         if scene.isHelpVisible { scene.hideHelp(); return }
 
-        // Target-pick mode (revive / Phoenix): a tap on an armed pile fires.
+        // Target-pick mode (Sticker Harvest / revive): a tap on an armed pile
+        // fires; a tap ANYWHERE ELSE answers exactly like Skip (v6.57 batch) —
+        // the pick must never sit half-armed after a stray tap, and Skip's
+        // path spends nothing (the charge is only spent on a real target).
         if let tp = targetPick {
             switch tp.kind {
             case .pile:
-                if let pile = scene.pileIndex(at: p), tp.targets.contains(pile) { finishTargetPick(pile) }
+                if let pile = scene.pileIndex(at: p), tp.targets.contains(pile) {
+                    finishTargetPick(pile); return
+                }
             case .pillar:
-                if let col = scene.pillarCol(at: p), tp.targets.contains(col) { finishTargetPick(col) }
+                if let col = scene.pillarCol(at: p), tp.targets.contains(col) {
+                    finishTargetPick(col); return
+                }
             }
+            finishTargetPick(nil)
             return
         }
 
@@ -508,6 +619,9 @@ public final class DealViewController: UIViewController {
         let fan = PileFanOverlayView(pileIndex: pile, stackOrder: cards)
         fan.onDismiss = { [weak self] in self?.pileFan = nil }
         fan.show(in: view)
+        // Above the PromptBar: a FAN tap DURING the ripple consent must layer
+        // the inspection over the open question, never under its dim.
+        view.bringSubviewToFront(fan)
         pileFan = fan
         Sound.shared.fanOpen()
     }

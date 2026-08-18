@@ -10,10 +10,10 @@
     "classWeights": {
       "sticker": 40,
       "pillar": 20,
-      "base": 20,
-      "pack": 8,
-      "card": 8,
-      "samepower": 4
+      "base": 15,
+      "card": 10,
+      "pack": 10,
+      "samepower": 5
     },
     "tierWeights": {
       "common": 100,
@@ -46,7 +46,7 @@
           1
         ]
       ],
-      "description": "A single card. Swap it into your deck, replacing a card of your choice. Each sticker it carries adds 1 to the price."
+      "description": "Swap card into deck"
     },
     "removal": {
       "id": "removal",
@@ -1124,7 +1124,7 @@
       "tier": "rare",
       "price": 6,
       "saveChance": 0.25,
-      "description": "Each pile that dies in this column has a 25% chance to be saved, but all its buried cards return to the deck"
+      "description": "Each pile that dies in this column has a 25% chance to offer its rescue: take it and all the pile's cards return to the deck, or refuse and let it die"
     },
     {
       "id": "greedy",
@@ -1422,11 +1422,11 @@
       "icon": "🎲",
       "kind": "scoring",
       "effect": "gambler",
-      "value": 5,
+      "value": 10,
       "chance": 0.5,
       "tier": "uncommon",
       "price": 5,
-      "description": "At deal end → 50/50: +5 coins or nothing (requires a ♥ top card in this column)"
+      "description": "At deal end → 50/50: +10 coins or nothing"
     },
     {
       "id": "lastRites",
@@ -1906,7 +1906,7 @@
       "effect": "linkTell",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: The next X cards show a tell (higher/lower/same indicator) hint, where X is the number of alive piles with a {color} top card"
+      "description": "Trigger: You make a correct Same\nEffect: For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a {color} top card"
     },
     {
       "id": "linkSticker",

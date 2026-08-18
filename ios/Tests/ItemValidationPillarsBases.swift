@@ -778,13 +778,16 @@ enum IVPillarsBases {
                         guard let line = payoutLine(e) else { return XCTFail("\(c): the flip must show") }
                         XCTAssertTrue(line.amount == v || line.amount == 0, "\(c): all or nothing")
                     }),
-                IV.Scenario("edge-noHeartNoFlip", allowed: [],
+                IV.Scenario("edge-noHeartStillFlips", allowed: .all,
                     build: { IV.engine(tops: [IV.spec(1, 5, "♣"), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 9)],
                                        pillars: [def.id, nil, nil]) },
                     fire: { _ in },
                     expect: { e, _, c in
-                        XCTAssertEqual(payoutLine(e)?.amount, 0, "\(c): no ♥ top, no flip, says so")
+                        // v6.57: the ♥-top requirement is gone — the flip runs
+                        // with ANY top, so the line shows and pays 0 or value.
+                        guard let line = payoutLine(e) else { return XCTFail("\(c): the flip must show") }
+                        XCTAssertTrue(line.amount == v || line.amount == 0, "\(c): all or nothing, no ♥ needed")
                     }),
                 IV.Scenario("mustNotFire-noPillar", allowed: [],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6), IV.spec(3, 6)],

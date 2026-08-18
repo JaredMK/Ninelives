@@ -52,8 +52,13 @@ public final class PromptBar: UIView {
     required init?(coder: NSCoder) { fatalError("not supported") }
 
     /// Show the bar. `dismiss` fires on an outside tap (cancel semantics).
+    /// `passthrough: true` (the Diamond Ripple consent) lets touches OUTSIDE
+    /// the panel fall through to the board, so the player can fan-inspect the
+    /// offered piles mid-question; the question itself still settles ONLY
+    /// through its buttons (pass `dismiss: nil` with it).
     public func show(_ text: String, help: String? = nil, actions: [Action],
-                     dismiss: (() -> Void)? = nil) {
+                     passthrough: Bool = false, dismiss: (() -> Void)? = nil) {
+        scrimPassthrough = passthrough
         textLabel.attributedText = CRTKit.attributed(text, size: 16, color: CRT.phosphor)
         helpLabel.attributedText = help.map { helpAttributed($0) }
         helpLabel.isHidden = help == nil
@@ -94,9 +99,13 @@ public final class PromptBar: UIView {
         return s
     }
 
+    /// True while the scrim should DIM but not eat touches (see `show`).
+    private var scrimPassthrough = false
+
     public func hide() {
         isHidden = true
         onDismiss = nil
+        scrimPassthrough = false
     }
 
     public var isShowing: Bool { !isHidden }
@@ -159,8 +168,12 @@ public final class PromptBar: UIView {
     }
 
     /// Route touches: only the scrim + panel are interactive; the rest passes
-    /// through so the screen behind stays inert while dimmed.
+    /// through so the screen behind stays inert while dimmed. In passthrough
+    /// mode only the PANEL is interactive — board taps (FAN, pile inspection)
+    /// reach the scene while the question stays open.
     public override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        !isHidden
+        if isHidden { return false }
+        if scrimPassthrough { return panel.frame.contains(point) }
+        return true
     }
 }

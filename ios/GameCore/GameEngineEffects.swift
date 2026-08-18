@@ -19,7 +19,8 @@ extension GameEngine {
         case "prime" where v == 2 || v == 3 || v == 5 || v == 7:
             payPillar(col, "prime", pillar.label, pillar.num("value", 1) == 0 ? 1 : pillar.value)
 
-        case "flypaper" where rng.next() < pillar.num("chance", 0.05):
+        case "flypaper" where rollChance("pillar", pillar.id, pillar.label,
+                                         pillar.num("chance", 0.05), index: index, col: col):
             // Flypaper: the landed card picks up a random sticker, permanent.
             let pool = wildStickerPoolFor(drawn)
             if let typeId = pick(pool.map(\.id)) {
@@ -429,6 +430,32 @@ extension GameEngine {
         if tp > 0 { recT("sticker", "activateSamePower", "Tap Power", ["copies": Double(tp)]) }
     }
 
+    /// SAVED-LANDING stickers (v6.57) — the complement of the v6.52/53
+    /// fatal-landing audit. A card that lands WRONG but whose pile is SAVED by
+    /// the Same-Charge backstop physically LANDS (it becomes the new pile top),
+    /// so its own beneficial landing stickers fire — the same set, in the same
+    /// relative order, as the correct-landing branch. Deliberately EXCLUDED:
+    ///   - curses (`curseTouch`) and Trapdoor stay CORRECT-only — the audit's
+    ///     rule; a wrong guess never springs them, saved or not;
+    ///   - Pillar landing effects (maybeTribute / maybeLivePillarExtras) are
+    ///     the column's reward for a CORRECT landing, not the card's stickers;
+    ///   - Duplicate needs a correct Same by definition.
+    /// The OTHER saves never reach here: a Guard return and a Second Wind
+    /// recycle take the card back into the deck — it never lands at all.
+    func fireSavedLandingStickers(index: Int, current: LiveCard, drawn: LiveCard, col: Int?) {
+        // Scout: the placed card reveals the next deck card (display-only).
+        if drawn.revealNext { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", ["peeks": 1]) }
+        // Tell: arm a DIRECTIONAL hint for the NEXT draw on this pile.
+        if drawn.stickers.contains(where: { $0.type == "tell" }) {
+            run.tellPiles.insert(index)
+            recT("sticker", "tell", "Tell", ["peeks": 1])
+        }
+        maybeLandingBonus(index, drawn)
+        maybeExpansionStickers(index, current, drawn, col)
+        maybeStickerTribute(index, drawn)
+        maybeStickerActions(index, drawn)
+    }
+
     /// Post-landing sticker ACTIONS. Shuffle stays an OPTIONAL offer (queued and
     /// surfaced after any prompt drains). Donate is AUTOMATIC — it moves buried
     /// card(s) to the smallest eligible pile inline on the landing.
@@ -493,10 +520,12 @@ extension GameEngine {
         if !deck.isEmpty { board.push(targetIndex, deck.draw()) }   // a fresh top
         if let fresh = board.top(targetIndex), fresh.revealNext { run.revealNextActive = true }
         run.reviveUsed![col] = true
+        fireContext = "Revive · pile \(targetIndex + 1)"
         logAction("Revive: pile \(targetIndex + 1) brought back with a fresh card")
         emit(.revived(col: col, index: targetIndex))
         let rdef = resolvePillarDef(col)
         recT("pillar", rdef?.id ?? "revive", rdef?.label ?? "Revive", ["revived": 1])
+        fireContext = nil
         evaluateEnd()
         return true
     }
@@ -604,20 +633,23 @@ extension GameEngine {
                 }
 
             case "gambler":
-                // 50/50: +value or nothing — but ONLY if this column has an alive
-                // ♥-topped pile. Always emit a line so the outcome shows.
-                let hasHeart = colIdxs(col).contains { board.isActive($0) && matchesSuit(board.top($0), "♥") }
-                if !hasHeart {
-                    lines.append(PayoutLine(label: t.label, detail: "no ♥ top in column, no flip",
-                                            amount: 0, col: col, effect: "gambler"))
+                // The flip is memoized at Start Run (run.gamblerFlips) — this
+                // read NEVER re-rolls, so a projection and the deal end can't
+                // disagree. Fallback (no memo: the column was jammed at Start
+                // Run): roll on the first payout read, then memoize. Always
+                // emit a line so the outcome shows.
+                let won: Bool
+                if let memo = run.gamblerFlips?[col] {
+                    won = memo
                 } else {
-                    let won = rng.next() < t.num("chance", 0.5)
-                    let amt = won ? t.value : 0
-                    bonus += amt
-                    lines.append(PayoutLine(label: t.label,
-                                            detail: won ? "won the flip (+\(jsNum(amt)))" : "lost the flip (+0)",
-                                            amount: amt, col: col, effect: "gambler"))
+                    won = rollChance("pillar", t.id, t.label, t.num("chance", 0.5), col: col)
+                    run.gamblerFlips?[col] = won
                 }
+                let amt = won ? t.value : 0
+                bonus += amt
+                lines.append(PayoutLine(label: t.label,
+                                        detail: won ? "won the flip (+\(jsNum(amt)))" : "lost the flip (+0)",
+                                        amount: amt, col: col, effect: "gambler"))
 
             default: break
             }
@@ -651,5 +683,72 @@ extension GameEngine {
         guard let run, let pending = run.pendingRipple else { return }
         run.pendingRipple = nil
         if accept { shuffleRipple(pending.piles, col: pending.col) }
+    }
+
+    // MARK: - Screenshot staging (EventCaptureUITests' `-demoPrompt …` hooks)
+
+    /// Stage the EXACT parked state a consented Diamond Ripple produces, without
+    /// needing a diamondRipple landing on cue: the current ♦-topped alive piles
+    /// become the offer. If no pile wears a ♦, one is swapped in from the deck
+    /// (the arrangeTutorialOpening swap idiom — counts and composition stay
+    /// true). Returns the offered piles; empty when nothing could be staged.
+    @discardableResult
+    public func debugStageRipplePending() -> [Int] {
+        guard let run, status == "playing" else { return [] }
+        var targets = allAlivePiles().filter { matchesSuit(board.top($0), "♦") }
+        if targets.isEmpty, let d = deck.takeFirst(where: { $0.suit == "♦" }),
+           let host = allAlivePiles().first, let old = board.piles[host].cards.popLast() {
+            board.piles[host].cards.append(d)
+            deck.returnCard(old)
+            targets = [host]
+        }
+        guard !targets.isEmpty else { return [] }
+        run.pendingRipple = (piles: targets, col: nil)
+        return targets
+    }
+
+    /// Stage the parked Second Wind choice: a REAL card drawn from the deck is
+    /// held as the killer, so answering runs the genuine save/death paths.
+    public func debugStageSecondWindPending() {
+        guard let run, status == "playing",
+              let idx = allAlivePiles().first, board.top(idx) != nil,
+              !deck.isEmpty, let killing = deck.draw() else { return }
+        run.pendingSecondWind = PendingSecondWind(
+            index: idx, col: run.pileColumns?[idx] ?? 0, guess: .higher,
+            killingCard: killing, recycleCount: board.pileSize(idx) + 1)
+    }
+
+    /// Stage the parked Link Shuffler confirm on the first alive pile (the hub).
+    /// The power itself must be equipped (`-dealSamePower linkShuffle`).
+    public func debugStagePowerShufflePending() {
+        guard let run, status == "playing", run.samePower != nil,
+              let hub = allAlivePiles().first else { return }
+        run.pendingPowerShuffle = hub
+    }
+
+    /// Stage the Revive pillar's targeting offer (v6.56; EventCaptureUITests'
+    /// `-demoPrompt revive`): the LAST pile dies for real and a pile in the
+    /// pillar's column grows to the `trigger` count with REAL deck draws
+    /// (composition stays true), then the genuine `maybeReviveTrigger` runs,
+    /// so the emitted `.reviveOffer` is the real one. The pillar itself must
+    /// be equipped (`-dealPillar revive`). Returns the dead targets; empty
+    /// when nothing could be staged.
+    @discardableResult
+    public func debugStageReviveOffer() -> [Int] {
+        guard let run, status == "playing" else { return [] }
+        let col = 0   // -dealPillar pins the pillar to column 0
+        guard let def = resolvePillarDef(col), def.effect == "revive" else { return [] }
+        let trigger = def.int("trigger", 10)
+        let victim = board.size - 1
+        if board.isActive(victim) { board.kill(victim) }
+        guard let host = (0..<board.size).first(where: {
+            run.pileColumns?[$0] == col && board.isActive($0)
+        }) else { return [] }
+        while board.piles[host].cards.count < trigger, let drawn = deck.draw() {
+            board.piles[host].cards.append(drawn)
+        }
+        guard board.piles[host].cards.count >= trigger else { return [] }
+        maybeReviveTrigger(col)
+        return allDeadPiles()
     }
 }

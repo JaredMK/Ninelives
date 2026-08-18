@@ -18,7 +18,7 @@ export function run() {
   // --- registry presence -------------------------------------------------
   {
     r.ok(!!PillarTypes.get("fibonacci"), "Fibonacci pillar registered");
-    r.eq(PillarTypes.get("fibonacci").tier, "rare", "Fibonacci is Rare");
+    r.eq(PillarTypes.get("fibonacci").tier, "uncommon", "Fibonacci is Uncommon (v6.53 retier)");
     r.eq(PillarTypes.get("fibonacci").price, 4, "Fibonacci costs 4");
     r.ok(!PillarTypes.get("highestOdd"), "Highest Odd is deleted from the registry");
     r.eq(PillarTypes.get("highestEven").effect, "highestHeart", "the highestEven id now runs the Highest Heart effect");

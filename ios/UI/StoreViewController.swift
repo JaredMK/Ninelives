@@ -24,7 +24,11 @@ public final class StoreViewController: UIViewController {
     private let msgLabel = UILabel()
     private let shelf = UIView()
     private var tiles: [StoreTileView] = []
-    private let rerollButton = PixelButtonView("REFRESH", role: .gold, fontSize: 16)
+    private let rerollButton = PixelButtonView("RESTOCK", role: .gold, fontSize: 16)
+    /// The Queen's Restock reminder line, shown only while this visit's first
+    /// restock is still free (v6.55). Fixed slot under the title row — the
+    /// shelf's frame never depends on it (stable containers).
+    private let boonLabel = UILabel()
     private let loadoutPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
     private let loadoutTitle = UILabel()
     private var loadoutChips: [UIView] = []
@@ -59,14 +63,19 @@ public final class StoreViewController: UIViewController {
         view.addSubview(tissue)          // #tissue atmosphere, bottommost
 
         // Fresh visit rolls a new offer; a resume of THIS visit keeps the
-        // saved one (a refresh while shopping can never hand out a free
+        // saved one (a restock while shopping can never hand out a free
         // reroll). SEED1: the offer keys to the node id. v6.52: an offer
         // stamped for a DIFFERENT node is the previous shop's leftover — the
         // mystery-detour store opens with fresh=false and used to inherit
         // both that stale shelf and its per-visit price twist — so a
         // mismatch rerolls. A nil stamp (gift shelf, pre-v6.52 save) keeps
         // the saved offer.
+        let d = UserDefaults.standard
         let keyId = offerNodeId ?? campaign.nodePos
+        // SCREENSHOT HOOK (EventCaptureUITests, v6.55): `-storeFreeRefresh 1`
+        // arms the Queen's Restock before this visit's offer opens — the
+        // real openStore consumption path, so the shelf is genuinely free.
+        if d.bool(forKey: "storeFreeRefresh") { campaign.debugGrantFreeRefresh() }
         if campaign.getStoreOffer() == nil || campaign.storeOfferIsStale(for: keyId) {
             if let keyId {
                 _ = campaign.openStore(rng: runRng(seed: campaign.runSeed, [.s("store"), .n(keyId)]),
@@ -90,7 +99,7 @@ public final class StoreViewController: UIViewController {
         }
         view.addSubview(shell)
 
-        // "Shop" + the balance beneath; Refresh + ? clustered on the right.
+        // "Shop" + the balance beneath; Restock + ? clustered on the right.
         titleLabel.attributedText = CRTKit.attributed("Shop", size: 22, color: CRT.cardFace, display: true)
         view.addSubview(titleLabel)
         view.addSubview(balanceLabel)
@@ -99,6 +108,9 @@ public final class StoreViewController: UIViewController {
 
         msgLabel.isHidden = true
         view.addSubview(msgLabel)
+        boonLabel.isHidden = true
+        boonLabel.clipsToBounds = true   // a 16pt slot — never into the tiles
+        view.addSubview(boonLabel)
         view.addSubview(shelf)
 
         rerollButton.onTap = { [weak self] in self?.rerollTapped() }
@@ -115,7 +127,7 @@ public final class StoreViewController: UIViewController {
         view.addSubview(crt)
         view.addSubview(prompt)
 
-        setMessage("Buy from the offer, refresh, then head for the map.")
+        setMessage("Buy from the offer, restock, then head for the map.")
         render()
         // Autopilot: browse a beat, then GO TO MAP (buys are exercised by the
         // picker flows the mystery outcomes drive).
@@ -132,7 +144,7 @@ public final class StoreViewController: UIViewController {
         let shellH = TopShellView.height(safeTop: view.safeAreaInsets.top)
         shell.frame = CGRect(x: 0, y: 0, width: b.width, height: shellH)
 
-        // Title row: Shop + balance left; Refresh + ? right.
+        // Title row: Shop + balance left; Restock + ? right.
         // "Shop" and the purse sit on ONE line: the balance is the number every
         // decision here is measured against, so it rides beside the title
         // instead of under it, where the eye skipped it.
@@ -140,6 +152,10 @@ public final class StoreViewController: UIViewController {
         balanceLabel.frame = CGRect(x: 108, y: shellH + 10, width: b.width - 108 - 190, height: 28)
         helpButton.frame = CGRect(x: b.width - 42, y: shellH + 16, width: 32, height: 32)
         rerollButton.frame = CGRect(x: b.width - 42 - 8 - 130, y: shellH + 14, width: 130, height: 36)
+        // The boon reminder rides the fixed gap between the title row and the
+        // shelf (shelfTop = shellH + 60) — nothing else is laid out from it.
+        // Width stops short of the Restock/? cluster on the right.
+        boonLabel.frame = CGRect(x: 12, y: shellH + 43, width: b.width - 198, height: 15)
 
         // The shelf GROWS to fill everything between the title row and the
         // equipped panel — tall tiles, the merchandise breathes (web parity).
@@ -228,7 +244,7 @@ public final class StoreViewController: UIViewController {
             shelf.addSubview(tile)
             tiles.append(tile)
         }
-        // A GIFT SHELF is the Old Joker emptying his coat: no refresh, no
+        // A GIFT SHELF is the Old Joker emptying his coat: no restock, no
         // prices, and the exit says you're done taking rather than shopping.
         if campaign.isGiftShelf {
             rerollButton.isHidden = true
@@ -239,8 +255,20 @@ public final class StoreViewController: UIViewController {
         } else {
             rerollButton.isHidden = false
             let cost = Int(campaign.storeRerollCost())
-            rerollButton.setTitle("↻ REFRESH · ◉\(cost)")
+            // The Queen's Restock (v6.55): while this visit's first restock is
+            // still free, the button says FREE and wears the charged (phosphor)
+            // glow, and the boon line names her. One static treatment — no
+            // animation, so the pause-behind-overlay contract is untouched.
+            let freeRefresh = cost == 0
+            rerollButton.setTitle(freeRefresh ? "↻ RESTOCK · FREE" : "↻ RESTOCK · ◉\(cost)")
+            rerollButton.setRole(freeRefresh ? .charged : .gold)
             rerollButton.isEnabled = campaign.canReroll()
+            boonLabel.isHidden = !freeRefresh
+            if freeRefresh {
+                boonLabel.attributedText = CRTKit.attributed(
+                    "The Queen will restock for free.",
+                    size: 12, color: CRT.phosphor)
+            }
         }
 
         renderLoadout()
@@ -628,8 +656,85 @@ public final class StoreViewController: UIViewController {
             self.render()
         }
         d.frame = view.bounds
-        view.insertSubview(d, belowSubview: crt)
-        detail = d
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            view.insertSubview(d, belowSubview: crt)
+            detail = d
+            return
+        }
+        // SHAKE-AND-LIGHT-UP first (v6.55): the bought "?" mark reappears
+        // centre-screen over the scrim, shakes and flashes, and ONLY then
+        // swaps to the revealed power — the gamble resolving on screen.
+        playMysteryRevealFlash { [weak self] in
+            guard let self else { return }
+            self.view.insertSubview(d, belowSubview: self.crt)
+            self.detail = d
+            d.alpha = 0
+            UIView.animate(withDuration: 0.15) { d.alpha = 1 }
+        }
+    }
+
+    /// The mystery Same-Power's pre-reveal beat: the "?" mark over the
+    /// store's own scrim (the detail sheet is already closed; nothing else is
+    /// up), a scale-shake with a rotation wobble plus a phosphor flash, then
+    /// `show` hands over to the reveal panel. One-shot keyframe tween,
+    /// transform/alpha ONLY, self-terminating (§10) — ~0.6s total.
+    private func playMysteryRevealFlash(_ show: @escaping () -> Void) {
+        let cover = UIView(frame: view.bounds)
+        cover.backgroundColor = CRT.ink.withAlphaComponent(0.72)   // the .confirm-overlay scrim
+        let side: CGFloat = 96
+        let art = UIImageView(image: ItemArt.mysterySamePower(width: side, height: side))
+        art.layer.magnificationFilter = .nearest
+        art.contentMode = .center
+        art.frame = CGRect(x: (view.bounds.width - side) / 2,
+                           y: (view.bounds.height - side) / 2,
+                           width: side, height: side)
+        // The light-up: a phosphor plate flaring past the mark's edges whose
+        // alpha strobes over it — brightness via opacity, never a filter (§10).
+        let flash = UIView(frame: art.bounds.insetBy(dx: -12, dy: -12))
+        flash.backgroundColor = CRT.phosphor
+        flash.alpha = 0
+        flash.isUserInteractionEnabled = false
+        art.addSubview(flash)
+        cover.addSubview(art)
+        view.insertSubview(cover, belowSubview: crt)
+        // Screenshot harness: -revealHold 1 strikes the mid-shake pose (kick +
+        // flash) and HOLDS it quiescent for a beat instead of tweening — the
+        // XCUI screenshot daemon waits out in-flight animations, so a live
+        // tween can never be captured mid-flight; a held frame can.
+        if UserDefaults.standard.bool(forKey: "revealHold") {
+            art.transform = CGAffineTransform(rotationAngle: -0.07).scaledBy(x: 1.14, y: 1.14)
+            flash.alpha = 0.85
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                cover.removeFromSuperview()
+                show()
+            }
+            return
+        }
+        UIView.animateKeyframes(withDuration: 0.45, delay: 0, options: [.calculationModeCubic]) {
+            // The shake: two scale kicks with a wobble, settling to identity.
+            UIView.addKeyframe(withRelativeStartTime: 0.0, relativeDuration: 0.22) {
+                art.transform = CGAffineTransform(rotationAngle: -0.07).scaledBy(x: 1.14, y: 1.14)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.22, relativeDuration: 0.22) {
+                art.transform = CGAffineTransform(rotationAngle: 0.07).scaledBy(x: 0.93, y: 0.93)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.44, relativeDuration: 0.24) {
+                art.transform = CGAffineTransform(rotationAngle: -0.04).scaledBy(x: 1.08, y: 1.08)
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.68, relativeDuration: 0.32) {
+                art.transform = .identity
+            }
+            // The flash rides the shake's back half, peaking just before the swap.
+            UIView.addKeyframe(withRelativeStartTime: 0.4, relativeDuration: 0.3) {
+                flash.alpha = 0.85
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.7, relativeDuration: 0.3) {
+                flash.alpha = 0
+            }
+        } completion: { _ in
+            cover.removeFromSuperview()
+            show()
+        }
     }
 
     // MARK: - Packs
@@ -738,10 +843,13 @@ public final class StoreViewController: UIViewController {
 
     private func rerollTapped() {
         let cost = Int(campaign.storeRerollCost())
-        prompt.show("Refresh the shelf for ◉ \(cost)?",
-                    help: "Rerolls climb in price within a shop visit.", actions: [
+        let free = cost == 0
+        prompt.show(free ? "Restock the shelf — the first one is free?"
+                         : "Restock the shelf for ◉ \(cost)?",
+                    help: free ? "The Queen's Restock covers it. Later restocks this visit climb in price."
+                               : "Restocks climb in price within a shop visit.", actions: [
             .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
-            .init("Refresh", role: .gold) { [weak self] in
+            .init("Restock", role: .gold) { [weak self] in
                 guard let self else { return }
                 self.prompt.hide()
                 if self.campaign.rerollStore() {

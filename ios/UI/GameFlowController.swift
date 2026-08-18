@@ -262,7 +262,8 @@ public final class GameFlowController: UIViewController {
             if key == "itemTheft" {
                 campaign.setColumnPillar(col: 0, typeId: GameData.shared.items.pillars[0].id)
             }
-            if let o = campaign.applyMysteryEvent(key, nodeId: 7) {
+            if var o = campaign.applyMysteryEvent(key, nodeId: 7) {
+                o = withAfflictedCards(o)
                 presentOverlay(PhaseOverlayView.mystery(outcome: o,
                                                         presenter: MysteryCast.presenter(for: o),
                                                         deckId: campaign.deckId) { [weak self] in self?.dismissOverlay() })
@@ -276,7 +277,7 @@ public final class GameFlowController: UIViewController {
                 .max { $0.description.count < $1.description.count }
             if let def = gated {
                 presentOverlay(PhaseOverlayView.itemUnlock(
-                    title: "Unlocked", body: def.description, itemId: def.id,
+                    title: "Unlocked", body: campaign.itemDescription(def), itemId: def.id,
                     hint: campaign.itemUnlocks.hint(for: def)) { [weak self] in self?.dismissOverlay() })
             }
         default:
@@ -984,6 +985,9 @@ public final class GameFlowController: UIViewController {
                                                   mode: .applySticker(typeId: typeId)) { [weak self] picked in
                 guard let self else { return }
                 guard picked != nil else { done(); return }   // cancelled out of the walk
+                // v6.57: a suit sticker just landed — the deal screen under us
+                // repaints its histogram NOW, not on the next engine action.
+                (self.current as? DealViewController)?.controller?.noteDeckCompositionChanged()
                 self.showPostDealWalk(done)
             }
             present(picker, animated: false)
@@ -1167,7 +1171,7 @@ public final class GameFlowController: UIViewController {
             }
             let overlay = PhaseOverlayView.itemUnlock(
                 title: "\(PhaseOverlayView.itemLabel(u.id)) UNLOCKED",
-                body: PhaseOverlayView.itemDef(u.id)?.description ?? u.hint,
+                body: PhaseOverlayView.itemDef(u.id).map { campaign.itemDescription($0) } ?? u.hint,
                 itemId: u.id, hint: u.hint,
                 onSkipAll: skipAll) { [weak self] in
                 self?.dismissOverlay()
@@ -1664,6 +1668,19 @@ extension GameFlowController: MapScreenDelegate {
 
     // MARK: Mystery events (rolled + applied here; Chunk E adds the full modal)
 
+    /// v6.55 (curse presentation): the cursedSticker reveal draws the afflicted
+    /// CARD wearing its curse chip, but the outcome only carries the card's id
+    /// (MysteryOutcome lives in GameCore, which that change may not touch) —
+    /// resolve it here while the campaign is in scope. No-op for every other
+    /// outcome and for reveals that already carry their cards ("His marks").
+    private func withAfflictedCards(_ o: MysteryOutcome) -> MysteryOutcome {
+        guard o.key == "cursedSticker", o.cards.isEmpty, let cid = o.cardId,
+              let c = campaign.findById(cid) else { return o }
+        var out = o
+        out.cards = [c]
+        return out
+    }
+
     private func runMysteryEvent(node: MapNode, on map: MapViewController) {
         // THE OLD JOKER gets first refusal on a mystery node. His roll runs on
         // its own seeded substream, so this never shifts the ordinary outcome.
@@ -1721,12 +1738,13 @@ extension GameFlowController: MapScreenDelegate {
             return
         }
         autopilot?.noteMystery(key)
-        guard let outcome = campaign.applyMysteryEvent(key, nodeId: node.id) else {
+        guard var outcome = campaign.applyMysteryEvent(key, nodeId: node.id) else {
             _ = campaign.markNodeCleared(node.id)
             persist(phase: "map")
             map.render()
             return
         }
+        outcome = withAfflictedCards(outcome)
         persist(phase: "map")
         // THE CON is a conversation, not a reveal — the Two makes its one
         // offer in person (and it is lying).
@@ -2123,10 +2141,11 @@ extension GameFlowController: MapScreenDelegate {
     private func runChainedMystery(_ key: String, nodeId: Int, map: MapViewController?) {
         // A chained outcome is THE OLD JOKER's doing (Two Doors' bad door) —
         // its cursedSticker draws from the "doors" pool, not the mystery one.
-        guard let outcome = campaign.applyMysteryEvent(key, nodeId: nodeId, cursePath: "doors"),
+        guard var outcome = campaign.applyMysteryEvent(key, nodeId: nodeId, cursePath: "doors"),
               let node = campaign.getNode(nodeId) else {
             completeMystery(nodeId); return
         }
+        outcome = withAfflictedCards(outcome)
         persist(phase: "map")
         presentOverlay(PhaseOverlayView.mystery(outcome: outcome, deckId: campaign.deckId,
                                                 mapPeek: true,
@@ -2145,7 +2164,13 @@ extension GameFlowController: MapScreenDelegate {
     /// settled compare row instead — two sides need two tiles. nil when the
     /// decline (or a flag-arm) changed nothing visible.
     private func jokerResultWell(_ r: OldJoker.Result) -> OutcomeWell? {
-        if !r.cards.isEmpty { return .cards(r.cards, torn: []) }
+        // A CUT or PURGE result's cards no longer exist — the well draws them
+        // TORN (v6.56), never intact. Other card strips (the minted ★, the
+        // placed duplicate, Eights) still show the real face.
+        if !r.cards.isEmpty {
+            if r.key == "cut" || r.key == "purge" { return .purged(r.cards) }
+            return .cards(r.cards, torn: [])
+        }
         if r.key == "blindSwap" || r.key == "swap" { return nil }
         if let lost = r.lost {
             return .item(kind: lost.kind.rawValue, id: lost.id, deckId: campaign.deckId)
@@ -2176,7 +2201,7 @@ extension GameFlowController: MapScreenDelegate {
                              art: ItemArt.forSlot(kind: kind.rawValue, id: id,
                                                   card: nil, deckId: campaign.deckId),
                              name: def?.label ?? id,
-                             desc: def?.description ?? "")
+                             desc: def.map { campaign.itemDescription($0) } ?? "")
             }
             compares = [.init(old: side(lost.kind, lost.id, tag: "GAVE"),
                               new: side(lost.kind, gained, tag: "GOT"),
