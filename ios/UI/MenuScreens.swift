@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.58"
-    static let note = "ios: the shelf rolls new odds, variable items say their rank, Second Sight follows the last landing, and the harvest waits for a sticker."
+    static let version = "v6.59"
+    static let note = "ios: the deck you're eyeing shows where you stand — world rank and the scoreboard, one tap from the high score."
     static let line = "build \(version) · \(note)"
 }
 
@@ -586,6 +586,12 @@ final class DeckSelectViewController: MenuScreenBase {
     private var seedNote: UILabel?
     private var startButton: PixelButtonView?
     private let backButton = PixelButtonView("←", role: .plain, fontSize: 20)
+    /// Game Center rank per board id, cached for the screen's lifetime so a
+    /// swiped-back-to deck shows its rank instantly; loads refresh in place.
+    private var gcRanks: [String: (rank: Int, score: Int)] = [:]
+    private var gcRankLoading = Set<String>()
+    private var gcRankLabel: UILabel?
+    private var gcRankBoardID: String?
 
     private func seedFieldText() -> String {
         (seedField?.text ?? "").trimmingCharacters(in: .whitespaces)
@@ -653,6 +659,31 @@ final class DeckSelectViewController: MenuScreenBase {
     /// True during a MEASURING pass (EXACTFIT1) — a throwaway build must
     /// neither consume `seedWantsFocus` nor focus a field it's discarding.
     private var seedSuppressFocus = false
+
+    /// The rank caption for a board — cached entry, or blank while unknown
+    /// (unauthenticated, unreadable, or still loading — the row just stays
+    /// quiet; the SCOREBOARD doorway works regardless).
+    private func gcRankText(_ boardID: String) -> String {
+        guard let e = gcRanks[boardID] else { return "" }
+        return "World rank #\(e.rank) · best \(e.score)"
+    }
+
+    /// One read per board per screen visit; the label updates IN PLACE when
+    /// the answer lands so the exact-fit layout never rebuilds under a tap.
+    private func loadGCRank(_ boardID: String) {
+        guard gcRanks[boardID] == nil, !gcRankLoading.contains(boardID) else { return }
+        gcRankLoading.insert(boardID)
+        flow.gameCenter.loadLocalEntry(leaderboardID: boardID) { [weak self] entry in
+            guard let self else { return }
+            self.gcRankLoading.remove(boardID)
+            guard let entry else { return }
+            self.gcRanks[boardID] = entry
+            if self.gcRankBoardID == boardID {
+                self.gcRankLabel?.attributedText = CRTKit.attributed(self.gcRankText(boardID),
+                                                                     size: 14, color: CRT.muted)
+            }
+        }
+    }
 
     /// Shared: the deck art + lock state for the current selection.
     private func heroImage(_ d: GameFlowController.DeckInfo, unlocked: Bool, scale: Int) -> UIImage {
@@ -846,7 +877,31 @@ final class DeckSelectViewController: MenuScreenBase {
             num.frame = CGRect(x: 0, y: 22, width: W, height: 38)
             bestRow.addSubview(num)
         }
-        addView(bestRow, height: 62)
+        // SCOREBOARD: this deck+tier's Game Center board, right under the
+        // score it ranks. The link opens Apple's stock sheet on THAT board;
+        // the rank line fills in when a read comes back (cached per board so
+        // swiping decks shows it instantly). Only boards live in App Store
+        // Connect get the doorway — see Leaderboards.enabledBoards.
+        gcRankLabel = nil
+        gcRankBoardID = nil
+        if unlocked, let boardID = LeaderboardID.identifier(deck: d.id, tier: tiers[tierIndex]),
+           Leaderboards.enabledBoards.contains(boardID) {
+            let rank = CRTKit.label(gcRankText(boardID), size: 14, color: CRT.muted)
+            rank.textAlignment = .center
+            rank.frame = CGRect(x: 0, y: 64, width: W, height: 16)
+            bestRow.addSubview(rank)
+            gcRankLabel = rank
+            gcRankBoardID = boardID
+            let lb = PixelButtonView("🏆 SCOREBOARD", role: .gold, fontSize: 14)
+            lb.onTap = { [weak self] in
+                guard let self else { return }
+                self.flow.gameCenter.presentLeaderboard(boardID, from: self.flow)
+            }
+            lb.frame = CGRect(x: (W - 190) / 2, y: 84, width: 190, height: 34)
+            bestRow.addSubview(lb)
+            if !measuring { loadGCRank(boardID) }
+        }
+        addView(bestRow, height: 122)
         seam(0.22)
 
         // TIERS: two big chips, pixel-art marks (styleguide §3b: no system
