@@ -205,9 +205,57 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         buildJokerSection()
         buildGrantsSection()
         buildMetaSection()
+        buildGameCenterSection()
         buildEventLogSection()
         content.frame = CGRect(x: 0, y: 0, width: contentWidth, height: y)
         scroll.contentSize = CGSize(width: contentWidth, height: y)
+    }
+
+    /// GAME CENTER (v6.61 diagnosis): auth state, the exact identifier list
+    /// to eye-check against App Store Connect, the durable queue, and the
+    /// full GameKit interaction log — plus a re-runnable server audit that
+    /// asks Apple which boards this app record actually carries.
+    private func buildGameCenterSection() {
+        header("Game Center")
+        var lines: [String] = []
+        lines.append("bundle id: \(Bundle.main.bundleIdentifier ?? "?")")
+        lines.append("entitlement: com.apple.developer.game-center (App/ShouldaSaidSame.entitlements)")
+        lines.append("auth: \(flow.gameCenter.statusLine)")
+        lines.append("enabled (submit-eligible) boards: "
+                     + Leaderboards.enabledBoards.sorted().joined(separator: ", "))
+        lines.append("all ids the code can name (create these in ASC):")
+        lines += LeaderboardID.allIdentifiers.map { "   \($0)" }
+        let q = flow.leaderboards.pending()
+        lines.append(q.isEmpty ? "queue: empty"
+                               : "queue: " + q.map { "\($0.board)=\($0.score)" }.joined(separator: ", "))
+        lines.append("")
+        lines.append("— GameKit log (newest last) —")
+        lines += GameCenterService.diagLines.isEmpty ? ["(nothing logged yet)"]
+                                                     : GameCenterService.diagLines.suffix(60)
+        let box = UITextView()
+        box.isEditable = false
+        box.backgroundColor = CRT.feltDeep
+        box.layer.borderColor = CRT.ink.cgColor
+        box.layer.borderWidth = 1
+        box.font = CRT.Font.of(14)
+        box.textColor = CRT.cardFace
+        box.text = lines.joined(separator: "\n")
+        box.frame = CGRect(x: 0, y: y, width: contentWidth, height: 220)
+        content.addSubview(box)
+        y += 228
+        buttonRow([
+            Btn("SERVER AUDIT", role: .gold) { [weak self] in
+                self?.flow.gameCenter.auditBoards()
+                self?.note("audit requested — REFRESH in a moment for results")
+            },
+            Btn("REFRESH") { [weak self] in self?.build() },
+            Btn("COPY") { [weak self] in
+                UIPasteboard.general.string = (lines + ["", "— full log —"]
+                                               + GameCenterService.diagLines).joined(separator: "\n")
+                self?.note("Game Center report copied")
+            },
+        ], height: 32)
+        y += 6
     }
 
     /// EVENT LOG (v6.52): the run-long DebugEventLog — every item trigger,

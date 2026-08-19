@@ -82,10 +82,30 @@ public final class Leaderboards {
     /// (app deleted mid-endless, say); it can never lower it.
     /// Unsent scores queue durably and retry; a confirmed send dequeues, so
     /// nothing is lost and nothing sends twice.
+    /// Diagnostic tap (v6.61): every policy decision — the skip reasons that
+    /// used to be silent, enqueues, and flush deliveries — narrated as plain
+    /// lines. The app layer points this at the Game Center diagnostics log;
+    /// nil costs nothing and GameCore stays platform-free.
+    public static var onEvent: ((String) -> Void)?
+
     public func reportRunEnd(deck: String, tier: String, exhibition: Bool, score: Int) {
-        guard !exhibition, score > 0,
-              let id = LeaderboardID.identifier(deck: deck, tier: tier),
-              Self.enabledBoards.contains(id) else { return }
+        if exhibition {
+            Self.onEvent?("report: SKIPPED (exhibition/seeded run) · \(deck).\(tier) · score \(score)")
+            return
+        }
+        guard score > 0 else {
+            Self.onEvent?("report: SKIPPED (score 0) · \(deck).\(tier)")
+            return
+        }
+        guard let id = LeaderboardID.identifier(deck: deck, tier: tier) else {
+            Self.onEvent?("report: SKIPPED (unknown deck/tier) · \(deck).\(tier)")
+            return
+        }
+        guard Self.enabledBoards.contains(id) else {
+            Self.onEvent?("report: SKIPPED (\(id) not in enabledBoards — board not marked live) · score \(score)")
+            return
+        }
+        Self.onEvent?("report: queueing score \(score) → \(id)")
         enqueue(score: score, board: id)
         flush()
     }
@@ -125,9 +145,20 @@ public final class Leaderboards {
     /// unauthenticated/offline — the queue simply waits for the next flush
     /// (launch, authentication, the next run end).
     public func flush() {
-        guard let submitter, submitter.isAuthenticated else { return }
+        guard let submitter else {
+            if !pending().isEmpty { Self.onEvent?("flush: no submitter wired (Game Center absent) · \(pending().count) queued") }
+            return
+        }
+        guard submitter.isAuthenticated else {
+            let n = pending().count
+            if n > 0 { Self.onEvent?("flush: waiting (not authenticated) · \(n) score(s) stay queued") }
+            return
+        }
         for item in pending() {
+            Self.onEvent?("flush: delivering \(item.score) → \(item.board)")
             submitter.submit(score: item.score, leaderboardID: item.board) { [weak self] ok in
+                Self.onEvent?(ok ? "flush: \(item.board) confirmed, dequeued"
+                                 : "flush: \(item.board) NOT confirmed, stays queued for retry")
                 guard ok, let self else { return }
                 // Dequeue by TOKEN — a retry that raced a new enqueue can
                 // never drop the newcomer.

@@ -104,6 +104,9 @@ public final class GameFlowController: UIViewController {
         PersistenceHolder.shared = self
         campaign.itemUnlocks.primeKnown()   // first-session unlocks must not be swallowed
         gameCenter.onAuthenticated = { [weak self] in self?.leaderboards.flush() }
+        // GC diagnosis (v6.61): the policy layer narrates every decision —
+        // skip reasons, enqueues, deliveries — into the GameKit diag log.
+        Leaderboards.onEvent = { GameCenterService.diag($0) }
     }
 
     @available(*, unavailable)

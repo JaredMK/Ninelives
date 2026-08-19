@@ -621,15 +621,33 @@ public final class CampaignState {
         return allSuits[rng.index(allSuits.count)]
     }
 
-    /// v6.57 — the suit set a pack node's contents draw from; the single
-    /// source of truth for the map's pack badge. Stage packs draw the node's
-    /// suit; endless/altSuits packs roll all four per slot; the debug toggle
-    /// collapses every pack to its one seeded suit.
+    /// v6.61 — the suits ACTUALLY present in this pack node's contents. The
+    /// v6.57 version returned the draw POOL (all four suits for endless/alt
+    /// packs), so every such badge showed ♥♦♣♠ whatever the pack held. The
+    /// contents are seeded per node, so the real set is knowable before the
+    /// player arrives: replay the resolution stream's draws — per slot,
+    /// `packSlotSuit`'s roll then EXACTLY one card-pick draw (pickSuitDraftId
+    /// spends one `index` whether it drafts from the pool or mints). WHICH
+    /// card that draw lands on varies with the collection; the suit sequence
+    /// never does, so the badge cannot drift from what `resolvePack` deals.
+    /// Revealed +2 packs read their committed pair (a Blank contributes no
+    /// suit — it grants a removal, not a card). Deduped, fixed suit order:
+    /// the player learns WHICH suits are present, never how many of each.
     public func packSuits(for node: MapNode) -> [String] {
-        if debugSingleSuitPacksOn() { return [debugPackSuit(for: node)] }
-        let endlessNode = node.suit == "★" || (node.phase ?? 0) >= phaseSuits.count || rules().altSuits
-        if endlessNode { return allSuits }
-        return [node.suit != nil && node.suit != "★" ? node.suit! : suitForNode(node)]
+        var suits: [String]
+        if node.addOf == 2, let pair = commitPackCards(node) {
+            suits = pair.compactMap { id in
+                id == Self.specialBlank ? nil : (specialCardFor(id) ?? findById(id))?.suit
+            }
+        } else {
+            let rng = rrng(.s("pack"), .n(node.id))
+            suits = (0..<node.addOf).map { _ in
+                let s = packSlotSuit(node, rng: rng)
+                _ = rng.next()              // pickSuitDraftId's one card draw
+                return s
+            }
+        }
+        return allSuits.filter { suits.contains($0) }
     }
 
     /// The suit ONE pack slot draws from — the grant rule `packSuits(for:)`

@@ -515,10 +515,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
 
     private func composePackStack(_ n: MapNode) -> UIImage {
         let stack = MapArt.packStack(deckId: campaign.deckId)
-        // v6.57: the badge names the suit(s) the pack's contents draw from —
-        // `packSuits(for:)` is the grant rule's own source, so the badge can
-        // never drift from what the pack actually deals (stage suit; all four
-        // for endless/alt decks; the one seeded suit under the debug toggle).
+        // v6.61: the badge names the suits ACTUALLY in the pack —
+        // `packSuits(for:)` replays the seeded resolution stream, so the
+        // badge always equals the contents' suit set (never the draw pool,
+        // which printed all four for every endless/alt pack).
         let badge = MapArt.lootBadge("+\(n.packCount ?? 3) \(campaign.packSuits(for: n).joined())")
         let w = max(stack.size.width, badge.size.width)
         let h = stack.size.height + 8

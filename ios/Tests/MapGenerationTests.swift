@@ -468,18 +468,24 @@ final class MapGenerationTests: XCTestCase {
         return c
     }
 
-    /// The badge's source of truth IS the grant rule: Pinky (altSuits) rolls
-    /// every pack slot across ALL FOUR suits; Mamma (the suit-staged deck,
-    /// altSuits false) draws each pack from its node's phase suit — and the
-    /// grant path agrees with both.
+    /// The badge names the pack's ACTUAL contents (v6.61): Pinky (altSuits)
+    /// ROLLS each slot across all four suits, but the badge shows only the
+    /// suits the seeded rolls landed on — never the whole draw pool. Mamma
+    /// (the suit-staged deck, altSuits false) draws each pack from its
+    /// node's phase suit — and the grant path agrees with both.
     func testPackSuitsMirrorTheGrantRule() {
         let pink = runCampaign(deck: "pink")
-        XCTAssertTrue(pink.rules().altSuits, "Pinky's packs draw from all four suits")
+        XCTAssertTrue(pink.rules().altSuits, "Pinky's packs ROLL across all four suits")
         let packs = pink.runMap!.nodes.filter { $0.type == "pack" }
         XCTAssertFalse(packs.isEmpty, "the seed must produce pack nodes")
+        let four = Set(DeckManager.suits.map(\.symbol))
         for n in packs {
-            XCTAssertEqual(Set(pink.packSuits(for: n)), Set(DeckManager.suits.map(\.symbol)),
-                           "pack #\(n.id): an alt deck's packs draw from all four suits")
+            let badge = Set(pink.packSuits(for: n))
+            XCTAssertTrue(badge.isSubset(of: four), "pack #\(n.id): only real suits")
+            XCTAssertFalse(badge.isEmpty, "pack #\(n.id): a pack always holds suited cards")
+            let dealt = Set(pink.resolvePack(n).filter { !$0.blank && !$0.joker }.map(\.suit))
+            XCTAssertEqual(badge, dealt,
+                           "pack #\(n.id): the badge equals what the pack actually dealt")
         }
         let mamma = runCampaign(deck: "mamma")
         XCTAssertFalse(mamma.rules().altSuits, "Mamma is the suit-staged deck")
