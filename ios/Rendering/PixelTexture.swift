@@ -50,7 +50,13 @@ public enum PixelTexture {
 
         let font = CRT.Font.of(size, display: display)
         let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let measured = (string as NSString).size(withAttributes: attrs)
+        // Suit characters bake as the game's own pixel marks (v6.66) — the
+        // fonts carry no ♠♥♦♣, so the system fallback leaked into every
+        // suit-naming sprite (the deal HUD's suit tallies above all).
+        let rich = PixelGlyph.substituteSuits(NSAttributedString(string: string, attributes: attrs),
+                                              size: size, color: color)
+        let measured = rich.boundingRect(with: CGSize(width: 4096, height: 4096),
+                                         options: .usesLineFragmentOrigin, context: nil).size
         // Room for the glow bleed on every side.
         let pad = glow ? CRT.glowRadius + 2 : 0
         let canvas = CGSize(width: ceil(measured.width) + pad * 2,
@@ -66,10 +72,10 @@ public enum PixelTexture {
                              color: CRT.phosphor.withAlphaComponent(CRT.glowAlpha).cgColor)
                 // Text itself must stay crisp, so let the shadow pass render the
                 // halo and draw the glyphs again on top with no shadow.
-                (string as NSString).draw(at: origin, withAttributes: attrs)
+                rich.draw(at: origin)
                 cg.setShadow(offset: .zero, blur: 0, color: nil)
             }
-            (string as NSString).draw(at: origin, withAttributes: attrs)
+            rich.draw(at: origin)
         }
         let tex = texture(from: img)
         textCache[key] = tex

@@ -31,7 +31,11 @@ public enum CRTKit {
             s.shadowOffset = .zero
             attrs[.shadow] = s
         }
-        return NSAttributedString(string: text, attributes: attrs)
+        // Every suit character becomes the game's own pixel mark (v6.66) —
+        // neither game font carries ♠♥♦♣, so the system fallback glyph was
+        // leaking into every label that named a suit.
+        return PixelGlyph.substituteSuits(NSAttributedString(string: text, attributes: attrs),
+                                          size: size, color: color)
     }
 
     /// The §1 dither tile as a UIColor pattern.

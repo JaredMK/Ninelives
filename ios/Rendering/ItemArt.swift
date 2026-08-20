@@ -2336,10 +2336,21 @@ public enum ItemArt {
             }
             return
         }
-        // A suit glyph in the icon field renders as text (monochrome), a known
-        // family gets its pixel matrix, anything else the label's first letter.
+        // A suit glyph in the icon field renders as the game's own pixel suit
+        // (v6.66 — never the system font's), a known family gets its pixel
+        // matrix, anything else the label's first letter. The FE0F variation
+        // selector some icon fields carry (♠️) folds to the bare suit.
         let suitGlyphs = ["♠", "♥", "♦", "♣", "★", "=", "∅", "◉"]
-        if let icon = def.icon, suitGlyphs.contains(icon) {
+        if let icon = def.icon?.replacingOccurrences(of: "\u{FE0F}", with: ""),
+           suitGlyphs.contains(icon) {
+            if let img = PixelGlyph.suitImage(icon, size: size, color: color) {
+                UIGraphicsPushContext(cg)
+                img.draw(in: CGRect(x: rect.midX - img.size.width / 2,
+                                    y: rect.midY - img.size.height / 2,
+                                    width: img.size.width, height: img.size.height))
+                UIGraphicsPopContext()
+                return
+            }
             UIGraphicsPushContext(cg)
             let text = icon as NSString
             let font = CRT.Font.of(size)

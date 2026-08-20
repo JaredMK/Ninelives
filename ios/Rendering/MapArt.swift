@@ -196,12 +196,17 @@ public enum MapArt {
     /// The gold "+N" loot badge (packs).
     public static func lootBadge(_ text: String) -> UIImage {
         baked("loot-\(text)") {
-            let ns = text as NSString
             // The pack's card count gets the same legibility treatment the
             // deal coin chip got (16 → 22, v6.55; chip 18 → 22 in v6.52): at
-            // map zoom the number is the WHOLE point of the badge.
+            // map zoom the number is the WHOLE point of the badge. Suit
+            // characters bake as pixel suit marks (v6.66).
             let font = CRT.Font.of(22)
-            let sz = ns.size(withAttributes: [.font: font])
+            let ns = PixelGlyph.substituteSuits(
+                NSAttributedString(string: text,
+                                   attributes: [.font: font, .foregroundColor: CRT.ink]),
+                size: 22, color: CRT.ink)
+            let sz = ns.boundingRect(with: CGSize(width: 1000, height: 100),
+                                     options: .usesLineFragmentOrigin, context: nil).size
             let w = ceil(sz.width) + 14, h: CGFloat = 26
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
@@ -212,7 +217,7 @@ public enum MapArt {
                 for r in [CGRect(x: 0, y: 0, width: w, height: 2), CGRect(x: 0, y: h - 2, width: w, height: 2),
                           CGRect(x: 0, y: 0, width: 2, height: h), CGRect(x: w - 2, y: 0, width: 2, height: h)] { cg.fill(r) }
                 UIGraphicsPushContext(cg)
-                ns.draw(at: CGPoint(x: 6, y: (h - sz.height) / 2), withAttributes: [.font: font, .foregroundColor: CRT.ink])
+                ns.draw(at: CGPoint(x: 6, y: (h - sz.height) / 2))
                 UIGraphicsPopContext()
             }
         }
