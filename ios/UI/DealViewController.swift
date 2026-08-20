@@ -557,10 +557,12 @@ public final class DealViewController: UIViewController {
         // untouched: a real drag never reaches this recognizer, and the pan
         // handler's showScrub/hideScrub unpin on their own.
         if let r = scene.histogramRank(at: p) {
+            Sound.shared.inspectPin()
             deckPanelNode?.showInspect(value: r.value, label: r.label)
             return
         }
         if let panel = deckPanelNode, panel.isInspectPinned {
+            Sound.shared.inspectClear()
             panel.collapseInspect()
             return
         }

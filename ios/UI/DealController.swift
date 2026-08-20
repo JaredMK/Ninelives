@@ -452,6 +452,7 @@ public final class DealController {
             // Flypaper's catch: persist the sticker durably and pulse the pile.
             _ = campaign.applyStickerDirect(cardId, typeId)
             _ = col
+            Sound.shared.sticker()   // a sticker landed — same cue as every apply
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.goodPulse(at: pileIndex)
                 done()
@@ -460,6 +461,9 @@ public final class DealController {
         case .tieSafeSaved(let index):
             // v6.50: the sticker's tie-save gets the same SAVED idiom every
             // other save has (it used to land as a plain correct).
+            // NO cue here (sound audit): the accompanying `.resolved` lands
+            // through handleResolved, whose tieSafeSave branch already rings
+            // `saveTieSafe()` for this same flip — a cue here would double it.
             Haptics2.medium()
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.savedIndicator(at: index, label: "Tie-Safe")
@@ -469,6 +473,7 @@ public final class DealController {
         case .wildAceFlipped(let index, let col):
             // v6.50: the Ace playing LOW is announced at the pillar, so the
             // flip reads as the pillar's doing and not a rules glitch.
+            Sound.shared.aceLow()
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.floatCueAtPillar("ACE LOW", col: col, color: CRT.phosphor)
                 self?.scene.savedIndicator(at: index, label: "Wild Aces")
@@ -504,6 +509,7 @@ public final class DealController {
 
         case .pillarBlocked(let col):
             // Jammer: the pillar wanted to matter and couldn't.
+            Sound.shared.blocked()
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.floatCueAtPillar("BLOCKED", col: col, color: CRT.suitRed)
                 done()
@@ -890,7 +896,10 @@ public final class DealController {
                 else { scene.goodPulse(at: i) }
             }
         case "randomSticker":
-            if let s = res.stickerApplied { scene.goodPulse(at: s.pileIndex) }
+            if let s = res.stickerApplied {
+                Sound.shared.sticker()   // the application itself, over the base's fire cue
+                scene.goodPulse(at: s.pileIndex)
+            }
         case "clubTell":
             // The oracle ARMS tell markers engine-side (run.tellPiles); the
             // per-pile hint chips repaint in the refreshAll below and stay up
@@ -908,7 +917,10 @@ public final class DealController {
         case "emptyPurse":
             // The purse is campaign state — drained here, shown draining.
             let spent = campaign.getCoins()
-            if spent > 0 { _ = campaign.spendCoins(spent) }
+            if spent > 0 {
+                _ = campaign.spendCoins(spent)
+                Sound.shared.coinLoss()   // coins leaving must fall (sound audit)
+            }
             if let pp = firstPile(inColumn: res.col) {
                 scene.floatCue("−\(spent) ◉", at: pp, color: CRT.suitRed)
             }
@@ -1989,6 +2001,9 @@ public final class DealController {
 
         case .campaign:
             guard let runMap, campaign.spendCoins(Int(redealCost)) else { return }
+            // A PAID redeal: the spend falls first, then the riffle (a free
+            // one — redealCost 0 — spends nothing and stays a plain shuffle).
+            if redealCost > 0 { Sound.shared.coinLoss() }
             Sound.shared.shuffleDeck()
             interactionLocked = true
             animQueue.clear()

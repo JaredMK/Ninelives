@@ -695,7 +695,8 @@ public final class GameFlowController: UIViewController {
                 self?.dismissOverlay()
                 self?.reallyShowStore(fresh: fresh, nodeId: nodeId)
             })
-            Sound.shared.mysteryStore()
+            // No cue here: the mystery overlay announces itself with the
+            // outcome's own sound (sound audit — the extra chime doubled it).
             return
         }
         reallyShowStore(fresh: fresh, nodeId: nodeId)
@@ -1775,7 +1776,7 @@ extension GameFlowController: MapScreenDelegate {
                 self?.dismissOverlay()
                 self?.completeMystery(node.id)
             })
-            Sound.shared.mysteryStore()
+            Sound.shared.encounter()
             return
         }
         autopilot?.noteMystery(key)
@@ -1874,7 +1875,7 @@ extension GameFlowController: MapScreenDelegate {
         oldJokerView?.removeFromSuperview()
         oldJokerView = view
         view.present(in: view.superview ?? self.view)
-        Sound.shared.mysteryStore()
+        Sound.shared.encounter()
     }
 
     /// THE TWO'S GAME — one RED-or-BLACK call against the COLOR of its hidden
@@ -1941,7 +1942,7 @@ extension GameFlowController: MapScreenDelegate {
         oldJokerView?.removeFromSuperview()
         oldJokerView = view
         view.present(in: view.superview ?? self.view)
-        Sound.shared.mysteryStore()
+        Sound.shared.encounter()
     }
 
     // MARK: - The Old Joker
@@ -1974,7 +1975,7 @@ extension GameFlowController: MapScreenDelegate {
         oldJokerView?.removeFromSuperview()
         oldJokerView = view
         view.present(in: view.superview ?? self.view)
-        Sound.shared.mysteryStore()
+        Sound.shared.encounter()
     }
 
     private func resolveOldJoker(_ offer: OldJoker.Offer, choice: OldJoker.Choice,
@@ -1997,7 +1998,10 @@ extension GameFlowController: MapScreenDelegate {
     /// The follow-through: pickers, teleports and chained outcomes all happen
     /// AFTER his modal is gone, so nothing is presented under a dismissal.
     private func afterOldJoker(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
-        if r.coins != 0 { Sound.shared.coinBonus() }
+        // Polarity matters: his settlements can TAKE coins (Result.coins < 0
+        // for payments) — a payment must fall, not ring the gained rise.
+        if r.coins > 0 { Sound.shared.coinBonus() }
+        else if r.coins < 0 { Sound.shared.coinLoss() }
 
         // PURGE / paid CUT — the player now picks the cards that leave.
         if r.removeCount > 0 {

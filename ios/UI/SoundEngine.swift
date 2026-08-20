@@ -11,13 +11,14 @@ import GameCore
 //    sound, add a new cue and wire it; do not overload an existing one.
 //
 // 2. FAMILIES. Related actions share a TIMBRE and differ only in CONTOUR:
-//      • ui        — filtered-noise click + tiny low thump (button, tap, copied)
+//      • ui        — filtered-noise click + tiny low thump (button, tap,
+//                    inspectPin/inspectClear, copied)
 //      • paper     — filtered noise + low body: cards moving (place, bury,
 //                    shuffleDeck, shufflePile, ripple, fanOpen, deal)
 //      • guess     — hollow triangle blips (guessHigher / guessSame / guessLower)
 //      • save      — warm rising triangle + soft sparkle (every rescue)
 //      • coin      — bright triangle ting (coin, coinBonus, coinLoss, purchase,
-//                    coinTallyLine)
+//                    sell, coinTallyLine)
 //      • destroy   — low noise thud + falling tone (removeCard, stripSticker,
 //                    swapCard, pileDestroyed, demolish, death)
 //      • arcane    — clean sines stacked in fifths: items/powers firing
@@ -347,6 +348,25 @@ public final class Sound {
         ])
     }
 
+    /// The ODDS CHIP PINNED on a histogram bar (tap-inspect): the selection
+    /// tick's lower cousin, settling up. Distinct from `tap()` by register.
+    public func inspectPin() {
+        play("inspectPin", [
+            Voice(freq: 0, dur: 0.014, type: .noise, gain: 0.014, attack: 0.0012, release: 0.008,
+                  cutoff: 6200, cutoffTo: 2800, hpf: 1800, seed: 0x1A5),
+            Voice(freq: 480, dur: 0.07, type: .sine, gain: 0.03, glideTo: 620,
+                  attack: 0.005, release: 0.03, cutoff: 3000),
+        ])
+    }
+
+    /// The pinned odds chip COLLAPSING: the pin's quieter falling mirror.
+    public func inspectClear() {
+        play("inspectClear", [
+            Voice(freq: 620, dur: 0.06, type: .sine, gain: 0.022, glideTo: 480,
+                  attack: 0.005, release: 0.028, cutoff: 2800),
+        ])
+    }
+
     /// The CTA / CONTINUE confirm: a two-note rise. Distinct from `button()`.
     public func continueTap() {
         play("continueTap", clickLayer(gain: 0.018, bright: 1.1, seed: 31) + [
@@ -617,6 +637,20 @@ public final class Sound {
                   attack: 0.006, release: 0.045, cutoff: 3400),
         ])
     }
+    /// An EQUIPPED ITEM SOLD: the till runs backwards — the low confirm FIRST,
+    /// then the coin ting rising into the purse. A gain, so it ends up; the
+    /// reversed contour is what separates a sale from `purchase()`.
+    public func sell() {
+        play("sell", [
+            Voice(freq: 262, dur: 0.09, type: .sine, gain: 0.026,
+                  attack: 0.008, release: 0.04, cutoff: 1200),
+            Voice(freq: 784, dur: 0.07, type: .triangle, gain: 0.038, at: 0.07, glideTo: 988,
+                  attack: 0.006, release: 0.03, cutoff: 3200),
+            Voice(freq: 1175, dur: 0.12, type: .triangle, gain: 0.034, at: 0.14,
+                  attack: 0.007, release: 0.05, cutoff: 3400),
+        ])
+    }
+
     /// A STORE PURCHASE: cha-ching — coin ting into a satisfied low confirm.
     public func purchase() {
         play("purchase", [
@@ -737,6 +771,29 @@ public final class Sound {
         ])
     }
 
+    /// A PILLAR BLOCKED (Jammer): the dud — a muted knock and a note that
+    /// wanted to move and couldn't. Deliberately small and flat; the near-
+    /// silence after it is the point.
+    public func blocked() {
+        play("blocked", [
+            Voice(freq: 0, dur: 0.05, type: .noise, gain: 0.024, attack: 0.003, release: 0.025,
+                  cutoff: 1400, cutoffTo: 500, hpf: 160, seed: 0xB10C),
+            Voice(freq: 220, dur: 0.11, type: .triangle, gain: 0.032, glideTo: 202,
+                  attack: 0.006, release: 0.045, cutoff: 1200),
+        ])
+    }
+
+    /// A WILD ACE playing LOW: a pure little sine wink downward — informational
+    /// and consonant, too soft and too clean to read as a loss.
+    public func aceLow() {
+        play("aceLow", [
+            Voice(freq: 784, dur: 0.07, type: .sine, gain: 0.024, glideTo: 587,
+                  attack: 0.006, release: 0.03, cutoff: 3000),
+            Voice(freq: 587, dur: 0.09, type: .sine, gain: 0.02, at: 0.06,
+                  attack: 0.007, release: 0.04, cutoff: 2800),
+        ])
+    }
+
     /// A CHARGED BASE PLAQUE tapped: the mechanical arm-and-fire clunk.
     public func plaqueFire() {
         play("plaqueFire", clickLayer(gain: 0.026, bright: 0.75, seed: 83, thump: 180) + [
@@ -818,6 +875,21 @@ public final class Sound {
         seq("mysteryStore", [(392, 0.09, 0, .triangle, 0.038, 523),
                              (659, 0.09, 0.08, .triangle, 0.036, nil),
                              (784, 0.09, 0.16, .triangle, 0.036, 880)], cutoff: 3000)
+    }
+
+    /// A CHARACTER ENCOUNTER opening (the Old Joker, Mamma's con, Just a Two):
+    /// someone is HERE — a low hollow fifth that leans in, neutral polarity.
+    /// Nothing like the store chime's major rise; the encounter promises
+    /// nothing either way.
+    public func encounter() {
+        play("encounter", [
+            Voice(freq: 165, dur: 0.22, type: .triangle, gain: 0.03,
+                  attack: 0.014, release: 0.08, cutoff: 1400),
+            Voice(freq: 330, dur: 0.12, type: .triangle, gain: 0.036, glideTo: 392,
+                  attack: 0.01, release: 0.05, vibrato: 5, vibratoDepth: 6, cutoff: 2200),
+            Voice(freq: 494, dur: 0.14, type: .sine, gain: 0.026, at: 0.1,
+                  attack: 0.009, release: 0.06, cutoff: 2800),
+        ])
     }
 
     /// The AMBUSH mystery: the deal sweep turned nasty — it falls, and growls.

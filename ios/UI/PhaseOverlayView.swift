@@ -1349,19 +1349,25 @@ public final class PhaseOverlayView: UIView {
         // (web MYSTERY_SOUND, fired as the panel unhides; Sound self-gates
         // on the enabled pref).
         switch outcome.key {
-        case "coinBonus": Sound.shared.coin()
+        // Coin GAINS ring the rising ting like every other gain (the flat
+        // single `coin()` here made a windfall sound like small change).
+        case "coinBonus", "coinDouble": Sound.shared.coinBonus()
         case "coinLoss": Sound.shared.coinLoss()
-        case "cards": Sound.shared.mysteryCards()
+        case "cards", "giftCard": Sound.shared.mysteryCards()
         case "joker": Sound.shared.jokerReward()
         case "store": Sound.shared.mysteryStore()
-        case "stickerPack", "stickerStrip", "stickerTheft": Sound.shared.sticker()
+        case "stickerPack": Sound.shared.sticker()
+        // A strip or a theft REMOVES a sticker — the peel-off crumple, not
+        // the cheerful apply-press (sound audit: polarity).
+        case "stickerStrip", "stickerTheft": Sound.shared.stripSticker()
         case "freeRemoval": Sound.shared.freeRemoval()
         case "cursedSticker": Sound.shared.bad()
         case "ambush": Sound.shared.ambush()
         case "itemTheft", "shieldDrain", "priceDouble": Sound.shared.bad()
-        case "coinDouble": Sound.shared.coin()
-        case "giftCard": Sound.shared.mysteryCards()
-        case "priceOne", "freeRefresh", "freeRedeal", "shieldCharge": Sound.shared.mysteryStore()
+        // A Same-shield charge granted sounds like the shield family, not
+        // like a shop appearing.
+        case "shieldCharge": Sound.shared.sameBanked()
+        case "priceOne", "freeRefresh", "freeRedeal": Sound.shared.mysteryStore()
         default: break
         }
         return v

@@ -481,6 +481,7 @@ public final class StoreViewController: UIViewController {
 
     private func openDetail(slot: Int) {
         guard let offer = campaign.getStoreOffer(), let s = offer.slots[safe: slot] ?? nil else { return }
+        Sound.shared.tap()   // the tile is a raw UIControl — it makes no click of its own
         let d = StoreDetailView(campaign: campaign, slot: slot, storeSlot: s)
         d.onClose = { [weak self] in self?.closeDetail() }
         d.onBuy = { [weak self] col in self?.buy(slot: slot, storeSlot: s, placeCol: col) }
@@ -490,6 +491,7 @@ public final class StoreViewController: UIViewController {
     }
 
     private func openEquippedDetail(kind: String, id: String, col: Int?) {
+        Sound.shared.tap()
         let d = StoreDetailView(campaign: campaign, equippedKind: kind, id: id, col: col)
         d.onClose = { [weak self] in self?.closeDetail() }
         d.onSell = { [weak self] in self?.sellEquipped(kind: kind, id: id, col: col) }
@@ -538,7 +540,7 @@ public final class StoreViewController: UIViewController {
                 }
                 guard ok else { return }
                 _ = self.campaign.addCoins(value)
-                Haptics.purchase()
+                Haptics.sell()
                 self.setMessage("\(def.label) sold for \(value) coins.")
                 self.closeDetail()
                 self.render()
@@ -1169,6 +1171,12 @@ final class StoreTileView: UIControl {
 enum Haptics {
     static func purchase() {
         Sound.shared.purchase()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    /// Sale feedback: the reversed till (confirm, then the rising ting) + the
+    /// same medium thump — a sale and a buy must not sound identical.
+    static func sell() {
+        Sound.shared.sell()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }

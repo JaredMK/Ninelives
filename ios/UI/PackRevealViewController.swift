@@ -349,13 +349,18 @@ public final class PackRevealViewController: UIViewController {
             if let at = chosen.firstIndex(of: i) {
                 chosen.remove(at: at)
                 infoPanel.isHidden = true
+                // A deselect stays quiet — silence is the un-pick.
             } else {
                 if keep == 1 { chosen = [i] }
                 else if chosen.count < keep { chosen.append(i) }
-                if chosen.contains(i) { showInfo(i) }
+                if chosen.contains(i) {
+                    Sound.shared.tap()
+                    showInfo(i)
+                }
             }
         } else {
             // Reveal-only (map pack): tap = info (web `data-info`).
+            Sound.shared.tap()
             showInfo(i)
         }
         refreshChrome()
