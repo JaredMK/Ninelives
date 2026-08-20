@@ -422,8 +422,8 @@ const NINELIVES_ITEMS = {
       description: "When a {rank} lands correctly in this column → +2 coins" },
     // ---- expansion Pillars ------------------------------------------------
     { id: "insurance", unlock: { type: "behavior", stat: "pilesLost", count: 55 }, label: "Insurance", icon: "🛟",
-      kind: "scoring", effect: "insurance", value: 5, tier: "rare", price: 4,
-      description: "At deal end → +5 coins if only one pile is alive" },
+      kind: "scoring", effect: "insurance", value: 8, tier: "rare", price: 4,
+      description: "At deal end → +8 coins if only one pile is alive" },
     { id: "ditto", unlock: { type: "milestone", stat: "runsWon", count: 1 }, label: "Ditto", icon: "🪞",
       kind: "meta", effect: "ditto", tier: "rare", price: 5,
       description: "Mirrors the center column's pillar" },

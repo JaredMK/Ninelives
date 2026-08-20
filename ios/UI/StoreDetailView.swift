@@ -207,7 +207,15 @@ final class StoreDetailView: UIView {
         // component carries live name text (pack `.pf-name`, Removal `.ro-lab`).
         switch kind {
         case "card":
-            objView.image = card.map { CardArt.image(CardArt.Face($0), scale: .three) }
+            // Drawn WITH its sticker chips (v6.72): the canonical top-right
+            // corner fan (StickerChipLayout, master comment in
+            // PileNode.swift) — the description says "Comes with …", the
+            // face shows it.
+            objView.image = card.map {
+                $0.stickers.isEmpty
+                    ? CardArt.image(CardArt.Face($0), scale: .three)
+                    : CardPickerViewController.cardWithStickers($0, extra: nil, scale: .three)
+            }
             let name: String
             if let c = card {
                 name = c.joker ? "★ Joker"
@@ -256,7 +264,12 @@ final class StoreDetailView: UIView {
             if let restrictionIcon { panel.addSubview(restrictionIcon) }
             captionLabel.attributedText = nil   // the name prints ONCE, below the tier
             tierLabel.attributedText = tierText(d.tier)
-            nameLabel.attributedText = CRTKit.attributed(d.label, size: 14, color: CRT.cardFace, display: true)
+            // CANONICAL STICKER NAME (v6.72): description-sized, BOLD
+            // (display face), gold — suit-red for a curse. Other kinds keep
+            // the neutral cream name.
+            let nameColor: UIColor = kind == "sticker"
+                ? (d.cursed ? CRT.suitRed : CRT.gold) : CRT.cardFace
+            nameLabel.attributedText = CRTKit.attributed(d.label, size: 14, color: nameColor, display: true)
             // Same-Power descriptions are plain single-line effect text (v6.65
             // dropped the "Trigger: …\nEffect: …" preamble).
             // The REVEAL reads at label size (16): it is the one moment the

@@ -222,20 +222,26 @@ public final class TopShellView: UIView {
         }
         let order = ["♥", "♦", "♣", "♠"]
         let phaseOf: [String: Int] = ["♥": -1, "♦": 0, "♣": 1, "♠": 2]
-        return UIGraphicsImageRenderer(size: CGSize(width: 108, height: 30), format: fmt).image { _ in
+        return UIGraphicsImageRenderer(size: CGSize(width: 108, height: 30), format: fmt).image { ctx in
+            // The game's OWN pixel suit marks (suit-glyph sweep 2): the old
+            // NSString draw fell through to the system font — neither game
+            // font carries ♠♥♦♣ — so the tracker wore smooth foreign suits
+            // while every substituted label wore the PixelGlyph ones.
+            ctx.cgContext.interpolationQuality = .none
             var x: CGFloat = 0
             for s in order {
                 let ph = phaseOf[s] ?? 0
                 let done = ph < 0 || pi > ph, active = pi == ph
                 let alpha: CGFloat = done || active ? 1 : 0.26
                 let color = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
-                let font = CRT.Font.of(active ? 25 : 20)
-                let str = s as NSString
-                let size = str.size(withAttributes: [.font: font])
-                str.draw(at: CGPoint(x: x, y: 15 - size.height / 2),
-                         withAttributes: [.font: font,
-                                          .foregroundColor: color.withAlphaComponent(alpha)])
-                x += size.width + 6
+                guard let rows = PixelGlyph.suits[s] else { continue }
+                // Active phase steps UP an integer pixel scale (was 25pt vs
+                // 20pt text) — the grid stays square either way.
+                let img = PixelGlyph.image(rows, color: color,
+                                           scale: active ? 3 : 2, shadow: false)
+                img.draw(at: CGPoint(x: x, y: 15 - img.size.height / 2),
+                         blendMode: .normal, alpha: alpha)
+                x += img.size.width + 6
             }
         }
     }
@@ -265,14 +271,27 @@ public final class TopShellView: UIView {
             let cells: [(String, UIColor)] = [("♥", CRT.cardFace), ("♦", CRT.cardFace),
                                               ("♣", CRT.cardFace), ("♠", CRT.cardFace),
                                               ("★", CRT.gold)]
+            // Suit cells draw the game's own pixel marks (suit-glyph sweep 2):
+            // the raw NSAttributedString draw bypassed PixelGlyph.substituteSuits,
+            // so this chart wore the system font's smooth suits while the deal
+            // HUD's identical tallies wore the pixel ones. Centred against the
+            // 16pt cap band exactly the way the substitution centres inline
+            // marks; red suits self-tint suit-red there too.
+            let cellFont = CRT.Font.of(16)
             for (i, cell) in cells.enumerated() {
                 let col = i % 2, row = i / 2
                 let x = 10 + CGFloat(col) * 62
                 let y = 8 + CGFloat(row) * 19
                 let n = cell.0 == "★" ? jokers : (suits[cell.0] ?? 0)
-                let glyph = NSAttributedString(string: cell.0,
-                                               attributes: [.font: CRT.Font.of(16), .foregroundColor: cell.1])
-                glyph.draw(at: CGPoint(x: x, y: y))
+                if let mark = PixelGlyph.suitImage(cell.0, size: 16, color: cell.1) {
+                    cg.interpolationQuality = .none
+                    let capTop = y + (cellFont.ascender - cellFont.capHeight)
+                    mark.draw(at: CGPoint(x: x, y: capTop + (cellFont.capHeight - mark.size.height) / 2))
+                } else {
+                    let glyph = NSAttributedString(string: cell.0,
+                                                   attributes: [.font: cellFont, .foregroundColor: cell.1])
+                    glyph.draw(at: CGPoint(x: x, y: y))
+                }
                 let num = NSMutableAttributedString(
                     string: "\(n)", attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.cardFace])
                 num.append(NSAttributedString(

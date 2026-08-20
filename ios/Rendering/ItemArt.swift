@@ -844,6 +844,9 @@ public enum ItemArt {
             "..KKKKKKKKKKKK..",
             "................",
             "................"],
+        // The spade echoes the canonical PixelGlyph silhouette (v6.68): a
+        // solid pointed leaf with a smooth tuck — NO side-lobe notch row
+        // (the notches are the club's signature, never the spade's).
         "changeSuitSpade": [
             "................",
             "..KKKKKKKKKKKK..",
@@ -852,7 +855,7 @@ public enum ItemArt {
             "..KCCKKKKKKCCK..",
             "..KCKKKKKKKKCK..",
             "..KCKKKKKKKKCK..",
-            "..KCCKKCCKKCCK..",
+            "..KCCKKKKKKCCK..",
             "..KCCCCKKCCCCK..",
             "..KCCCKKKKCCCK..",
             "...KCCCCCCCCK...",
@@ -895,12 +898,16 @@ public enum ItemArt {
             "......KCCK......",
             ".......KK.......",
             "................"],
+        // The club echoes the canonical PixelGlyph silhouette (v6.68): a
+        // FLAT-TOPPED top lobe over a 2px neck (the old 2px pointed top was
+        // exactly what blurred it into the spade), then the notched side
+        // lobes.
         "changeSuitClub": [
             "................",
             "..KKKKKKKKKKKK..",
+            "..KCCCKKKKCCCK..",
+            "..KCCCKKKKCCCK..",
             "..KCCCCKKCCCCK..",
-            "..KCCCKKKKCCCK..",
-            "..KCCCKKKKCCCK..",
             "..KCKKKCCKKKCK..",
             "..KCKKKKKKKKCK..",
             "..KCKKKCCKKKCK..",
@@ -997,11 +1004,13 @@ public enum ItemArt {
             "......KCCK......",
             ".......KK.......",
             "................"],
+        // Flat-topped top lobe (canonical club, v6.68) — the old 2px pointed
+        // top read as a spade inside the shield.
         "clubGuard": [
             "................",
             "..KKKKKKKKKKKK..",
             "..KCCCCCCCCCCK..",
-            "..KCKKKCCKKKCK..",
+            "..KCKKCCCCKKCK..",
             "..KCKKKCCKKKCK..",
             "..KCKCCKKCCKCK..",
             "..KCKCCCCCCKCK..",
@@ -1534,11 +1543,16 @@ public enum ItemArt {
     /// plate and no lean: the caption is a separate image (`suitCaption`),
     /// never baked into the chip, so suited and unsuited chips render at the
     /// SAME size and the chip keeps its clean rim.
+    // ♠/♣ echo the canonical PixelGlyph silhouettes (suit-glyph sweep 2 —
+    // the v6.68 redesign): the SPADE is one solid pointed leaf with NO side-
+    // lobe notches; the CLUB is a flat-topped lobe over side lobes with a
+    // dark gap on BOTH sides of the centre. The old caption pips still wore
+    // the pre-redesign lobed spade / round-top club.
     private static let suitCaptionMarks: [String: [String]] = [
-        "♠": ["...C...", "..CCC..", ".CCCCC.", "CCCCCCC", ".CC.CC.", "...C...", "..CCC.."],
+        "♠": ["...C...", "..CCC..", ".CCCCC.", "CCCCCCC", ".CCCCC.", "...C...", "..CCC.."],
         "♥": [".RR.RR.", "RRRRRRR", "RRRRRRR", "RRRRRRR", ".RRRRR.", "..RRR..", "...R..."],
         "♦": ["...R...", "..RRR..", ".RRRRR.", "RRRRRRR", ".RRRRR.", "..RRR..", "...R..."],
-        "♣": ["..CCC..", "..CCC..", "CCCCCCC", "CCC.CCC", "...C...", "...C...", "..CCC.."],
+        "♣": ["..CCC..", "..CCC..", "CC.C.CC", "CCCCCCC", "CC.C.CC", "...C...", "..CCC.."],
     ]
 
     // MARK: - Legacy glyph fallback (no-matrix items + emblem/symbol overlays)

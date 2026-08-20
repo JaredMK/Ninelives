@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.71"
-    static let note = "ios: Slyrex and Rocko sharpen to 32px, the map deals dressed cards, sound survives the silent switch, and Odds Assist glows the safest pile."
+    static let version = "v6.72"
+    static let note = "ios: one corner for every sticker, all four chips on the smallest card, greyed cards explain themselves, and the last stray suits fall in line."
     static let line = "build \(version) · \(note)"
 }
 
@@ -1599,8 +1599,10 @@ final class CollectionDetailView: UIView, UIGestureRecognizerDelegate {
             CRTKit.attributed($0, size: 14, color: CRT.cardFace.withAlphaComponent(0.82))
         }
         costLabel.attributedText = CRTKit.attributed("◉ \(Int(def.price))", size: 14, color: CRT.gold)
+        // Through CRTKit.attributed (v6.72): item descriptions name suits, and
+        // the raw-attributes build bypassed the pixel-suit substitution.
         let desc = NSMutableAttributedString(
-            string: def.genericDescription, attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace])
+            attributedString: CRTKit.attributed(def.genericDescription, size: 14, color: CRT.cardFace))
         let para = NSMutableParagraphStyle()
         para.lineSpacing = 4   // web line-height 1.34
         desc.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: desc.length))

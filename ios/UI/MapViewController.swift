@@ -559,22 +559,35 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         }
     }
 
-    /// Sticker chips on a baked map card face — the corner-chip idiom every
-    /// card surface shares (deck inspector, curse well, board piles: fan from
-    /// the top-right, -11° + idx·8° lean, first sticker outermost). Chips are
-    /// pulled fully INSIDE the card's canvas so the node art keeps the bare
-    /// card's exact footprint — map rings are sized snug to the plaque and
-    /// adjacent nodes can sit at the 60pt minimum gap, so the canvas must not
-    /// grow. Curses carry their corruption art via ItemArt.sticker.
+    /// Sticker chips on a baked map card face — the CANONICAL STICKER CHIP
+    /// LAYOUT (v6.72, master comment in PileNode.swift's StickerChipLayout):
+    /// fan from the top-right, -11° + idx·8° lean, first sticker outermost,
+    /// step TIGHTENED so every chip up to `maxStickersPerCard` stays on the
+    /// card. ONE sanctioned deviation: chips are pulled fully INSIDE the
+    /// card's canvas (2pt inset instead of the fan's overhang/raise) so the
+    /// node art keeps the bare card's exact footprint — map rings are sized
+    /// snug to the plaque and adjacent nodes can sit at the 60pt minimum gap,
+    /// so the canvas must not grow. Curses carry their corruption art via
+    /// ItemArt.sticker.
     private func drawStickerChips(_ cg: CGContext, card: CardSpec,
-                                  cardTopRight: CGPoint, chip stk: CGFloat) {
+                                  cardTopRight: CGPoint, chip stk: CGFloat,
+                                  cardWidth: CGFloat) {
         let worn = card.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
         guard !worn.isEmpty else { return }
-        for (s, def) in worn.prefix(GameData.shared.items.maxStickersPerCard).enumerated() {
+        let shown = Array(worn.prefix(GameData.shared.items.maxStickersPerCard))
+        // The resting overlap, tightened so the LAST chip's left edge stays
+        // inside the card (2pt inset both sides — the inside-canvas twin of
+        // StickerChipLayout.step).
+        let step = shown.count > 1
+            ? min(stk * StickerChipLayout.overlapFactor,
+                  max(1, (cardWidth - 4 - stk) / CGFloat(shown.count - 1)))
+            : stk * StickerChipLayout.overlapFactor
+        // First sticker outermost AND on top — back-to-front for a CG bake.
+        for (s, def) in shown.enumerated().reversed() {
             let img = ItemArt.sticker(def, size: stk)
-            let cx = cardTopRight.x - 2 - stk / 2 - CGFloat(s) * (stk * 0.62)
+            let cx = cardTopRight.x - 2 - stk / 2 - CGFloat(s) * step
             let cy = cardTopRight.y + 2 + stk / 2
-            let deg = CGFloat(max(-15, min(15, -11 + s * 8)))
+            let deg = StickerChipLayout.leanDegrees(s)
             cg.saveGState()
             cg.translateBy(x: cx, y: cy)
             cg.rotate(by: deg * .pi / 180)
@@ -593,9 +606,13 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: face.size, format: fmt).image { ctx in
             face.draw(at: .zero)
-            // The card box is the canvas minus the 2px baked shadow.
+            // The card box is the canvas minus the 2px baked shadow. Chip
+            // size is the canonical rule for this width (≈20 on a half face).
+            let w = face.size.width - 2
             drawStickerChips(ctx.cgContext, card: card,
-                             cardTopRight: CGPoint(x: face.size.width - 2, y: 0), chip: 20)
+                             cardTopRight: CGPoint(x: w, y: 0),
+                             chip: StickerChipLayout.chipSize(forCardWidth: w),
+                             cardWidth: w)
         }
     }
 
@@ -611,12 +628,14 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
             cg.saveGState()
             cg.translateBy(x: 20, y: 31); cg.rotate(by: -9 * .pi / 180)
             a.draw(in: CGRect(x: -19, y: -27, width: 38, height: 54))
-            drawStickerChips(cg, card: pair[0], cardTopRight: CGPoint(x: 19, y: -27), chip: 14)
+            drawStickerChips(cg, card: pair[0], cardTopRight: CGPoint(x: 19, y: -27),
+                             chip: 14, cardWidth: 38)
             cg.restoreGState()
             cg.saveGState()
             cg.translateBy(x: 44, y: 31); cg.rotate(by: 9 * .pi / 180)
             b.draw(in: CGRect(x: -19, y: -27, width: 38, height: 54))
-            drawStickerChips(cg, card: pair[1], cardTopRight: CGPoint(x: 19, y: -27), chip: 14)
+            drawStickerChips(cg, card: pair[1], cardTopRight: CGPoint(x: 19, y: -27),
+                             chip: 14, cardWidth: 38)
             cg.restoreGState()
         }
     }

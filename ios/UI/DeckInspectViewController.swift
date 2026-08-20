@@ -298,9 +298,10 @@ public final class DeckInspectViewController: UIViewController {
         let cols = max(1, Int((w - 24) / (cw + 8)))
         let rowW = CGFloat(cols) * (cw + 8) - 8
         let x0 = (w - rowW) / 2
-        // 15 → 18 (v6.52): the chips are why you open this screen.
-        let stkSize: CGFloat = 18
-        let stkMax = 6
+        // 15 → 18 (v6.52) → canonical 22 (v6.72): the chips are why you open
+        // this screen. Size + fan come from the one shared rule — see the
+        // CANONICAL STICKER CHIP LAYOUT master comment in PileNode.swift.
+        let stkMax = GameData.shared.items.maxStickersPerCard
         let pitch = (ch - 7) + 8
         helpCards.removeAll()
         helpItems.removeAll()
@@ -323,18 +324,20 @@ public final class DeckInspectViewController: UIViewController {
             iv.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cardTapped(_:))))
             // Sticker chips ride the card's TOP-RIGHT corner (v6.52), fanning
             // leftward with the deal board's lean — the same idiom everywhere
-            // a card is shown (they used to stack from the bottom edge here).
-            let stickers = Array(c.stickers.prefix(stkMax))
-            for (s, rec) in stickers.enumerated() {
-                guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
-                let chip = UIImageView(image: ItemArt.sticker(def, size: stkSize))
+            // a card is shown. Geometry via StickerChipLayout (v6.72, master
+            // comment in PileNode.swift): canonical size for this card width,
+            // fan tightened so all four stay on the face.
+            let defs = Array(c.stickers.prefix(stkMax))
+                .compactMap { GameData.shared.stickerTypes.get($0.type) }
+            let placed = StickerChipLayout.frames(count: defs.count, cardWidth: iv.frame.width)
+            for (s, def) in defs.enumerated() {
+                let (rect, deg) = placed[s]
+                let chip = UIImageView(image: ItemArt.sticker(def, size: rect.width))
                 chip.contentMode = .scaleAspectFit
                 chip.layer.magnificationFilter = .nearest
-                chip.frame = CGRect(x: iv.frame.maxX + 2 - stkSize - CGFloat(s) * (stkSize * 0.62),
-                                    y: iv.frame.minY - 2,
-                                    width: stkSize, height: stkSize)
-                let deg = max(-15, min(15, -11 + s * 8))
-                chip.transform = CGAffineTransform(rotationAngle: CGFloat(deg) * .pi / 180)
+                chip.frame = rect.offsetBy(dx: iv.frame.minX, dy: iv.frame.minY)
+                chip.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
+                chip.layer.zPosition = CGFloat(-s)   // first sticker on top
                 content.addSubview(chip)
             }
         }

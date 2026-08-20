@@ -178,7 +178,9 @@ public final class PackRevealViewController: UIViewController {
                         b.addSubview(cap)
                     }
                     let name = UILabel()
-                    name.attributedText = CRTKit.attributed(def.label, size: 14, color: CRT.cardFace)
+                    // Sticker names read GOLD (suit-red for a curse) — v6.72.
+                    name.attributedText = CRTKit.attributed(
+                        def.label, size: 14, color: def.cursed ? CRT.suitRed : CRT.gold)
                     name.textAlignment = .center
                     name.numberOfLines = 2
                     name.isUserInteractionEnabled = false
@@ -375,6 +377,12 @@ public final class PackRevealViewController: UIViewController {
 
     private func showInfo(_ i: Int) {
         var title = "", body = ""
+        // CANONICAL STICKER NAME (v6.72): wherever a sticker's name meets its
+        // description it reads description-SIZED (14), BOLD (display face)
+        // and COLORED — gold, suit-red for a curse. These override the plain
+        // title/body strings when set.
+        var titleAttr: NSAttributedString?
+        var bodyAttr: NSAttributedString?
         switch content {
         case .cards(let cards):
             let c = cards[i]
@@ -392,20 +400,38 @@ public final class PackRevealViewController: UIViewController {
             } else {
                 let r = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "?"
                 title = "\(r) \(c.suit)"
-                body = c.stickers.isEmpty ? "A plain card, no stickers."
-                    : c.stickers.compactMap { s in
-                        GameData.shared.stickerTypes.get(s.type).map { "\($0.label)\n\($0.description)" }
-                    }.joined(separator: "\n\n")
+                if c.stickers.isEmpty {
+                    body = "A plain card, no stickers."
+                } else {
+                    // One row per sticker, the deck inspector's grammar: the
+                    // NAME leads in the display font — gold, blood-red for a
+                    // curse — with the registry description in cream after it.
+                    let rows = NSMutableAttributedString()
+                    for (k, s) in c.stickers.enumerated() {
+                        guard let def = GameData.shared.stickerTypes.get(s.type) else { continue }
+                        if k > 0 { rows.append(NSAttributedString(string: "\n")) }
+                        rows.append(CRTKit.attributed(def.label, size: 14,
+                                                      color: def.cursed ? CRT.suitRed : CRT.gold,
+                                                      display: true))
+                        rows.append(CRTKit.attributed("  \(def.description)", size: 14,
+                                                      color: CRT.cardFace))
+                    }
+                    bodyAttr = rows
+                }
             }
         case .stickers(let ids):
             if let t = GameData.shared.stickerTypes.get(ids[i]) {
-                title = t.label
+                // The sticker's NAME at its description's size — bold + colored,
+                // never the oversized plain-phosphor title (v6.72).
+                titleAttr = CRTKit.attributed(t.label, size: 14,
+                                              color: t.cursed ? CRT.suitRed : CRT.gold,
+                                              display: true)
                 body = t.description
             }
         }
         infoPanel.isHidden = false
-        infoTitle.attributedText = CRTKit.attributed(title, size: 16, color: CRT.phosphor)
-        infoBody.attributedText = CRTKit.attributed(body, size: 14, color: CRT.cardFace)
+        infoTitle.attributedText = titleAttr ?? CRTKit.attributed(title, size: 16, color: CRT.phosphor)
+        infoBody.attributedText = bodyAttr ?? CRTKit.attributed(body, size: 14, color: CRT.cardFace)
     }
 
     @objc private func deckTapped() {

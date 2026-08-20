@@ -1286,8 +1286,12 @@ public final class PhaseOverlayView: UIView {
         let subText: NSAttributedString?
         if outcome.key == "stickerPack", let sid = outcome.stickerId,
            let def = GameData.shared.stickerTypes.get(sid) {
+            // CANONICAL STICKER NAME (v6.72): description-sized, BOLD
+            // (display face), gold — suit-red for a curse. Never oversized.
             let t = NSMutableAttributedString()
-            t.append(CRTKit.attributed(def.label, size: 16, color: CRT.cardFace, display: true))
+            t.append(CRTKit.attributed(def.label, size: 14,
+                                       color: def.cursed ? CRT.suitRed : CRT.gold,
+                                       display: true))
             t.append(CRTKit.attributed("\n\(def.description)", size: 14,
                                        color: CRT.cardFace.withAlphaComponent(0.9)))
             subText = t
@@ -1458,7 +1462,8 @@ enum OutcomeWell {
     }
 
     /// Build the well at `width`, frame sized to its content (fixed heights —
-    /// the container never grows past one row; strips cap at 4 cards/3 chips).
+    /// the container never grows past one row; strips cap at 4 cards, chips
+    /// at the per-card sticker ceiling).
     func build(width: CGFloat) -> UIView {
         let box = UIView()
         box.backgroundColor = CRT.cardFace
@@ -1482,8 +1487,18 @@ enum OutcomeWell {
             let n = min(cards.count, 4)
             let w: CGFloat = 58
             let chipS: CGFloat = 34
-            let chipsW = torn.isEmpty ? 0 : CGFloat(min(torn.count, 3)) * (chipS + 4) + 8
-            let rowW = CGFloat(n) * (w + 8) - 8 + chipsW
+            // EVERY torn sticker shows, up to the per-card cap (v6.72 — the
+            // old 3-chip cap silently hid the 4th sticker a Cleanse tore
+            // off). The row compresses into an overlap when the well runs
+            // tight, chips never shrink below recognizability.
+            let chips = Array(torn.prefix(GameData.shared.items.maxStickersPerCard))
+            let cardsW = CGFloat(n) * (w + 8) - 8
+            let chipAvail = width - 16 - cardsW - 8
+            let chipStep = chips.count > 1
+                ? min(chipS + 4, max(chipS * 0.4, (chipAvail - chipS) / CGFloat(chips.count - 1)))
+                : chipS + 4
+            let chipsW = chips.isEmpty ? 0 : chipS + chipStep * CGFloat(chips.count - 1) + 8
+            let rowW = cardsW + chipsW
             h = 100
             for (i, c) in cards.prefix(4).enumerated() {
                 // A BLANK card in the strip is a Purge — the v6.53 torn card,
@@ -1495,11 +1510,12 @@ enum OutcomeWell {
                                   width: w, height: 80)
                 box.addSubview(iv)
             }
-            for (i, def) in torn.prefix(3).enumerated() {
+            for (i, def) in chips.enumerated() {
                 let iv = pixelImage(ItemArt.sticker(def, size: chipS))
-                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(n) * (w + 8) + 8
-                                     + CGFloat(i) * (chipS + 4),
+                iv.frame = CGRect(x: (width - rowW) / 2 + cardsW + 8
+                                     + CGFloat(i) * chipStep,
                                   y: 10 + (80 - chipS) / 2, width: chipS, height: chipS)
+                iv.layer.zPosition = CGFloat(-i)   // first torn chip on top
                 box.addSubview(iv)
             }
         case .purged(let cards):
@@ -1590,16 +1606,22 @@ private final class CurseCardCell: UIView {
         iv.layer.magnificationFilter = .nearest
         iv.frame = cardFrame
         addSubview(iv)
-        let stk: CGFloat = 30
-        let worn = card.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
-        for (s, def) in worn.prefix(GameData.shared.items.maxStickersPerCard).enumerated() {
-            let chip = UIImageView(image: ItemArt.sticker(def, size: stk))
+        // CANONICAL STICKER CHIP LAYOUT (v6.72) — geometry via
+        // StickerChipLayout (master comment in PileNode.swift): canonical
+        // size for this card width (26 on the 58pt cell card), fan tightened
+        // so all four chips stay on the face, first sticker on top.
+        let worn = Array(card.stickers
+            .prefix(GameData.shared.items.maxStickersPerCard))
+            .compactMap { GameData.shared.stickerTypes.get($0.type) }
+        let placed = StickerChipLayout.frames(count: worn.count, cardWidth: cardFrame.width)
+        for (s, def) in worn.enumerated() {
+            let (rect, deg) = placed[s]
+            let chip = UIImageView(image: ItemArt.sticker(def, size: rect.width))
             chip.contentMode = .scaleAspectFit
             chip.layer.magnificationFilter = .nearest
-            chip.frame = CGRect(x: cardFrame.maxX + 2 - stk - CGFloat(s) * (stk * 0.62),
-                                y: cardFrame.minY - 2, width: stk, height: stk)
-            let deg = max(-15, min(15, -11 + s * 8))
-            chip.transform = CGAffineTransform(rotationAngle: CGFloat(deg) * .pi / 180)
+            chip.frame = rect.offsetBy(dx: cardFrame.minX, dy: cardFrame.minY)
+            chip.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
+            chip.layer.zPosition = CGFloat(-s)   // first sticker outermost/on top
             addSubview(chip)
         }
         // The tap/hold pair, exactly the deck inspector's card-help idiom.

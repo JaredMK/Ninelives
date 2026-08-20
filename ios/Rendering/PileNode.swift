@@ -1,6 +1,79 @@
 import SpriteKit
 import GameCore
 
+/// CANONICAL STICKER CHIP LAYOUT (v6.72) — THE MASTER.
+///
+/// One rule for every surface that draws sticker chips on a card face: chips
+/// anchor at the card's TOP-RIGHT corner and fan LEFTWARD, each chip leaning
+/// −11° + idx·8° (clamped ±15°), first sticker outermost/on top. The first
+/// chip's right edge overhangs the card by `rightOverhang` and every chip's
+/// top edge rides `topRaise` above the card's top — a vinyl slapped over the
+/// corner, not a row inside the face.
+///
+/// SIZE scales with the card (`chipSize(forCardWidth:)` ≈ 44% of the card's
+/// width, clamped 14…38) so the deal board's full cards carry big legible
+/// chips while HALF cards (the 12-pile scale) keep all `maxStickersPerCard`
+/// chips on the face without burying the centred rank numeral.
+///
+/// OVERLAP: the resting step is `overlapFactor` of the chip, but `step(...)`
+/// TIGHTENS the fan whenever the row would run off the card's left edge — a
+/// full four-sticker card overlaps more, it never sheds a chip (the pre-v6.72
+/// bug: the fixed step pushed the 4th chip clear off a half card).
+///
+/// Every satellite site (DeckInspectViewController, CardPickerViewController,
+/// PhaseOverlayView's CurseCardCell, MapViewController's baked chips, the
+/// store/pack composites) computes its geometry through this enum and points
+/// its comment here. StickerDisplayTests mirrors the math and pins it.
+public enum StickerChipLayout {
+    /// The first chip's overhang past the card's RIGHT edge, in points.
+    public static let rightOverhang: CGFloat = 3
+    /// How far the chips ride ABOVE the card's top edge, in points.
+    public static let topRaise: CGFloat = 2
+    /// The resting leftward step between chips, as a fraction of chip size.
+    public static let overlapFactor: CGFloat = 0.62
+    /// Chip size = card width × this, clamped to `minChip…maxChip`.
+    public static let widthFactor: CGFloat = 0.44
+    public static let minChip: CGFloat = 14
+    public static let maxChip: CGFloat = 38
+
+    /// The canonical chip size for a card `w` points wide.
+    /// 96 → 38 · 72 → 32 · 58 → 26 · 50 → 22 · 48 → 21 · 38 → 17.
+    public static func chipSize(forCardWidth w: CGFloat) -> CGFloat {
+        min(maxChip, max(minChip, (w * widthFactor).rounded()))
+    }
+
+    /// The idx-th chip's lean, in degrees (positive = clockwise in UIKit).
+    public static func leanDegrees(_ idx: Int) -> CGFloat {
+        CGFloat(max(-15, min(15, -11 + idx * 8)))
+    }
+
+    /// The leftward step for a `count`-chip fan on a `cardWidth` card: the
+    /// resting overlap, tightened so the LAST chip still ends inside the
+    /// card's left edge (mirrored `rightOverhang` allowance).
+    public static func step(chip: CGFloat, count: Int, cardWidth: CGFloat) -> CGFloat {
+        guard count > 1 else { return chip * overlapFactor }
+        let fit = (cardWidth + rightOverhang * 2 - chip) / CGFloat(count - 1)
+        return min(chip * overlapFactor, max(1, fit))
+    }
+
+    /// UIKit-orientation chip frames for `count` chips on a card whose face
+    /// box is `cardWidth` wide — origins relative to the card's TOP-LEFT
+    /// corner (x right, y down; y is negative because chips ride above the
+    /// top edge). `chip` overrides the canonical size when a surface must
+    /// (the map's baked minis); pass nil for the canonical size.
+    public static func frames(count: Int, cardWidth: CGFloat, chip: CGFloat? = nil)
+        -> [(frame: CGRect, leanDegrees: CGFloat)] {
+        guard count > 0 else { return [] }
+        let c = chip ?? chipSize(forCardWidth: cardWidth)
+        let s = step(chip: c, count: count, cardWidth: cardWidth)
+        return (0..<count).map { idx in
+            (CGRect(x: cardWidth + rightOverhang - c - CGFloat(idx) * s,
+                    y: -topRaise, width: c, height: c),
+             leanDegrees(idx))
+        }
+    }
+}
+
 /// One pile — a life. Renders the top card, the stacked-depth hint beneath it,
 /// the count plaque, the dead mark, sticker badges and the selection ring.
 ///
@@ -419,29 +492,35 @@ public final class PileNode: SKNode {
         guard let top, !top.stickers.isEmpty else { return }
         var counts: [String: Int] = [:]
         for s in top.stickers { counts[s.type, default: 0] += 1 }
-        // 20 → 26 (router batch) → 30 (v6.52): the chips are the card's whole
-        // story mid-deal and still read small on a phone. The overlap factor
-        // keeps a full row inside the card's width.
-        let chip: CGFloat = 30
+        // CANONICAL STICKER CHIP LAYOUT (v6.72) — see StickerChipLayout above.
+        // 20 → 26 (router batch) → 30 (v6.52) → card-scaled (v6.72): the chips
+        // are the card's whole story mid-deal — full cards now carry 38pt
+        // chips; half cards take the canonical 21 with a TIGHTENED fan so all
+        // `maxStickersPerCard` chips stay on the face (the fixed 30pt/0.62
+        // step used to run the 4th chip clean off a 48pt-wide card).
         let box = cardScale.size
-        var idx = 0
-        for def in GameData.shared.stickerTypes.all() {
-            guard let n = counts[def.id], n > 0 else { continue }
+        let shown = GameData.shared.stickerTypes.all().filter { counts[$0.id, default: 0] > 0 }
+        let capped = Array(shown.prefix(GameData.shared.items.maxStickersPerCard))
+        let placed = StickerChipLayout.frames(count: capped.count, cardWidth: box.width)
+        for (idx, def) in capped.enumerated() {
+            let n = counts[def.id] ?? 0
+            let (rect, deg) = placed[idx]
+            let chip = rect.width
             let img = ItemArt.sticker(def, size: chip)
             let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
             node.size = CGSize(width: chip, height: chip)
             node.anchorPoint = CGPoint(x: 0, y: 1)
-            node.position = CGPoint(x: box.width + 3 - chip - CGFloat(idx) * (chip * 0.62), y: 2)
-            let deg = max(-15, min(15, -11 + idx * 8))
-            node.zRotation = -CGFloat(deg) * .pi / 180
+            // SpriteKit y-up: the UIKit-orientation frame's -topRaise flips.
+            node.position = CGPoint(x: rect.minX, y: -rect.minY)
+            node.zRotation = -deg * .pi / 180
             node.zPosition = -CGFloat(idx)   // first sticker outermost/on top
             badgeRow.addChild(node)
             // The counter: live value for Snowball/Compound, ×stack otherwise.
-            let shown: Int? = def.id == "snowball" ? top.snowball
+            let shownCount: Int? = def.id == "snowball" ? top.snowball
                 : def.id == "compound" ? max(0, top.compoundHits - 1)
                 : (n > 1 ? n : nil)
-            if let shown {
-                let c = PixelTexture.label("×\(shown)", size: 14,
+            if let shownCount {
+                let c = PixelTexture.label("×\(shownCount)", size: 14,
                                            color: def.cursed ? CRT.suitRed : CRT.gold)
                 c.anchorPoint = CGPoint(x: 1, y: 1)
                 c.position = CGPoint(x: node.position.x + chip + 1,
@@ -449,10 +528,6 @@ public final class PileNode: SKNode {
                 c.zPosition = -CGFloat(idx) + 0.5
                 badgeRow.addChild(c)
             }
-            idx += 1
-            // A card can hold at most `maxStickersPerCard` (items.js), so the
-            // row never needs to draw more than that.
-            if idx >= GameData.shared.items.maxStickersPerCard { break }
         }
     }
 

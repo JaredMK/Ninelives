@@ -232,10 +232,21 @@ public final class StoreViewController: UIViewController {
                 // Web `.ti-obj.obj-removal`: the shelf removal object is the
                 // bare torn card — its "REMOVAL" caption (.ro-lab) is LIVE text
                 // under the art (the tile caption below), never baked in.
-                let art = s.kind == "removal"
-                    ? ItemArt.removal(width: 52, height: 66)
-                    : s.mystery ? ItemArt.mysterySamePower(width: 56, height: 58)
-                    : ItemArt.forSlot(kind: s.kind, id: s.id, card: s.card, deckId: campaign.deckId)
+                let art: UIImage
+                if s.kind == "removal" {
+                    art = ItemArt.removal(width: 52, height: 66)
+                } else if s.mystery {
+                    art = ItemArt.mysterySamePower(width: 56, height: 58)
+                } else if s.kind == "card", let c = s.card, !c.stickers.isEmpty {
+                    // A card single is shown WITH its sticker chips (v6.72) —
+                    // the canonical top-right corner fan (StickerChipLayout,
+                    // master comment in PileNode.swift), the same composite
+                    // the picker banner and pack reveal use. A stickered card
+                    // whose tile showed a bare face read as a bug.
+                    art = CardPickerViewController.cardWithStickers(c, extra: nil)
+                } else {
+                    art = ItemArt.forSlot(kind: s.kind, id: s.id, card: s.card, deckId: campaign.deckId)
+                }
                 // Only packs (.pf-name), Removal (.ro-lab) and the MYSTERY
                 // Same-Power carry a NAME on the web shelf — pillar/base/
                 // sticker tiles are art + price only. The label always comes

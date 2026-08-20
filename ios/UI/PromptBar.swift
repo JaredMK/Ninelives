@@ -93,8 +93,11 @@ public final class PromptBar: UIView {
         para.lineSpacing = 5
         // 14 → 16 (v6.52): the SAME copy reads at 16 in hold-for-help — the
         // one place it shrank was the confirm that actually needed reading.
+        // Through CRTKit.attributed (v6.72): help copy names suits ("only ♥
+        // cards") and the raw-attributes build bypassed the pixel-suit
+        // substitution, leaking system-font glyphs into the confirm bar.
         let s = NSMutableAttributedString(
-            string: help, attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.muted])
+            attributedString: CRTKit.attributed(help, size: 16, color: CRT.muted))
         s.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: s.length))
         return s
     }

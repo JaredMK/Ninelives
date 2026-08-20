@@ -1328,10 +1328,10 @@
       "icon": "🛟",
       "kind": "scoring",
       "effect": "insurance",
-      "value": 5,
+      "value": 8,
       "tier": "rare",
       "price": 4,
-      "description": "At deal end → +5 coins if only one pile is alive"
+      "description": "At deal end → +8 coins if only one pile is alive"
     },
     {
       "id": "ditto",

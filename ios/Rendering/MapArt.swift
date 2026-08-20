@@ -356,15 +356,17 @@ public enum MapArt {
                 cg.fill(br)
                 cg.setStrokeColor(CRT.ink.cgColor)
                 cg.stroke(br)
+                // The door ♥ is the game's own pixel heart (suit-glyph sweep
+                // 2): the old NSString draw fell through to the system font —
+                // neither game font carries the suit characters.
                 UIGraphicsPushContext(cg)
-                let heart = "♥" as NSString
-                let font = CRT.Font.of(mama ? 15 : 13)
-                let sz = heart.size(withAttributes: [.font: font])
-                heart.draw(at: CGPoint(x: cx - sz.width / 2, y: br.maxY - sz.height - 2),
-                           withAttributes: [.font: font, .foregroundColor: CRT.suitRed])
+                let heart = PixelGlyph.image(PixelGlyph.heart, color: CRT.suitRed,
+                                             scale: 1, shadow: false)
+                let sz = heart.size
+                heart.draw(at: CGPoint(x: (cx - sz.width / 2).rounded(),
+                                       y: br.maxY - sz.height - 3))
                 if mama {
-                    heart.draw(at: CGPoint(x: w - sz.width, y: 0),
-                               withAttributes: [.font: font, .foregroundColor: CRT.suitRed])
+                    heart.draw(at: CGPoint(x: w - sz.width, y: 1))
                 }
                 UIGraphicsPopContext()
             }

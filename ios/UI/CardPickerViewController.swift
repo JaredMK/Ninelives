@@ -335,9 +335,11 @@ public final class CardPickerViewController: UIViewController {
 
     private func hideHoldHelp() { holdHelp.removeFromSuperview() }
 
-    private func setBanner(name: String, desc: String) {
-        bannerName.attributedText = CRTKit.attributed(name, size: 16, color: CRT.phosphor,
-                                                      display: true, glow: true)
+    private func setBanner(name: String, desc: String,
+                           nameColor: UIColor = CRT.phosphor, nameSize: CGFloat = 16,
+                           glow: Bool = true) {
+        bannerName.attributedText = CRTKit.attributed(name, size: nameSize, color: nameColor,
+                                                      display: true, glow: glow)
         bannerDesc.attributedText = CRTKit.attributed(desc, size: 14, color: CRT.muted)
     }
 
@@ -354,7 +356,11 @@ public final class CardPickerViewController: UIViewController {
                 // sticker drops its "Change suit to {suit}" description —
                 // it only restated the heading.
                 let desc = queenGrantCopy && def.behavior == "changeSuitTo" ? "" : def.description
-                setBanner(name: def.label, desc: desc)
+                // CANONICAL STICKER NAME (v6.72): description-sized, BOLD
+                // (display face), gold — suit-red for a curse. Never oversized.
+                setBanner(name: def.label, desc: desc,
+                          nameColor: def.cursed ? CRT.suitRed : CRT.gold,
+                          nameSize: 14, glow: false)
             }
         case .removal(let price):
             // Effect + price only — "Tap the card to purge." below is the ONE
@@ -456,6 +462,89 @@ public final class CardPickerViewController: UIViewController {
         // caller has excluded one (the Old Joker will not copy himself).
         case .choose(_, _, _, let allowJokers, _, _): return allowJokers || !c.joker
         }
+    }
+
+    // MARK: - Ineligibility reasons (v6.72)
+
+    /// WHY a card can't take a sticker — the picker's greyed cells answer a
+    /// tap with one of these through the shared PromptBar. The cases mirror
+    /// `CampaignState.canApplySticker`'s gates IN ORDER (rules().noStickers,
+    /// then CardRules.stickerEligible's joker/blank → full → duplicate →
+    /// suit checks, then the rank-boundary rule), so the reported reason is
+    /// always the first rule that actually failed.
+    public enum StickerIneligibilityReason: Equatable {
+        case deckNoStickers
+        case joker
+        case purgeCard
+        case maxStickers(Int)
+        case duplicate(String)          // the sticker's label
+        case wrongSuit([String])        // the sticker's allowed printed suits
+        case rankAtMax                  // +N Rank on an Ace
+        case rankAtMin                  // −N Rank on a 2
+
+        /// The player-facing one-liner. Suit symbols render as the game's
+        /// pixel marks automatically (CRTKit.attributed substitutes them).
+        public var message: String {
+            switch self {
+            case .deckNoStickers: return "This deck never takes stickers"
+            case .joker: return "Jokers never take stickers"
+            case .purgeCard: return "Purge cards never take stickers"
+            case .maxStickers(let max): return "Card has max (\(max)) stickers"
+            case .duplicate(let label): return "Card already has \(label)"
+            case .wrongSuit(let suits):
+                return "This sticker can only be applied to \(suits.joined(separator: "/")) cards"
+            case .rankAtMax: return "Rank is already at the top (Ace)"
+            case .rankAtMin: return "Rank is already at the bottom (2)"
+            }
+        }
+    }
+
+    /// PURE classifier: the first reason `card` refuses sticker `def`, or nil
+    /// when the application is legal. Must stay in lockstep with
+    /// `CampaignState.canApplySticker` / `CardRules.stickerEligible` —
+    /// StickerDisplayTests pins both the ordering and the messages.
+    public static func stickerIneligibilityReason(
+        _ card: CardSpec, _ def: ItemDef, deckNoStickers: Bool,
+        maxStickers: Int = GameData.shared.items.maxStickersPerCard
+    ) -> StickerIneligibilityReason? {
+        if deckNoStickers { return .deckNoStickers }
+        if card.joker { return .joker }
+        if card.blank { return .purgeCard }
+        if card.stickers.count >= maxStickers { return .maxStickers(maxStickers) }
+        if card.stickers.contains(where: { $0.type == def.id }) { return .duplicate(def.label) }
+        if let suits = def.suits, !suits.isEmpty,
+           !CardRules.isWildSuit(card), !suits.contains(card.suit) {
+            return .wrongSuit(suits)
+        }
+        if def.kind == "rank" {
+            let delta = def.num("rankDelta", 0)
+            if delta > 0 && card.currentRank >= maxRank { return .rankAtMax }
+            if delta < 0 && card.currentRank <= minRank { return .rankAtMin }
+        }
+        return nil
+    }
+
+    /// A tapped GREYED card explains itself through the shared PromptBar —
+    /// the game's one popup idiom, never a one-off modal.
+    private func explainIneligible(_ card: CardSpec) {
+        let why: String
+        switch mode {
+        case .applySticker(let t), .buySticker(_, let t):
+            guard let def = GameData.shared.stickerTypes.get(t) else { return }
+            guard let reason = Self.stickerIneligibilityReason(
+                card, def, deckNoStickers: campaign.stickersLocked) else { return }
+            why = reason.message
+        case .strip:
+            why = "This card has no stickers to strip"
+        case .choose:
+            why = "A Joker can't be chosen here"
+        case .removal, .swap:
+            return   // never greyed in these modes
+        }
+        Sound.shared.button()
+        prompt.show(why, actions: [
+            .init("OK", role: .plain) { [weak self] in self?.prompt.hide() },
+        ]) { [weak self] in self?.prompt.hide() }
     }
 
     // MARK: - Composition strip (histogram + legend + BY SUIT)
@@ -579,10 +668,12 @@ public final class CardPickerViewController: UIViewController {
             b.addGestureRecognizer(hold)
             let ok = eligible(c)
             b.alpha = ok ? 1 : 0.35
-            b.isEnabled = ok
-            // The card's real stickers, along its bottom edge.
-            if let row = stickerRow(for: c, cellW: 50) {
-                row.frame.origin.y = 62
+            // GREYED cards still answer a tap (v6.72): the tap explains WHY
+            // the card can't take the pick (see ineligibleTapped) instead of
+            // dead-ending — a no-op grey grid reads as a broken screen.
+            b.isEnabled = true
+            // The card's real stickers — the canonical top-right corner fan.
+            if let row = stickerChipOverlay(for: c) {
                 row.tag = 909
                 b.addSubview(row)
             }
@@ -593,59 +684,77 @@ public final class CardPickerViewController: UIViewController {
     }
 
     /// The subject card COMPOSITED with its sticker chips (plus `extra`, a
-    /// mark it is about to gain) — the banner's one image, drawn the same way
-    /// the grid draws chips: along the bottom edge, overlapping as they grow.
-    /// Shared by the pack reveal too: a card face is never shown WITHOUT the
-    /// chips it carries (a card that "has stickers" but shows none reads as a
-    /// bug, and did).
-    static func cardWithStickers(_ c: CardSpec, extra: String?) -> UIImage {
-        let face = CardArt.image(CardArt.Face(c), scale: .half)
+    /// mark it is about to gain) — the banner's one image. CANONICAL STICKER
+    /// CHIP LAYOUT (v6.72): the chips fan from the card's TOP-RIGHT corner
+    /// (StickerChipLayout — master comment in PileNode.swift); the canvas
+    /// grows by the fan's overhang/raise so nothing clips. Shared by the pack
+    /// reveal and the store's card tiles too: a card face is never shown
+    /// WITHOUT the chips it carries (a card that "has stickers" but shows
+    /// none reads as a bug, and did).
+    static func cardWithStickers(_ c: CardSpec, extra: String?,
+                                 scale: CardArt.Scale = .half) -> UIImage {
+        let face = CardArt.image(CardArt.Face(c), scale: scale)
         var defs = c.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
         if let extra, let d = GameData.shared.stickerTypes.get(extra) { defs.append(d) }
+        defs = Array(defs.prefix(GameData.shared.items.maxStickersPerCard))
         guard !defs.isEmpty else { return face }
-        let side: CGFloat = 25
-        let n = CGFloat(defs.count)
-        let step = n > 1 ? min(side + 1, (face.size.width - side) / (n - 1)) : 0
-        let rowW = side + step * (n - 1)
+        // The card BOX is the canvas minus the baked hard shadow.
+        let cardW = scale.size.width
+        let placed = StickerChipLayout.frames(count: defs.count, cardWidth: cardW)
+        let canvas = CGSize(width: face.size.width + StickerChipLayout.rightOverhang,
+                            height: face.size.height + StickerChipLayout.topRaise)
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = UIScreen.main.scale
-        return UIGraphicsImageRenderer(size: face.size, format: fmt).image { _ in
-            face.draw(at: .zero)
-            for (i, d) in defs.enumerated() {
-                ItemArt.sticker(d, size: side).draw(
-                    in: CGRect(x: (face.size.width - rowW) / 2 + step * CGFloat(i),
-                               y: face.size.height - side - 1, width: side, height: side))
+        return UIGraphicsImageRenderer(size: canvas, format: fmt).image { ctx in
+            let cg = ctx.cgContext
+            face.draw(at: CGPoint(x: 0, y: StickerChipLayout.topRaise))
+            // First sticker on TOP: draw the fan back-to-front.
+            for (i, d) in defs.enumerated().reversed() {
+                let (rect, deg) = placed[i]
+                let r = rect.offsetBy(dx: 0, dy: StickerChipLayout.topRaise)
+                cg.saveGState()
+                cg.translateBy(x: r.midX, y: r.midY)
+                cg.rotate(by: deg * .pi / 180)
+                cg.interpolationQuality = .none
+                ItemArt.sticker(d, size: r.width).draw(
+                    in: CGRect(x: -r.width / 2, y: -r.height / 2,
+                               width: r.width, height: r.height))
+                cg.restoreGState()
             }
         }
     }
 
     /// The card's ACTUAL stickers, not an anonymous count of pips — you cannot
-    /// choose which card to replace without knowing what is on it. Icons sit
-    /// along the card's bottom edge and OVERLAP as the count grows, so five
-    /// still fit inside the cell instead of running off it.
-    private func stickerRow(for card: CardSpec, cellW: CGFloat) -> UIView? {
+    /// choose which card to replace without knowing what is on it. CANONICAL
+    /// STICKER CHIP LAYOUT (v6.72): the top-right corner fan, tightened so
+    /// all `maxStickersPerCard` chips stay on the cell's card (they used to
+    /// sit in a row along the bottom edge here — the one surface that did).
+    private func stickerChipOverlay(for card: CardSpec) -> UIView? {
         guard !card.stickers.isEmpty else { return nil }
-        let defs = card.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
+        let defs = Array(card.stickers.prefix(GameData.shared.items.maxStickersPerCard))
+            .compactMap { GameData.shared.stickerTypes.get($0.type) }
         guard !defs.isEmpty else { return nil }
-        let side: CGFloat = 20
-        let n = CGFloat(defs.count)
-        // Even spacing that collapses into an overlap once the row would exceed
-        // the cell; never wider than the card.
-        let step = n > 1 ? min(side + 1, (cellW - 2 - side) / (n - 1)) : 0
-        let rowW = side + step * (n - 1)
-        let row = UIView(frame: CGRect(x: (cellW - rowW) / 2, y: 0, width: rowW, height: side))
-        row.isUserInteractionEnabled = false
+        // The cell shows the .half face UNSCALED and centred (gridMetrics'
+        // 50×82 cell); the card box is the canvas minus the 2px baked shadow.
+        let img = CardArt.image(CardArt.Face(card), scale: .half)
+        let m = gridMetrics(width: max(1, view.bounds.width - 32))
+        let origin = CGPoint(x: (m.cw - img.size.width) / 2, y: (m.ch - img.size.height) / 2)
+        let cardW = CardArt.Scale.half.size.width
+        let holder = UIView(frame: CGRect(x: 0, y: 0, width: m.cw, height: m.ch))
+        holder.isUserInteractionEnabled = false
+        let placed = StickerChipLayout.frames(count: defs.count, cardWidth: cardW)
         for (i, def) in defs.enumerated() {
-            let iv = UIImageView(image: ItemArt.sticker(def))
+            let (rect, deg) = placed[i]
+            let iv = UIImageView(image: ItemArt.sticker(def, size: rect.width))
             iv.contentMode = .scaleAspectFit
             iv.layer.magnificationFilter = .nearest
             iv.layer.minificationFilter = .nearest
-            iv.frame = CGRect(x: step * CGFloat(i), y: 0, width: side, height: side)
-            // Later stickers sit on top, like a real stack.
-            iv.layer.zPosition = CGFloat(i)
-            row.addSubview(iv)
+            iv.frame = rect.offsetBy(dx: origin.x, dy: origin.y)
+            iv.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
+            iv.layer.zPosition = CGFloat(-i)   // first sticker outermost/on top
+            holder.addSubview(iv)
         }
-        return row
+        return holder
     }
 
     private func layoutGrid() {
@@ -678,6 +787,8 @@ public final class CardPickerViewController: UIViewController {
         guard !busy else { return }
         let id = b.tag
         guard let card = deck.first(where: { $0.id == id }) else { return }
+        // A GREYED card answers with its REASON (v6.72), never a silent no-op.
+        guard eligible(card) else { explainIneligible(card); return }
         selectedId = id
         highlight(id)
         let name = cardName(card)
@@ -846,8 +957,7 @@ public final class CardPickerViewController: UIViewController {
               let fresh = campaign.getRunDeck().first(where: { $0.id == id }) else { return }
         btn.setImage(CardArt.image(CardArt.Face(fresh), scale: .half), for: .normal)
         btn.subviews.filter { $0 is UILabel || $0.tag == 909 }.forEach { $0.removeFromSuperview() }
-        if let row = stickerRow(for: fresh, cellW: 50) {
-            row.frame.origin.y = 62
+        if let row = stickerChipOverlay(for: fresh) {
             row.tag = 909
             btn.addSubview(row)
         }
