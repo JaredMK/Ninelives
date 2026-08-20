@@ -394,6 +394,12 @@ public final class DeckUnlocks {
     }
     public func wonWith(_ deckId: String) -> Bool { get()[deckId] == true }
     public func wonWithTier(_ deckId: String, _ tier: String?) -> Bool { get()[Self.key(deckId, tier)] == true }
+    /// ODDS ASSIST gate (v6.71): any deck's Straight (legendary) win. Reads
+    /// the stored keys directly, so it needs no roster and — like every win
+    /// record — never un-sets and survives save/restore and the deck renames.
+    public func wonAnyStraight() -> Bool {
+        get().contains { $0.key.hasSuffix(".legendary") && $0.value }
+    }
     public func reset() { store.remove(forKey: Self.key) }
 
     /// Load-time repair + migration, in three passes: legacy Pinky credit,

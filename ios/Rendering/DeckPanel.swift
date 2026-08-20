@@ -905,8 +905,10 @@ public enum DeckCharacter {
     ///
     /// FIDELITY: the EXACT web sprites (32×32 jar characters + tier overlay
     /// sheets, extracted from the web build's baked data-URIs) are the primary
-    /// source; the procedural 16×16 fallback below survives only for a missing
-    /// asset. `gaze` is ignored on the sheet path — the web's `look` state is
+    /// source. Slyrex and Rocko have no baked sheets, so their procedural art
+    /// draws on a 32×32 grid to match the sheets' grain; the other three keep
+    /// the coarse 16×16 fallback (it never runs in practice — their sheets
+    /// exist). `gaze` is ignored on the sheet path — the web's `look` state is
     /// one fixed frame, not per-direction pupils.
     public static func image(deckId: String, mood: Mood, scale: Int,
                              gaze: (dx: Int, dy: Int) = (0, 0), tier: String = "regular") -> UIImage {
@@ -920,13 +922,39 @@ public enum DeckCharacter {
                 sheet.draw(in: CGRect(origin: .zero, size: size))
             }
         }
-        let g = 16
-        let img = PixelTexture.image(size: CGSize(width: g * scale, height: g * scale)) { cg in
-            let (a, b) = body(deckId)
+        // The pixel-grid master, 1px per grid cell — 32 for the fine decks,
+        // 16 for the classic fallback.
+        let fine = deckId == "slyrex" || deckId == "rocko"
+        let g = fine ? 32 : 16
+        let master = PixelTexture.image(size: CGSize(width: g, height: g)) { cg in
             func px(_ x: Int, _ y: Int, _ color: UIColor) {
                 cg.setFillColor(color.cgColor)
-                cg.fill(CGRect(x: x * scale, y: y * scale, width: scale, height: scale))
+                cg.fill(CGRect(x: x, y: y, width: 1, height: 1))
             }
+            switch deckId {
+            case "slyrex": drawSlyrexFine(px, mood: mood, gaze: gaze, tier: tier)
+            case "rocko":  drawRockoFine(px, mood: mood, gaze: gaze, tier: tier)
+            default:       drawClassic(px, deckId: deckId, mood: mood, gaze: gaze, tier: tier)
+            }
+        }
+        // POINT-SIZE INVARIANT: every caller passes `scale` as px per CLASSIC
+        // (16-grid) cell, so the canvas stays 16×scale whatever the grid — a
+        // fine cell is exactly half a classic cell. Even scales land pixel-
+        // perfect (scale 2 → the 32px master verbatim); odd scales nearest-
+        // neighbour to ±1px cells, which the CRT look absorbs.
+        let side = CGFloat(16 * scale)
+        return PixelTexture.image(size: CGSize(width: side, height: side)) { cg in
+            UIGraphicsPushContext(cg)
+            defer { UIGraphicsPopContext() }
+            master.draw(in: CGRect(x: 0, y: 0, width: side, height: side))
+        }
+    }
+
+    /// The original 16-grid fallback — Pinky, Mamma, and Garden only, and in
+    /// practice never even them (their baked sheets exist). Kept verbatim.
+    private static func drawClassic(_ px: (Int, Int, UIColor) -> Void, deckId: String,
+                                    mood: Mood, gaze: (dx: Int, dy: Int), tier: String) {
+            let (a, b) = body(deckId)
             // DECK-BOX SILHOUETTE — every character is the same card-deck
             // box: a 10-wide tuck box (rows 2…12, cols 3…12) with a 1px ink
             // outline, checkered dither fill, a lid-seam band, and little
@@ -1121,7 +1149,276 @@ public enum DeckCharacter {
             }
             // A win gets phosphor sparks — the only glow color.
             if mood == .win || mood == .celebrate { px(13, 2, CRT.phosphor); px(2, 4, CRT.phosphor) }
+    }
+
+    // MARK: - Fine-grid characters (32×32, matching the baked sheets' grain)
+
+    /// The shared fine deck box: same silhouette language as the 32px sheets —
+    /// rectangular tuck box (x 6…25, y 4…25) with a 1px ink outline, 1px
+    /// checker dither, and the little ink feet. What rides ON the box is the
+    /// character.
+    private static func fineBox(_ px: (Int, Int, UIColor) -> Void, a: UIColor, b: UIColor) {
+        for y in 4...25 {
+            for x in 6...25 {
+                let edge = (y == 4 || y == 25 || x == 6 || x == 25)
+                // 2×2-px dither blocks — the classic checker's cell size at
+                // the same point size; a 1px checker reads as static.
+                px(x, y, edge ? CRT.ink : ((x / 2 + y / 2) % 2 == 0 ? a : b))
+            }
         }
-        return img
+        for x in 10...13 { px(x, 26, CRT.ink); px(x, 27, CRT.ink) }
+        for x in 18...21 { px(x, 26, CRT.ink); px(x, 27, CRT.ink) }
+    }
+
+    /// SLYREX at the fine grain: a tiny T-rex ON a deck of cards. Teal-green
+    /// hide (phosphor/felt dither), a jagged ink crest riding the lid (his
+    /// ridge IS the lid detail — no seam band), BIG cream eyes with real
+    /// pupils and a carved glint, nostrils, and tiny cream fangs flanking
+    /// every mouth shape.
+    private static func drawSlyrexFine(_ px: (Int, Int, UIColor) -> Void,
+                                       mood: Mood, gaze: (dx: Int, dy: Int), tier: String) {
+        let (a, b) = body("slyrex")
+        fineBox(px, a: a, b: b)
+        // The crest ridge: four ink spikes with 1px tips on the lid.
+        for cx in [9, 13, 17, 21] {
+            px(cx, 1, CRT.ink)
+            for x in (cx - 1)...(cx + 1) { px(x, 2, CRT.ink); px(x, 3, CRT.ink) }
+        }
+        // Nostrils on the snout.
+        px(13, 16, CRT.ink); px(18, 16, CRT.ink)
+        // EYES — big and expressive is the whole identity. Whites are 4-wide
+        // cream blocks; pupils are 2×2 ink with the top-left px carved back
+        // to cream as the glint.
+        let ex = max(-1, min(1, gaze.dx))
+        switch mood {
+        case .blink:
+            // Closed lids: an ink lash over a cream sliver — a bare line
+            // sinks into the dark half of the dither.
+            for x in 9...12 { px(x, 11, CRT.ink); px(x, 12, CRT.cardFace) }
+            for x in 19...22 { px(x, 11, CRT.ink); px(x, 12, CRT.cardFace) }
+        case .happy, .win, .celebrate:
+            // Saucer eyes: whites grow a row taller, pupils ride high.
+            for e in [9, 19] {
+                for y in 9...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                let ix = e + 1
+                px(ix, 10, CRT.ink); px(ix + 1, 10, CRT.ink)
+                px(ix, 11, CRT.ink); px(ix + 1, 11, CRT.ink)
+                px(ix, 10, CRT.cardFace)   // glint
+            }
+        case .glad:
+            // Contented arches — closed, smiling lids on a cream pillow.
+            for e in [9, 19] {
+                for y in 11...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                px(e, 12, CRT.ink); px(e + 1, 11, CRT.ink)
+                px(e + 2, 11, CRT.ink); px(e + 3, 12, CRT.ink)
+            }
+        case .sad:
+            // Heavy ink lids over drooped whites, pupils sunk to the bottom,
+            // one tear off the right eye.
+            for e in [9, 19] {
+                for x in e...(e + 3) { px(x, 10, CRT.ink) }
+                for y in 11...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                px(e + 1, 12, CRT.ink); px(e + 2, 12, CRT.ink)
+            }
+            // A cream tear — phosphor would vanish into his phosphor hide.
+            px(23, 13, CRT.cardFace); px(23, 14, CRT.cardFace)
+        default:
+            // Idle / looking: open whites, gaze shifts the pupil block.
+            let py = gaze.dy < 0 ? 11 : 10
+            for e in [9, 19] {
+                for y in 10...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                let ix = e + 1 + ex
+                px(ix, py, CRT.ink); px(ix + 1, py, CRT.ink)
+                px(ix, py + 1, CRT.ink); px(ix + 1, py + 1, CRT.ink)
+                px(ix, py, CRT.cardFace)   // glint
+            }
+        }
+        // MOUTHS — every shape keeps the tiny cream fangs.
+        switch mood {
+        case .happy, .win, .celebrate:
+            // The big open grin: dark mouth, two fangs hanging from the top lip.
+            for y in 19...21 { for x in 12...19 { px(x, y, CRT.ink) } }
+            px(13, 19, CRT.cardFace); px(13, 20, CRT.cardFace)
+            px(18, 19, CRT.cardFace); px(18, 20, CRT.cardFace)
+        case .glad:
+            // A soft smile, fang tips peeking below the curve.
+            px(12, 19, CRT.ink)
+            for x in 13...18 { px(x, 20, CRT.ink) }
+            px(19, 19, CRT.ink)
+            px(13, 21, CRT.cardFace); px(18, 21, CRT.cardFace)
+        case .sad:
+            // A frown with dropped corners — the fangs still show.
+            px(12, 21, CRT.ink)
+            for x in 13...18 { px(x, 20, CRT.ink) }
+            px(19, 21, CRT.ink)
+            px(14, 21, CRT.cardFace); px(17, 21, CRT.cardFace)
+        default:
+            // Idle / looking / blink: the flat resting mouth, fangs down.
+            for x in 13...18 { px(x, 19, CRT.ink) }
+            px(13, 20, CRT.cardFace); px(18, 20, CRT.cardFace)
+        }
+        // TIER ACCESSORIES (regular = nothing, the convention).
+        if tier == "master" {
+            // The bone belt: a bleached shaft with double-lobed knob ends and
+            // twin ink lashings.
+            for x in 9...22 { px(x, 23, CRT.cardFace) }
+            for y in 22...24 { px(8, y, CRT.cardFace); px(23, y, CRT.cardFace) }
+            px(7, 22, CRT.cardFace); px(7, 24, CRT.cardFace)
+            px(24, 22, CRT.cardFace); px(24, 24, CRT.cardFace)
+            px(13, 23, CRT.ink); px(18, 23, CRT.ink)
+        } else if tier == "legendary" {
+            // The jagged gold crest-crown: gold tips above each ink spike,
+            // gold filling the valleys between.
+            for cx in [9, 13, 17, 21] { px(cx, 0, CRT.gold) }
+            for vx in [11, 15, 19] { px(vx, 1, CRT.gold); px(vx, 2, CRT.gold) }
+        }
+        if mood == .win || mood == .celebrate {
+            px(27, 4, CRT.phosphor); px(26, 5, CRT.phosphor)
+            px(4, 8, CRT.phosphor); px(5, 9, CRT.phosphor)
+        }
+    }
+
+    /// ROCKO at the fine grain: the piebald dog-box. Salt-and-pepper dither
+    /// coat with real black/brown/white patches, folded droopy ears hanging
+    /// over the lid (sliding out and down when sad), a 2×2 ink nose, and the
+    /// odd eyes — brown LEFT, blue RIGHT — as 2×2 irises inside cream whites.
+    private static func drawRockoFine(_ px: (Int, Int, UIColor) -> Void,
+                                      mood: Mood, gaze: (dx: Int, dy: Int), tier: String) {
+        let (a, b) = body("rocko")
+        fineBox(px, a: a, b: b)
+        // The tuck-lid seam.
+        for x in 8...23 { px(x, 8, CRT.ink) }
+        // The piebald coat: solid patches over the salt-and-pepper dither,
+        // ragged-edged, clear of the eye blocks and every mood mouth.
+        for x in 8...11 { px(x, 6, rockoBrown); px(x, 7, rockoBrown) }     // lid, left
+        for x in 20...23 { px(x, 6, rockoBrown); px(x, 7, rockoBrown) }    // lid, right
+        px(7, 11, rockoBrown); px(8, 11, rockoBrown)                       // left flank
+        for x in 7...9 { px(x, 12, rockoBrown); px(x, 13, rockoBrown) }
+        px(7, 14, rockoBrown); px(8, 14, rockoBrown)
+        px(7, 15, rockoBrown)
+        px(23, 12, CRT.ink); px(24, 12, CRT.ink)                           // black, right flank
+        for x in 22...24 { px(x, 13, CRT.ink); px(x, 14, CRT.ink) }
+        px(23, 15, CRT.ink); px(24, 15, CRT.ink)
+        // The white muzzle — THE white patch of the piebald coat, and the
+        // solid ground every nose and mouth shape draws on (ink features
+        // vanish into the dither without it).
+        for x in 13...18 { px(x, 14, CRT.cardFace) }
+        for y in 15...21 { for x in 12...19 { px(x, y, CRT.cardFace) } }
+        for x in 13...18 { px(x, 22, CRT.cardFace) }
+        // Folded droopy ears hanging over the box top — ink outline, brown
+        // fill, rounded tips on the face. Sad slides them out and down.
+        let sadEars = mood == .sad
+        let eTop = sadEars ? 2 : 1
+        for x0 in [sadEars ? 5 : 6, sadEars ? 22 : 21] {
+            px(x0 + 1, eTop, CRT.ink); px(x0 + 2, eTop, CRT.ink)
+            for y in (eTop + 1)...(eTop + 3) {
+                px(x0, y, CRT.ink)
+                px(x0 + 1, y, rockoBrown); px(x0 + 2, y, rockoBrown)
+                px(x0 + 3, y, CRT.ink)
+            }
+            px(x0 + 1, eTop + 4, CRT.ink); px(x0 + 2, eTop + 4, CRT.ink)
+        }
+        // The muzzle: 2×2 ink nose + philtrum drop.
+        px(15, 15, CRT.ink); px(16, 15, CRT.ink)
+        px(15, 16, CRT.ink); px(16, 16, CRT.ink)
+        px(15, 17, CRT.ink)
+        // EYES — heterochromia must always read: solid 2×2 irises, brown left
+        // and blue right, inside cream whites. Every open eye gets a 1px ink
+        // ring so it pops off the busy piebald coat.
+        let ex = max(-1, min(1, gaze.dx))
+        func eyeRing(_ e: Int, top: Int, bottom: Int) {
+            for x in (e - 1)...(e + 4) { px(x, top - 1, CRT.ink); px(x, bottom + 1, CRT.ink) }
+            for y in top...bottom { px(e - 1, y, CRT.ink); px(e + 4, y, CRT.ink) }
+        }
+        switch mood {
+        case .blink:
+            // Closed lids: an ink lash over a cream sliver, like Slyrex's.
+            for x in 9...12 { px(x, 11, CRT.ink); px(x, 12, CRT.cardFace) }
+            for x in 19...22 { px(x, 11, CRT.ink); px(x, 12, CRT.cardFace) }
+        case .happy, .win, .celebrate:
+            // Good news: the odd eyes go saucer-WIDE — taller whites, irises
+            // riding high. No arcs, per his convention.
+            for e in [9, 19] {
+                for y in 9...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                eyeRing(e, top: 9, bottom: 12)
+            }
+            px(10, 10, rockoBrown); px(11, 10, rockoBrown)
+            px(10, 11, rockoBrown); px(11, 11, rockoBrown)
+            px(20, 10, rockoBlue); px(21, 10, rockoBlue)
+            px(20, 11, rockoBlue); px(21, 11, rockoBlue)
+        case .glad:
+            // The content squint — smiling arches on a small cream pillow
+            // (bare ink lines sink into the dither), one colored glint each.
+            for e in [9, 19] {
+                for y in 11...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+            }
+            px(9, 12, CRT.ink); px(10, 11, CRT.ink); px(11, 11, CRT.ink); px(12, 12, CRT.ink)
+            px(19, 12, CRT.ink); px(20, 11, CRT.ink); px(21, 11, CRT.ink); px(22, 12, CRT.ink)
+            px(11, 12, rockoBrown); px(20, 12, rockoBlue)
+        case .sad:
+            // Drooped whites under the ring's heavy top lid, low irises, one
+            // tear off the blue eye.
+            for e in [9, 19] {
+                for y in 11...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                eyeRing(e, top: 11, bottom: 12)
+            }
+            px(10, 11, rockoBrown); px(11, 11, rockoBrown)
+            px(10, 12, rockoBrown); px(11, 12, rockoBrown)
+            px(20, 11, rockoBlue); px(21, 11, rockoBlue)
+            px(20, 12, rockoBlue); px(21, 12, rockoBlue)
+            px(23, 14, CRT.phosphor); px(23, 15, CRT.phosphor)
+        default:
+            // Idle / looking: open whites, gaze shifts the iris block.
+            let iy = gaze.dy < 0 ? 11 : 10
+            for e in [9, 19] {
+                for y in 10...12 { for x in e...(e + 3) { px(x, y, CRT.cardFace) } }
+                eyeRing(e, top: 10, bottom: 12)
+            }
+            px(10 + ex, iy, rockoBrown); px(11 + ex, iy, rockoBrown)
+            px(10 + ex, iy + 1, rockoBrown); px(11 + ex, iy + 1, rockoBrown)
+            px(20 + ex, iy, rockoBlue); px(21 + ex, iy, rockoBlue)
+            px(20 + ex, iy + 1, rockoBlue); px(21 + ex, iy + 1, rockoBlue)
+        }
+        // MOUTHS.
+        switch mood {
+        case .happy, .win, .celebrate:
+            // Open panting grin with the pink tongue hanging out.
+            for y in 19...21 { for x in 13...18 { px(x, y, CRT.ink) } }
+            px(15, 21, CRT.suitRed); px(16, 21, CRT.suitRed)
+            px(15, 22, CRT.suitRed); px(16, 22, CRT.suitRed)
+        case .glad:
+            px(12, 19, CRT.ink)
+            for x in 13...18 { px(x, 20, CRT.ink) }
+            px(19, 19, CRT.ink)
+        case .sad:
+            px(12, 21, CRT.ink)
+            for x in 13...18 { px(x, 20, CRT.ink) }
+            px(19, 21, CRT.ink)
+        default:
+            // Idle / looking / blink: the little dog "w".
+            px(12, 19, CRT.ink); px(13, 20, CRT.ink); px(14, 20, CRT.ink)
+            px(15, 19, CRT.ink)
+            px(16, 20, CRT.ink); px(17, 20, CRT.ink); px(18, 19, CRT.ink)
+        }
+        // TIER ACCESSORIES (regular = nothing, the convention).
+        if tier == "master" {
+            // The leather collar with the gold tag hanging off the rim.
+            for x in 8...23 { px(x, 22, rockoBrown); px(x, 23, rockoBrown) }
+            px(15, 24, CRT.gold); px(16, 24, CRT.gold)
+            px(15, 25, CRT.gold); px(16, 25, CRT.gold)
+        } else if tier == "legendary" {
+            // The woolly gold laurel: two bumpy branches resting over the
+            // ears, open at the top.
+            for x in 8...13 { px(x, 2, CRT.gold) }
+            px(9, 1, CRT.gold); px(11, 1, CRT.gold); px(13, 1, CRT.gold)
+            px(7, 3, CRT.gold)
+            for x in 18...23 { px(x, 2, CRT.gold) }
+            px(18, 1, CRT.gold); px(20, 1, CRT.gold); px(22, 1, CRT.gold)
+            px(24, 3, CRT.gold)
+        }
+        if mood == .win || mood == .celebrate {
+            px(27, 4, CRT.phosphor); px(26, 5, CRT.phosphor)
+            px(4, 8, CRT.phosphor); px(5, 9, CRT.phosphor)
+        }
     }
 }

@@ -592,6 +592,12 @@ public final class DealScene: SKScene {
         for (i, p) in piles.enumerated() { p.syncHint(i < dirs.count ? dirs[i] : nil) }
     }
 
+    /// ODDS ASSIST (v6.71): light the safest pile(s). Display only.
+    public func syncAssist(_ lit: [Int]) {
+        let set = Set(lit)
+        for (i, p) in piles.enumerated() { p.syncAssist(set.contains(i)) }
+    }
+
     /// The pile whose STICKER-BADGE corner contains the point — tap-for-help
     /// (v6.52). nil when nothing badge-like sits there.
     public func stickerBadgePile(at scenePoint: CGPoint) -> Int? {

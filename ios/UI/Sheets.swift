@@ -648,25 +648,58 @@ final class SettingsSheetView: SheetView {
     /// prompt bar (the sheet itself never owns destructive flow).
     var onResetProgress: (() -> Void)?
 
+    private let campaign: CampaignState
     private let soundButton = PixelButtonView("", role: .plain, fontSize: 16)
+    /// ODDS ASSIST (v6.71): visible even while LOCKED — the locked row is a
+    /// goal, not a secret. Unlocks on the first Straight (Legendary) win with
+    /// any deck; the state derives from DeckUnlocks, so it persists like
+    /// every other unlock and survives save/restore and the deck renames.
+    private let assistButton = PixelButtonView("", role: .plain, fontSize: 16)
+    private let assistHint = CRTKit.label("", size: 14, color: CRT.muted)
     private let resetButton = PixelButtonView("RESET PROGRESS", role: .danger, fontSize: 16)
     private let foot = CRTKit.label(BuildStamp.line, size: 14, color: CRT.muted)
 
-    init() {
+    init(campaign: CampaignState) {
+        self.campaign = campaign
         super.init(title: "Settings")
-        setBodyHeight(210)
+        setBodyHeight(292)
         soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
         soundButton.onTap = { [weak self] in
             Sound.shared.enabled.toggle()
             self?.soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
         }
+        assistButton.onTap = { [weak self] in
+            guard let self, self.campaign.deckUnlocks.wonAnyStraight() else { return }
+            let on = self.campaign.saveStore.pref("oddsAssist") == "1"
+            self.campaign.saveStore.setPref("oddsAssist", on ? "0" : "1")
+            self.refreshAssistRow()
+        }
+        refreshAssistRow()
+        assistHint.textAlignment = .center
         resetButton.onTap = { [weak self] in self?.onResetProgress?() }
         foot.textAlignment = .center
         foot.numberOfLines = 2
         foot.alpha = 0.6
         body.addSubview(soundButton)
+        body.addSubview(assistButton)
+        body.addSubview(assistHint)
         body.addSubview(resetButton)
         body.addSubview(foot)
+    }
+
+    private func refreshAssistRow() {
+        if campaign.deckUnlocks.wonAnyStraight() {
+            let on = campaign.saveStore.pref("oddsAssist") == "1"
+            assistButton.isEnabled = true
+            assistButton.setTitle("ODDS ASSIST: \(on ? "ON" : "OFF")")
+            assistHint.attributedText = CRTKit.attributed(
+                "Glows the pile with the best survival odds.", size: 14, color: CRT.muted)
+        } else {
+            assistButton.isEnabled = false
+            assistButton.setTitle("ODDS ASSIST · LOCKED")
+            assistHint.attributedText = CRTKit.attributed(
+                "Beat a Straight climb with any deck to unlock.", size: 14, color: CRT.muted)
+        }
     }
 
     @available(*, unavailable)
@@ -677,8 +710,10 @@ final class SettingsSheetView: SheetView {
         let w = body.bounds.width - 28
         guard w > 0 else { return }
         soundButton.frame = CGRect(x: 14, y: 8, width: w, height: 48)
-        resetButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
-        foot.frame = CGRect(x: 14, y: 126, width: w, height: 34)
+        assistButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
+        assistHint.frame = CGRect(x: 14, y: 118, width: w, height: 16)
+        resetButton.frame = CGRect(x: 14, y: 146, width: w, height: 48)
+        foot.frame = CGRect(x: 14, y: 206, width: w, height: 34)
     }
 }
 
@@ -719,8 +754,11 @@ final class StatsSheetView: SheetView {
         let num = NSMutableAttributedString(
             string: value, attributes: [.font: CRT.Font.of(16, display: true), .foregroundColor: CRT.phosphor])
         if let pct {
+            // 16pt full-cream (was 14pt muted): the win-rate/accuracy figure is
+            // a headline stat, not a caption — muted 14 disappeared next to the
+            // glowing value. The caption below keeps muted 14 for hierarchy.
             num.append(NSAttributedString(
-                string: "  \(pct)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
+                string: "  \(pct)", attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.cardFace]))
         }
         let nl = UILabel()
         nl.attributedText = num
@@ -832,15 +870,17 @@ final class StatsSheetView: SheetView {
             for (k, v) in e.lossCards { lossCards[k, default: 0] += v }
         }
         let sum = NSMutableAttributedString()
+        // Numbers at 16 (were 14): the phosphor figures are the payload of this
+        // line; the muted captions stay a step down at the 14 floor.
         func seg(_ n: Int, _ label: String, last: Bool = false) {
-            sum.append(NSAttributedString(string: "\(n)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.phosphor]))
+            sum.append(NSAttributedString(string: "\(n)", attributes: [.font: CRT.Font.of(16), .foregroundColor: CRT.phosphor]))
             sum.append(NSAttributedString(string: " \(label)\(last ? "" : " · ")",
                                           attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
         }
         seg(games, "played"); seg(wins, "won"); seg(cards, "cards"); seg(correct, "correct", last: true)
         let sumLabel = UILabel()
         sumLabel.attributedText = sum
-        sumLabel.frame = CGRect(x: 10, y: 66, width: w - 20, height: 18)
+        sumLabel.frame = CGRect(x: 10, y: 66, width: w - 20, height: 20)
         zen.addSubview(sumLabel)
 
         // Zen drill (web zenSectionInner/zenSetDrill): tapping ANYWHERE on the
@@ -998,7 +1038,7 @@ final class StatsSheetView: SheetView {
         for (i, spec) in specs.enumerated() {
             let col = UIControl()
             col.frame = CGRect(x: x0 + CGFloat(i) * colW, y: y0,
-                               width: colW, height: 14 + 2 + barsH + 8 + 15)
+                               width: colW, height: 18 + 2 + barsH + 8 + 15)
             let drill = spec.drill
             col.addAction(UIAction { [weak self] _ in
                 self?.setZenDrillAnimated(drill)
@@ -1010,30 +1050,34 @@ final class StatsSheetView: SheetView {
             // actually tappable. That was the "only the bottom registers" bug.
             func decorative(_ v: UIView) -> UIView { v.isUserInteractionEnabled = false; return v }
             let innerW = colW - 24
-            let cnt = CRTKit.label("\(spec.count)", size: 14, color: spec.color)
+            // Counts read CREAM at 16 (v6.36 precedent, DeckPanel/TopShell):
+            // suitRed digits on felt were "the hardest text on the board", so
+            // digits go cardFace and the bar + rule underneath keep carrying
+            // the outcome's color.
+            let cnt = CRTKit.label("\(spec.count)", size: 16, color: CRT.cardFace)
             cnt.textAlignment = .center
-            cnt.frame = CGRect(x: 0, y: 0, width: colW, height: 14)
+            cnt.frame = CGRect(x: 0, y: 0, width: colW, height: 18)
             col.addSubview(cnt)
-            let track = UIView(frame: CGRect(x: (colW - 44) / 2, y: 16, width: 44, height: barsH))
+            let track = UIView(frame: CGRect(x: (colW - 44) / 2, y: 20, width: 44, height: barsH))
             track.backgroundColor = CRT.feltDeep
             col.addSubview(decorative(track))
             if spec.count > 0 {
                 let h = max(3, barsH * CGFloat(spec.count) / CGFloat(maxV))
-                let bar = UIView(frame: CGRect(x: (colW - 44) / 2, y: 16 + barsH - h,
+                let bar = UIView(frame: CGRect(x: (colW - 44) / 2, y: 20 + barsH - h,
                                                width: 44, height: h))
                 bar.backgroundColor = spec.color
                 col.addSubview(decorative(bar))
             }
-            let rule = UIView(frame: CGRect(x: (colW - innerW) / 2, y: 16 + barsH + 2, width: innerW, height: 2))
+            let rule = UIView(frame: CGRect(x: (colW - innerW) / 2, y: 20 + barsH + 2, width: innerW, height: 2))
             rule.backgroundColor = spec.color
             col.addSubview(decorative(rule))
             let lab = CRTKit.label(spec.label, size: 14, color: CRT.muted)
             lab.textAlignment = .center
-            lab.frame = CGRect(x: 0, y: 16 + barsH + 8, width: colW, height: 15)
+            lab.frame = CGRect(x: 0, y: 20 + barsH + 8, width: colW, height: 15)
             col.addSubview(lab)
             zen.addSubview(col)
         }
-        return 16 + barsH + 8 + 15
+        return 20 + barsH + 8 + 15
     }
 
     /// The drilled view: a Back chip, the OTHER outcome's total leading at
@@ -1080,25 +1124,28 @@ final class StatsSheetView: SheetView {
         let start = x0 + (width - colW * CGFloat(cols.count)) / 2
         for (i, c) in cols.enumerated() {
             let cx = start + CGFloat(i) * colW
-            let cnt = CRTKit.label("\(c.count)", size: 14, color: c.color)
+            // Bar counts read CREAM at 16 (v6.36 precedent, DeckPanel/TopShell):
+            // 14pt suitRed digits over felt were unreadable — digits go
+            // cardFace, the bar below keeps the outcome's color.
+            let cnt = CRTKit.label("\(c.count)", size: 16, color: CRT.cardFace)
             cnt.textAlignment = .center
-            cnt.frame = CGRect(x: cx - 7, y: top, width: colW + 14, height: 14)
+            cnt.frame = CGRect(x: cx - 7, y: top, width: colW + 14, height: 16)
             zen.addSubview(cnt)
             let bw = colW - 8
-            let track = UIView(frame: CGRect(x: cx + 4, y: top + 16, width: bw, height: barsH))
+            let track = UIView(frame: CGRect(x: cx + 4, y: top + 18, width: bw, height: barsH))
             track.backgroundColor = CRT.feltDeep
             zen.addSubview(track)
             let h: CGFloat = c.lead ? barsH
                 : (c.count > 0 ? max(3, barsH * CGFloat(c.count) / CGFloat(distMax)) : 0)
             if h > 0 {
-                let bar = UIView(frame: CGRect(x: cx + 4, y: top + 16 + barsH - h,
+                let bar = UIView(frame: CGRect(x: cx + 4, y: top + 18 + barsH - h,
                                                width: bw, height: h))
                 bar.backgroundColor = c.color
                 zen.addSubview(bar)
             }
             let lab = CRTKit.label(c.label, size: 14, color: CRT.muted)
             lab.textAlignment = .center
-            lab.frame = CGRect(x: cx - 9, y: top + 16 + barsH + 4, width: colW + 18, height: 14)
+            lab.frame = CGRect(x: cx - 9, y: top + 18 + barsH + 4, width: colW + 18, height: 14)
             zen.addSubview(lab)
         }
         // The axis caption names what the drilled bars MEASURE (web .zh-axis).
@@ -1106,9 +1153,9 @@ final class StatsSheetView: SheetView {
                                                 : "cards remaining at the loss",
                                 size: 14, color: CRT.muted)
         axis.textAlignment = .center
-        axis.frame = CGRect(x: x0, y: top + 16 + barsH + 22, width: width, height: 15)
+        axis.frame = CGRect(x: x0, y: top + 18 + barsH + 22, width: width, height: 15)
         zen.addSubview(axis)
-        return 24 + 8 + 16 + barsH + 22 + 15 + 4
+        return 24 + 8 + 18 + barsH + 22 + 15 + 4
     }
 
     /// Re-render after an outside change (e.g. the reset confirm).

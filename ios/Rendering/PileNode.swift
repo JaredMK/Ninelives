@@ -122,6 +122,60 @@ public final class PileNode: SKNode {
         syncStickerBadges(top)
     }
 
+    // MARK: - Odds Assist halo (v6.71)
+
+    private var assistHalo: SKSpriteNode?
+    private var lastAssist = false
+    private static var assistHaloTexture: SKTexture?
+
+    /// The soft phosphor halo BEHIND the pile's top card — the Odds Assist
+    /// marker for "this pile's best call has the highest survival odds".
+    /// Baked once (a CG radial falloff — a static asset, never a live
+    /// filter), pulsing gently via one SKAction alpha cycle. It sits UNDER
+    /// the card (zPosition below Layer.card), so the rank, stickers, badge
+    /// count and the on-card tell chip all stay untouched and the peek-glow
+    /// family remains distinguishable (those live ON the face; this bleeds
+    /// around the edges).
+    public func syncAssist(_ on: Bool) {
+        guard on != lastAssist else { return }
+        lastAssist = on
+        assistHalo?.removeFromParent()
+        assistHalo = nil
+        guard on, !isDead, cardCount > 0 else { return }
+        let s = cardScale.size
+        let tex: SKTexture
+        if let cached = Self.assistHaloTexture {
+            tex = cached
+        } else {
+            let w = 96.0, h = 128.0
+            let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
+                // A rectangular soft falloff: concentric rounded fills at
+                // stepping alpha — reads as a glow, costs one texture.
+                for step in 0..<8 {
+                    let t = CGFloat(step) / 8
+                    let inset = 24 * t
+                    cg.setFillColor(CRT.phosphor.withAlphaComponent(0.05 + 0.06 * t).cgColor)
+                    let r = CGRect(x: inset, y: inset, width: w - inset * 2, height: h - inset * 2)
+                    cg.fill(r)
+                }
+            }
+            tex = PixelTexture.texture(from: img)
+            Self.assistHaloTexture = tex
+        }
+        let halo = SKSpriteNode(texture: tex)
+        halo.size = CGSize(width: s.width + 22, height: s.height + 22)
+        halo.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        halo.position = CGPoint(x: s.width / 2, y: -s.height / 2)
+        halo.zPosition = Layer.card - 6   // under the whole card stack
+        halo.alpha = 0.5
+        halo.run(.repeatForever(.sequence([
+            .fadeAlpha(to: 0.85, duration: 0.9),
+            .fadeAlpha(to: 0.5, duration: 0.9),
+        ])), withKey: "assistPulse")
+        addChild(halo)
+        assistHalo = halo
+    }
+
     /// Show/clear the directional Tell hint (▲ higher / ▼ lower / ＝ same) —
     /// the engine's display-only `pileHint(i)`, repainted every board refresh
     /// so it tracks the real deck top. Web `.pile-hint`: a flat ink chip with

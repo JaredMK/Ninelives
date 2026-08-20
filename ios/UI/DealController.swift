@@ -1728,6 +1728,12 @@ public final class DealController {
         // Tell / Spade Whispers: the display-only directional hint per pile,
         // repainted every board refresh so it tracks the real deck top.
         scene.syncPileHints((0..<n).map { engine.pileHint($0) })
+        // ODDS ASSIST (v6.71): recomputed here — once per board change, the
+        // same cadence as the hints, never per frame. Off unless the player
+        // both UNLOCKED it (first Straight win) and switched it on.
+        let assistOn = campaign.saveStore.pref("oddsAssist") == "1"
+            && campaign.deckUnlocks.wonAnyStraight()
+        scene.syncAssist(assistOn ? engine.assistPiles() : [])
         scene.syncPillarBadges(pillarBadges())
         scene.syncBaseBadges(baseBadges())
         scene.syncBaseLights(baseLights())

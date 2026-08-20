@@ -19,6 +19,7 @@ import GameCore
 ///   GRANTS   — +Sticker / +Pillar / +Base (to inventory) / equip Same-Power
 ///   META     — unlock everything, map jump, reset all progress, debug off,
 ///              build version
+///   AUDIO    — session/engine health readout (Sound.diagnostics) + test cue
 final class DebugPanelViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private unowned let flow: GameFlowController
@@ -205,10 +206,43 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         buildJokerSection()
         buildGrantsSection()
         buildMetaSection()
+        buildAudioSection()
         buildGameCenterSection()
         buildEventLogSection()
         content.frame = CGRect(x: 0, y: 0, width: contentWidth, height: y)
         scroll.contentSize = CGSize(width: contentWidth, height: y)
+    }
+
+    /// AUDIO (silent-device diagnosis): Sound.shared.diagnostics() in a box —
+    /// session category (.playback = immune to the Ring/Silent switch),
+    /// activation result, engine.isRunning, node counts, master/node volumes,
+    /// per-cue render status and the last [SND] error — plus TEST CUE to fire
+    /// an audible cue on the spot.
+    private func buildAudioSection() {
+        header("Audio")
+        let box = UITextView()
+        box.isEditable = false
+        box.backgroundColor = CRT.feltDeep
+        box.layer.borderColor = CRT.ink.cgColor
+        box.layer.borderWidth = 1
+        box.font = CRT.Font.of(14)
+        box.textColor = CRT.cardFace
+        box.text = Sound.shared.diagnostics()
+        box.frame = CGRect(x: 0, y: y, width: contentWidth, height: 190)
+        content.addSubview(box)
+        y += 198
+        buttonRow([
+            Btn("TEST CUE", role: .gold) { [weak self] in
+                Sound.shared.good()
+                self?.note("fired the 'good' cue — audible with the mute switch on either side")
+            },
+            Btn("REFRESH") { [weak self] in self?.build() },
+            Btn("COPY") { [weak self] in
+                UIPasteboard.general.string = Sound.shared.diagnostics()
+                self?.note("audio report copied")
+            },
+        ], height: 32)
+        y += 6
     }
 
     /// GAME CENTER (v6.61 diagnosis): auth state, the exact identifier list

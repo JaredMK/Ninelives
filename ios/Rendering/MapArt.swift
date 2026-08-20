@@ -11,7 +11,9 @@ public enum MapArt {
     public static func nodeHalf(_ type: String) -> (w: CGFloat, h: CGFloat) {
         switch type {
         case "pickup", "card": return (25, 31)
-        case "pack":    return (25, 29)
+        // v6.68: the two-row loot badge hangs lower than the old one-liner —
+        // the taller half keeps route edges from dashing through the suit row.
+        case "pack":    return (27, 35)
         case "deal":    return (30, 27)
         case "boss":    return (40, 35)
         case "store":   return (26, 26)
@@ -195,21 +197,42 @@ public enum MapArt {
         }
     }
 
-    /// The gold "+N" loot badge (packs).
-    public static func lootBadge(_ text: String) -> UIImage {
-        baked("loot-\(text)") {
-            // The pack's card count gets the same legibility treatment the
-            // deal coin chip got (16 → 22, v6.55; chip 18 → 22 in v6.52): at
-            // map zoom the number is the WHOLE point of the badge. Suit
-            // characters bake as pixel suit marks (v6.66).
+    /// The badge canvas' HARD width cap, shadow included. GEOMETRY GUARANTEE
+    /// (v6.68): `MapViewController.buildLayout` pushes same-row nodes to
+    /// `minGap` = 60pt apart and then shifts the whole row uniformly (gaps
+    /// preserved), so 60pt centre-to-centre is the tightest spacing ANY
+    /// generated map can put two pack nodes at. Badges are centred on their
+    /// nodes, so adjacent badges collide only if a badge exceeds 60pt. This
+    /// cap keeps every badge ≥ 4pt clear of its neighbour at that worst case —
+    /// pinned analytically across seeded generated maps by
+    /// MapCardStickerTests.testLootBadgeNeverCollidesAtGeneratorSpacing.
+    public static let lootBadgeMaxWidth: CGFloat = 56
+
+    /// The gold "+N" loot badge (packs) — TWO rows since v6.68: the count on
+    /// top at the full 22pt step (at map zoom the number is the WHOLE point
+    /// of the badge — legibility treatment from v6.55/v6.52), the pack's
+    /// deduped pixel suit marks below at the native 8×8 sprite size (marks
+    /// are pixel art, not text, so the 14pt type floor doesn't apply). The
+    /// old one-liner ("+5 " + four 16px marks) ran ~107pt wide — nearly twice
+    /// the 60pt minimum node gap — so side-by-side pack badges overlapped and
+    /// only one was readable. Worst case now: "+99" (3 monospace VT323 chars
+    /// at 22pt = 26.4pt) vs four marks (4×8 + 3×3 gaps = 41pt) + 10pt padding
+    /// = 51pt content + 2 shadow = 53pt canvas, safely under the 56pt cap and
+    /// the 60pt gap. The `min` clamp makes the bound hard even if a future
+    /// font/mark change widens content (content is centred, so an overflow
+    /// would crop symmetrically instead of colliding).
+    public static func lootBadge(count: Int, suits: [String]) -> UIImage {
+        baked("loot-\(count)-\(suits.joined())") {
             let font = CRT.Font.of(22)
-            let ns = PixelGlyph.substituteSuits(
-                NSAttributedString(string: text,
-                                   attributes: [.font: font, .foregroundColor: CRT.ink]),
-                size: 22, color: CRT.ink)
-            let sz = ns.boundingRect(with: CGSize(width: 1000, height: 100),
-                                     options: .usesLineFragmentOrigin, context: nil).size
-            let w = ceil(sz.width) + 14, h: CGFloat = 26
+            let text = "+\(count)" as NSString
+            let tsz = text.size(withAttributes: [.font: font])
+            let marks = suits.compactMap { PixelGlyph.suitImage($0, size: 12, color: CRT.ink) }
+            let markGap: CGFloat = 3
+            let suitsW: CGFloat = marks.isEmpty ? 0
+                : marks.map(\.size.width).reduce(0, +) + CGFloat(marks.count - 1) * markGap
+            let w = min(lootBadgeMaxWidth - 2, max(ceil(tsz.width), ceil(suitsW)) + 10)
+            let suitRowH: CGFloat = marks.isEmpty ? 0 : 12
+            let h: CGFloat = 26 + suitRowH
             return PixelTexture.image(size: CGSize(width: w + 2, height: h + 2)) { cg in
                 cg.setFillColor(CRT.shadow.cgColor)
                 cg.fill(CGRect(x: 2, y: 2, width: w, height: h))
@@ -219,7 +242,16 @@ public enum MapArt {
                 for r in [CGRect(x: 0, y: 0, width: w, height: 2), CGRect(x: 0, y: h - 2, width: w, height: 2),
                           CGRect(x: 0, y: 0, width: 2, height: h), CGRect(x: w - 2, y: 0, width: 2, height: h)] { cg.fill(r) }
                 UIGraphicsPushContext(cg)
-                ns.draw(at: CGPoint(x: 6, y: (h - sz.height) / 2))
+                // The count, centred in the top (old-badge-height) band.
+                text.draw(at: CGPoint(x: ((w - tsz.width) / 2).rounded(), y: (26 - tsz.height) / 2),
+                          withAttributes: [.font: font, .foregroundColor: CRT.ink])
+                // The suit marks, centred in the bottom band (2px clear of
+                // the bottom border).
+                var mx = ((w - suitsW) / 2).rounded()
+                for img in marks {
+                    img.draw(at: CGPoint(x: mx, y: 26))
+                    mx += img.size.width + markGap
+                }
                 UIGraphicsPopContext()
             }
         }

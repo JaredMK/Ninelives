@@ -556,7 +556,7 @@ public final class GameFlowController: UIViewController {
     /// separate Settings page is retired; the menu wordmark stays visible
     /// behind it, which is also what keeps it consistent with the menu's.
     func showSettings() {
-        let sheet = SettingsSheetView()
+        let sheet = SettingsSheetView(campaign: campaign)
         sheet.onResetProgress = { [weak self, weak sheet] in
             guard let self else { return }
             self.view.insertSubview(self.prompt, belowSubview: self.crt)
@@ -964,6 +964,15 @@ public final class GameFlowController: UIViewController {
                idx + 1 < Self.decks.count {
                 pendingUnlockCelebration = Self.decks[idx + 1]
             }
+            // ODDS ASSIST unlock (v6.71): the FIRST Straight win — any deck —
+            // opens the setting. One-shot toast; the availability itself
+            // derives from deck wins, so nothing else persists.
+            if wonTier == "legendary",
+               campaign.saveStore.pref("oddsAssistToastShown") != "1",
+               campaign.deckUnlocks.wonAnyStraight() {
+                campaign.saveStore.setPref("oddsAssistToastShown", "1")
+                pendingOddsAssistPop = true
+            }
         }
 
         // STATIC volatility: every self-destruct Pillar rolls at deal end —
@@ -1173,14 +1182,32 @@ public final class GameFlowController: UIViewController {
 
     // MARK: - Unlock pops
 
+    /// The Odds Assist toast is armed by the first Straight win and shown
+    /// with the other unlock pops at run termination (v6.71).
+    private var pendingOddsAssistPop = false
+
     /// Run TERMINATION: the deck celebration (if armed), then the item pops.
     private func runUnlockPops(_ done: @escaping () -> Void) {
         let deckPop = pendingUnlockCelebration
         pendingUnlockCelebration = nil
+        let assistPop = pendingOddsAssistPop
+        pendingOddsAssistPop = false
         let items = campaign.itemUnlocks.checkNewUnlocks()
         func itemPops() {
-            guard !items.isEmpty else { done(); return }
-            self.showItemUnlockPops(items, done: done)
+            guard !items.isEmpty else { assistPopThenDone(); return }
+            self.showItemUnlockPops(items, done: assistPopThenDone)
+        }
+        func assistPopThenDone() {
+            guard assistPop else { done(); return }
+            Sound.shared.itemUnlock()
+            self.presentOverlay(PhaseOverlayView.itemUnlock(
+                title: "ODDS ASSIST UNLOCKED",
+                body: "A new Settings option: softly glow the pile with the best survival odds. Off until you switch it on.",
+                itemId: "oddsAssist",
+                hint: "Beat a Straight climb with any deck") { [weak self] in
+                self?.dismissOverlay()
+                done()
+            })
         }
         if let deckPop {
             // "<Prev> made it home" — prev = the ladder deck before the new one

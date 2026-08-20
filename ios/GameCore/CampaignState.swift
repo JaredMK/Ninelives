@@ -620,8 +620,63 @@ public final class CampaignState {
             let id: Int? = node.jokerNode ? Self.specialJoker : (forcedCardId(node) ?? draftIdForNode(node))
             guard let id else { return nil }
             nodeCards[node.id] = id
+            // The face-up card dresses the moment it locks (fresh lock only:
+            // a reload restores nodeCards + the stickered baseDeck, so the
+            // roll never re-runs and can never stack).
+            applyMapCardStickers(cardId: id, keys: [.s("mapsticker"), .n(node.id)])
         }
         return nodeCards[node.id]
+    }
+
+    /// MAP CARD STICKERS (v6.68): every FACE-UP card on the map — a +1 pickup
+    /// node's locked card and each card of a revealed +2 pack's committed
+    /// pair — rolls stickers the moment it locks: 75% bare, 20% one sticker,
+    /// 4% two, 1% three (cumulative 0.75/0.95/0.99); each rolled sticker has
+    /// a 5% chance of being a CURSE (the shared weighted `rollCurse` pick,
+    /// path "map") instead of a normal grantable sticker (the startStickers
+    /// eligibility filter). Rolls on its OWN keyed substream — (runSeed,
+    /// "mapsticker", nodeId[, slot]) — so a reload shows the same stickers
+    /// and no existing seeded draw (draft, pack, badge replay) shifts.
+    /// Deck gates: Rocko (noStickers) takes NO stickers of any kind from
+    /// this feature — his only curse source stays Just a Two; Mr. Garden
+    /// (stickerEverything) is skipped whole — his coat already dressed the
+    /// entire draft pool and this must not stack on top. Jokers/Blanks
+    /// (and the ±sentinels) never dress.
+    func applyMapCardStickers(cardId: Int, keys: [RunKey]) {
+        guard !rules().noStickers, !rules().stickerEverything else { return }
+        guard let i = index(of: cardId) else { return }   // sentinel ids skip
+        guard !baseDeck[i].joker, !baseDeck[i].blank else { return }
+        let rng = runRng(seed: runSeed, keys)
+        let roll = rng.next()
+        let count = roll < 0.75 ? 0 : (roll < 0.95 ? 1 : (roll < 0.99 ? 2 : 3))
+        guard count > 0 else { return }
+        for _ in 0..<count {
+            if rng.next() < 0.05 {
+                // A curse is INFLICTED — the same weighted pool every cursing
+                // pathway shares (curseWeight in items.js), on its own path.
+                if let t = data.stickerTypes.rollCurse(path: "map", roll: rng.next()) {
+                    applyStickerToCard(&baseDeck[i], t.id, rng: rng)
+                }
+                continue
+            }
+            // The normal pool: grantable + per-card eligibility, rank
+            // stickers only where they can move the rank — the startStickers
+            // hand's exact filter. Recomputed per roll so a sticker applied
+            // this loop keeps the next pick honest about the mutated card.
+            // SUIT-CHANGERS are excluded (v6.71): a map roll that recolors a
+            // committed card would break Mamma's suit-staged packs and the
+            // pack badge's committed-pair contract — the map dresses cards,
+            // it never repaints them.
+            let card = baseDeck[i]
+            let elig = grantableStickers().filter { t in
+                guard t.behavior != "changeSuitTo", t.behavior != "changeSuitRandom" else { return false }
+                guard CardRules.stickerEligible(card, t.id, data: data) else { return false }
+                guard t.kind == "rank" else { return true }
+                return t.num("rankDelta", 0) > 0 ? card.currentRank < maxRank : card.currentRank > minRank
+            }
+            guard !elig.isEmpty else { continue }
+            applyStickerToCard(&baseDeck[i], elig[rng.index(elig.count)].id, rng: rng)
+        }
     }
 
     /// v6.57 DEBUG toggle (the debug panel's "1-SUIT PACKS" row): while on,
@@ -703,7 +758,12 @@ public final class CampaignState {
         if packCards[node.id] == nil {
             packCards[node.id] = []
             for slot in 0..<2 {
-                packCards[node.id]!.append(packSlotIdFor(node, slot: slot))
+                let id = packSlotIdFor(node, slot: slot)
+                packCards[node.id]!.append(id)
+                // Revealed pairs are face-up map cards too — same distribution,
+                // seeded per (runSeed, nodeId, slot). Fresh lock only (reload
+                // restores packCards, so no re-roll). See applyMapCardStickers.
+                applyMapCardStickers(cardId: id, keys: [.s("mapsticker"), .n(node.id), .n(slot)])
             }
         }
         return packCards[node.id]

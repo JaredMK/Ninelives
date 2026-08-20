@@ -1,4 +1,5 @@
 import AVFoundation
+import UIKit
 import GameCore
 
 // =============================================================================
@@ -53,7 +54,9 @@ public final class Sound {
 
     public static let shared = Sound()
 
-    private let engine = AVAudioEngine()
+    /// `var`, not `let`: after a media-services reset (mediaserverd died) every
+    /// existing AVAudioEngine is dead and must be replaced wholesale.
+    private var engine = AVAudioEngine()
     private var players: [AVAudioPlayerNode] = []
     /// Fanfares (dealWon / runClear / unlock tunes) own this node so a 3.4s
     /// buffer never makes a following click wait its turn in the pool.
@@ -63,6 +66,13 @@ public final class Sound {
     private var cache: [String: AVAudioPCMBuffer] = [:]
     private var lastPlayed: [String: TimeInterval] = [:]
     private var started = false
+    /// Did the last setCategory + setActive succeed? Retried on demand if not.
+    private var sessionOK = false
+    /// Render-time stats per cue (frames + peak amplitude) for the debug panel.
+    private var renderStats: [String: (frames: UInt32, peak: Float)] = [:]
+    /// The most recent [SND] failure line, for the debug panel readout.
+    private var lastError = "none"
+    private var observerTokens: [NSObjectProtocol] = []
     /// EVERY audio touch (session activation, buffer synthesis, scheduling)
     /// rides this serial queue — the render thread never blocks a frame.
     private let queue = DispatchQueue(label: "ninelives.sound", qos: .userInitiated)
@@ -98,28 +108,154 @@ public final class Sound {
         queue.async { self.startIfNeeded() }
     }
 
+    /// Runs on `queue`. Builds the session + graph once, then makes sure the
+    /// engine is ACTUALLY running — it silently stops on backgrounding and
+    /// interruptions, and a stopped engine swallows every scheduled buffer.
+    /// Every failure is logged ([SND] in Console) and retried on the next play;
+    /// the old version marked itself started before the `try`s and emptied the
+    /// player pool in a silent catch, so one transient failure at boot killed
+    /// sound for the whole process with no trace.
     private func startIfNeeded() {
-        guard !started else { return }
-        started = true
-        do {
-            // Ambient: mixes with the player's own music, honors the mute switch.
-            try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
-            for _ in 0..<6 {
-                let p = AVAudioPlayerNode()
-                engine.attach(p)
-                engine.connect(p, to: engine.mainMixerNode, format: format)
-                players.append(p)
-            }
-            let lp = AVAudioPlayerNode()
-            engine.attach(lp)
-            engine.connect(lp, to: engine.mainMixerNode, format: format)
-            longPlayer = lp
-            try engine.start()
-        } catch {
-            players.removeAll()
-            longPlayer = nil
+        if !started {
+            started = true
+            configureSession()
+            buildGraph()
+            installObservers()
         }
+        ensureEngineRunning()
+    }
+
+    private func configureSession() {
+        do {
+            // .playback: NOT silenced by the Ring/Silent switch. The old
+            // .ambient category was muted outright whenever the switch sat on
+            // silent — the "sound on, volume up, still silent on device" bug.
+            // .mixWithOthers keeps the player's own music/podcast running.
+            try AVAudioSession.sharedInstance()
+                .setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            sessionOK = true
+            NSLog("[SND] session active: playback + mixWithOthers")
+        } catch {
+            sessionOK = false
+            fail("session setup failed: \(error)")
+        }
+    }
+
+    private func buildGraph() {
+        players.removeAll()
+        longPlayer = nil
+        for _ in 0..<6 {
+            let p = AVAudioPlayerNode()
+            engine.attach(p)
+            engine.connect(p, to: engine.mainMixerNode, format: format)
+            players.append(p)
+        }
+        let lp = AVAudioPlayerNode()
+        engine.attach(lp)
+        engine.connect(lp, to: engine.mainMixerNode, format: format)
+        longPlayer = lp
+    }
+
+    private func ensureEngineRunning() {
+        guard !engine.isRunning else { return }
+        do {
+            if !sessionOK { configureSession() }
+            try AVAudioSession.sharedInstance().setActive(true)
+            try engine.start()
+            NSLog("[SND] engine started")
+        } catch {
+            fail("engine start failed: \(error)")
+        }
+    }
+
+    /// Media services reset (mediaserverd crashed): every live AVAudioEngine
+    /// object is dead. Build a fresh engine + graph and re-arm the session.
+    private func rebuildEngine() {
+        NSLog("[SND] media services were reset — rebuilding engine")
+        engine.stop()
+        engine = AVAudioEngine()
+        sessionOK = false
+        configureSession()
+        buildGraph()
+        ensureEngineRunning()
+    }
+
+    /// Once, on `queue`. The handlers hop back onto `queue` so all engine
+    /// state stays serialised.
+    private func installObservers() {
+        let nc = NotificationCenter.default
+        // Phone call / Siri / alarm: restart when the system hands audio back.
+        observerTokens.append(nc.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: nil
+        ) { [weak self] note in
+            guard let self else { return }
+            let rawType = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let rawOpts = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let resume = AVAudioSession.InterruptionOptions(rawValue: rawOpts).contains(.shouldResume)
+            self.queue.async {
+                switch rawType.flatMap(AVAudioSession.InterruptionType.init(rawValue:)) {
+                case .began:
+                    NSLog("[SND] interruption began")
+                case .ended:
+                    NSLog("[SND] %@", "interruption ended, shouldResume=\(resume)")
+                    if resume { self.ensureEngineRunning() }
+                default: break
+                }
+            }
+        })
+        // mediaserverd died: the engine object is unusable, rebuild it.
+        observerTokens.append(nc.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.queue.async { self?.rebuildEngine() }
+        })
+        // Returning from background: the engine may have been stopped while
+        // the app was resigned; restart before the next cue needs it.
+        observerTokens.append(nc.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil
+        ) { [weak self] _ in
+            self?.queue.async {
+                guard let self, self.started else { return }
+                self.ensureEngineRunning()
+            }
+        })
+    }
+
+    /// Record + surface a failure: NSLog for Console, `lastError` for the
+    /// debug panel's Audio readout.
+    private func fail(_ line: String) {
+        lastError = line
+        NSLog("[SND] %@", line)
+    }
+
+    /// One-screen audio health snapshot for the debug panel. Callable from any
+    /// thread; state is read on the sound queue for coherence.
+    public func diagnostics() -> String {
+        var lines: [String] = []
+        queue.sync {
+            startIfNeeded()   // reflect reality even before the first cue
+            let s = AVAudioSession.sharedInstance()
+            lines.append("pref enabled: \(enabledCache)")
+            lines.append("session: \(s.category.rawValue) / \(s.mode.rawValue)")
+            lines.append("  mixWithOthers: \(s.categoryOptions.contains(.mixWithOthers))")
+            lines.append("  configured+active ok: \(sessionOK)")
+            lines.append("  otherAudioPlaying: \(s.isOtherAudioPlaying)")
+            lines.append(String(format: "  hw output volume: %.2f", s.outputVolume))
+            lines.append("engine running: \(engine.isRunning)")
+            lines.append("nodes: pool \(players.count) + fanfare \(longPlayer == nil ? 0 : 1)"
+                         + " (attached \(engine.attachedNodes.count))")
+            lines.append(String(format: "mainMixer volume: %.2f · node volume: %.2f",
+                                engine.mainMixerNode.outputVolume,
+                                players.first?.volume ?? -1))
+            let silent = renderStats.filter { $0.value.frames == 0 || $0.value.peak == 0 }
+                .keys.sorted()
+            lines.append("cues rendered: \(renderStats.count)"
+                         + (silent.isEmpty ? " (none silent)"
+                                           : " · SILENT: \(silent.joined(separator: " "))"))
+            lines.append("last [SND] error: \(lastError)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - The voice
@@ -164,7 +300,7 @@ public final class Sound {
     /// Render a set of voices into one mixed buffer: per-voice oscillator →
     /// one-pole LP (+ optional HP) → exponential AD envelope with a linear
     /// release, summed, then master trim + tanh saturation.
-    private func render(_ voices: [Voice]) -> AVAudioPCMBuffer? {
+    private func render(_ key: String, _ voices: [Voice]) -> AVAudioPCMBuffer? {
         let sr = format.sampleRate
         let total = voices.map { $0.at + $0.dur + 0.06 }.max() ?? 0.1
         let frames = AVAudioFrameCount(total * sr)
@@ -241,6 +377,18 @@ public final class Sound {
         for i in 0..<Int(frames) {
             out[i] = Float(tanh(Double(out[i]) * masterGain * d) / d)
         }
+
+        // Render-time proof of life: a zero-length or all-zero buffer is a
+        // silent "success" that would otherwise be indistinguishable from a
+        // working cue. Cheap strided peak scan (~2k samples max), logged once
+        // per cue — buffers are cached, so this never repeats.
+        var peak: Float = 0
+        let step = max(1, Int(frames) / 2048)
+        var i = 0
+        while i < Int(frames) { peak = max(peak, abs(out[i])); i += step }
+        renderStats[key] = (UInt32(frames), peak)
+        NSLog("[SND] %@", "rendered '\(key)': \(frames) frames, peak \(String(format: "%.3f", peak))")
+        if peak == 0 { fail("cue '\(key)' rendered ALL-ZERO (\(frames) frames)") }
         return buf
     }
 
@@ -251,12 +399,21 @@ public final class Sound {
             if let last = lastPlayed[key], now - last < retriggerGuard { return }
             lastPlayed[key] = now
             startIfNeeded()
-            guard !players.isEmpty else { return }
+            guard !players.isEmpty else {
+                fail("play('\(key)') dropped: no player nodes"); return
+            }
+            // AVAudioPlayerNode.play() on a stopped engine raises an ObjC
+            // exception; a stopped engine also just eats scheduled buffers.
+            guard engine.isRunning else {
+                fail("play('\(key)') dropped: engine not running"); return
+            }
             let buf: AVAudioPCMBuffer
             if let c = cache[key] {
                 buf = c
             } else {
-                guard let rendered = render(voices) else { return }
+                guard let rendered = render(key, voices) else {
+                    fail("play('\(key)') dropped: render returned nil"); return
+                }
                 cache[key] = rendered
                 buf = rendered
             }

@@ -1080,6 +1080,48 @@ public final class GameEngine {
         return next.value > top.value ? .higher : (next.value < top.value ? .lower : .same)
     }
 
+    /// ODDS ASSIST (v6.71): the pile(s) whose BEST available call (higher /
+    /// lower / same) survives the next draw with the highest probability
+    /// against the REMAINING deck — exactly the information the histogram
+    /// already offers, folded per pile. DISPLAY ONLY: a pure read off
+    /// `remainingCounts()` (order-free), never touching the rng, the deck
+    /// order, or any state — identical seeds play identical runs with the
+    /// assist on or off. Rules mirrored from `guess(_:_:)`'s comparison:
+    /// a ★ TOP makes every call safe (p = 1), and a DRAWN ★ is never wrong,
+    /// so jokers left in the deck (value 0) count as a success for every
+    /// call. Deliberately histogram-blind to pillar/sticker modifiers
+    /// (Tie-Safe, Wild Aces) — the assist shows what counting shows, not
+    /// what the build engineers. Returns the argmax set (ties glow
+    /// together); empty when nothing is drawable.
+    public func assistPiles() -> [Int] {
+        guard let run, run.started, status == "playing", let deck, let board,
+              !deck.isEmpty else { return [] }
+        let counts = deck.remainingCounts()
+        let total = counts.values.reduce(0, +)
+        guard total > 0 else { return [] }
+        let jokers = counts[0] ?? 0
+        var best = -1.0
+        var out: [Int] = []
+        for i in 0..<board.size where board.isActive(i) {
+            guard let top = board.top(i) else { continue }
+            let p: Double
+            if top.joker {
+                p = 1
+            } else {
+                var higher = 0, lower = 0, same = 0
+                for (v, n) in counts where v != 0 {
+                    if v > top.value { higher += n }
+                    else if v < top.value { lower += n }
+                    else { same += n }
+                }
+                p = Double(max(higher, lower, same) + jokers) / Double(total)
+            }
+            if p > best + 1e-9 { best = p; out = [i] }
+            else if abs(p - best) <= 1e-9 { out.append(i) }
+        }
+        return out
+    }
+
     /// Debug logbook: append a standalone entry for a non-engine action.
     public func log(action title: String, lines: [String] = []) { logAction(title, lines) }
     /// Itemized scoring-Pillar payout for the current board.

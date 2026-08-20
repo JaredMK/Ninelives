@@ -519,7 +519,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                 // store and pickers use (v6.52); the transparent ?-card here
                 // read as a different, unexplained object.
                 if card.blank { return ItemArt.removal(width: 48, height: 67) }
-                return CardArt.image(CardArt.Face(card), scale: .half)
+                return composeCardFace(card)
             }
             return MapArt.packStack(deckId: campaign.deckId)
         }
@@ -544,14 +544,58 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         // v6.61: the badge names the suits ACTUALLY in the pack —
         // `packSuits(for:)` replays the seeded resolution stream, so the
         // badge always equals the contents' suit set (never the draw pool,
-        // which printed all four for every endless/alt pack).
-        let badge = MapArt.lootBadge("+\(n.packCount ?? 3) \(campaign.packSuits(for: n).joined())")
+        // which printed all four for every endless/alt pack). v6.68: the
+        // badge is two rows (count over suit marks) so it can never grow
+        // past the 60pt minimum node gap — see MapArt.lootBadgeMaxWidth.
+        let badge = MapArt.lootBadge(count: n.packCount ?? 3, suits: campaign.packSuits(for: n))
         let w = max(stack.size.width, badge.size.width)
-        let h = stack.size.height + 8
+        // +20 (was +8): the taller two-row badge keeps the SAME stack overlap
+        // the old 28pt badge canvas had — only the canvas grows downward.
+        let h = stack.size.height + 20
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { _ in
             stack.draw(at: CGPoint(x: (w - stack.size.width) / 2, y: 0))
             badge.draw(at: CGPoint(x: (w - badge.size.width) / 2, y: h - badge.size.height))
+        }
+    }
+
+    /// Sticker chips on a baked map card face — the corner-chip idiom every
+    /// card surface shares (deck inspector, curse well, board piles: fan from
+    /// the top-right, -11° + idx·8° lean, first sticker outermost). Chips are
+    /// pulled fully INSIDE the card's canvas so the node art keeps the bare
+    /// card's exact footprint — map rings are sized snug to the plaque and
+    /// adjacent nodes can sit at the 60pt minimum gap, so the canvas must not
+    /// grow. Curses carry their corruption art via ItemArt.sticker.
+    private func drawStickerChips(_ cg: CGContext, card: CardSpec,
+                                  cardTopRight: CGPoint, chip stk: CGFloat) {
+        let worn = card.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
+        guard !worn.isEmpty else { return }
+        for (s, def) in worn.prefix(GameData.shared.items.maxStickersPerCard).enumerated() {
+            let img = ItemArt.sticker(def, size: stk)
+            let cx = cardTopRight.x - 2 - stk / 2 - CGFloat(s) * (stk * 0.62)
+            let cy = cardTopRight.y + 2 + stk / 2
+            let deg = CGFloat(max(-15, min(15, -11 + s * 8)))
+            cg.saveGState()
+            cg.translateBy(x: cx, y: cy)
+            cg.rotate(by: deg * .pi / 180)
+            cg.interpolationQuality = .none
+            img.draw(in: CGRect(x: -stk / 2, y: -stk / 2, width: stk, height: stk))
+            cg.restoreGState()
+        }
+    }
+
+    /// A +1 node's card face WITH its sticker chips (v6.68 — map cards used
+    /// to bake from CardArt.Face alone, which carries label/suit only, so
+    /// even a stickered card rendered bare on the map).
+    private func composeCardFace(_ card: CardSpec) -> UIImage {
+        let face = CardArt.image(CardArt.Face(card), scale: .half)
+        guard !card.stickers.isEmpty else { return face }
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        return UIGraphicsImageRenderer(size: face.size, format: fmt).image { ctx in
+            face.draw(at: .zero)
+            // The card box is the canvas minus the 2px baked shadow.
+            drawStickerChips(ctx.cgContext, card: card,
+                             cardTopRight: CGPoint(x: face.size.width - 2, y: 0), chip: 20)
         }
     }
 
@@ -561,13 +605,18 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: 64, height: 62), format: fmt).image { ctx in
             let cg = ctx.cgContext
+            // Chips draw inside each card's rotated frame so they lean with
+            // the card and the 64×62 canvas never widens (adjacent revealed
+            // packs already sit close at the 60pt minimum gap).
             cg.saveGState()
             cg.translateBy(x: 20, y: 31); cg.rotate(by: -9 * .pi / 180)
             a.draw(in: CGRect(x: -19, y: -27, width: 38, height: 54))
+            drawStickerChips(cg, card: pair[0], cardTopRight: CGPoint(x: 19, y: -27), chip: 14)
             cg.restoreGState()
             cg.saveGState()
             cg.translateBy(x: 44, y: 31); cg.rotate(by: 9 * .pi / 180)
             b.draw(in: CGRect(x: -19, y: -27, width: 38, height: 54))
+            drawStickerChips(cg, card: pair[1], cardTopRight: CGPoint(x: 19, y: -27), chip: 14)
             cg.restoreGState()
         }
     }
