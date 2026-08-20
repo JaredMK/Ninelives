@@ -99,7 +99,10 @@ function nativeDeckRules(lifted) {
 }
 
 const meta = {
-  itemUnlockStats: [...liftFromIndex("ITEM_UNLOCK_STATS"), ...NATIVE_ONLY_UNLOCK_STATS],
+  // Deduped: index.html has since absorbed the native-only names into its own
+  // list (they must be there for the web-side items.js validator), so the
+  // append would otherwise write them twice into meta.json.
+  itemUnlockStats: [...new Set([...liftFromIndex("ITEM_UNLOCK_STATS"), ...NATIVE_ONLY_UNLOCK_STATS])],
   deckRules: nativeDeckRules(liftFromIndex("DECK_RULES")),
 };
 

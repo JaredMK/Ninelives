@@ -31,9 +31,7 @@
     "bestCampaignScore",
     "bestCoinsInClimb",
     "earlyLosses",
-    "ambushesWon",
-    "ambushesWon",
-    "earlyLosses"
+    "ambushesWon"
   ],
   "deckRules": {
     "pink": {

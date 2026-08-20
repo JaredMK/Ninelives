@@ -259,7 +259,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "cardsBuried",
-        "count": 210
+        "count": 120
       },
       "label": "Club Guard",
       "icon": "♣️🪬",
@@ -519,7 +519,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "perfectDeals",
-        "count": 5
+        "count": 6
       },
       "label": "Snowball Bury",
       "icon": "☃️",
@@ -610,8 +610,8 @@
       "id": "heartSnob",
       "unlock": {
         "type": "behavior",
-        "stat": "zenGamesPlayed",
-        "count": 8
+        "stat": "heartsPlayed",
+        "count": 75
       },
       "label": "Heart Snob",
       "icon": "💞",
@@ -630,7 +630,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "removalsUsed",
-        "count": 20
+        "count": 18
       },
       "label": "Diamond Snob",
       "icon": "💎",
@@ -703,8 +703,8 @@
       "id": "clubRoots",
       "unlock": {
         "type": "behavior",
-        "stat": "basesPlaced",
-        "count": 35
+        "stat": "clubsPlayed",
+        "count": 120
       },
       "label": "Club Roots",
       "icon": "🌱",
@@ -723,7 +723,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "spadesPlayed",
-        "count": 250
+        "count": 200
       },
       "label": "Spade Whispers",
       "icon": "🌬️",
@@ -774,7 +774,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "correctSames",
-        "count": 42
+        "count": 34
       },
       "label": "Tap Power",
       "icon": "🔗",
@@ -1082,7 +1082,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "cardsBuried",
-        "count": 160
+        "count": 90
       },
       "label": "Streak Bury",
       "icon": "🔥",
@@ -1098,8 +1098,8 @@
       "id": "fourthSeat",
       "unlock": {
         "type": "milestone",
-        "stat": "bestCampaignScore",
-        "count": 150
+        "stat": "endlessStagesReached",
+        "count": 1
       },
       "label": "Fourth Seat",
       "icon": "🪑",
@@ -1130,8 +1130,8 @@
       "id": "greedy",
       "unlock": {
         "type": "milestone",
-        "stat": "endlessStagesReached",
-        "count": 1
+        "stat": "dealsSurvived",
+        "count": 6
       },
       "label": "Greedy",
       "icon": "🤑",
@@ -1211,7 +1211,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "removalsUsed",
-        "count": 25
+        "count": 16
       },
       "label": "Bulk Rate",
       "icon": "🏷️",
@@ -1225,9 +1225,9 @@
     {
       "id": "freebie",
       "unlock": {
-        "type": "milestone",
-        "stat": "bestCoinsInClimb",
-        "count": 80
+        "type": "behavior",
+        "stat": "pinkyTipsSeen",
+        "count": 2
       },
       "label": "Freebie",
       "icon": "🎁",
@@ -1405,7 +1405,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "cardsBuried",
-        "count": 120
+        "count": 60
       },
       "label": "Excavator",
       "icon": "⛏️",
@@ -1479,7 +1479,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "diamondsPlayed",
-        "count": 250
+        "count": 200
       },
       "label": "Diamond Anchor",
       "icon": "⚓",
@@ -1654,7 +1654,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "clubsPlayed",
-        "count": 300
+        "count": 250
       },
       "label": "Club Dig",
       "icon": "♣️",
@@ -1715,7 +1715,7 @@
       "unlock": {
         "type": "milestone",
         "stat": "correctSames",
-        "count": 32
+        "count": 28
       },
       "label": "Recharge Cell",
       "icon": "🔋",
@@ -1730,7 +1730,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "correctSames",
-        "count": 55
+        "count": 44
       },
       "label": "Power Surge",
       "icon": "⚡",
@@ -1745,7 +1745,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "pilesLost",
-        "count": 60
+        "count": 75
       },
       "label": "Last Resort",
       "icon": "🧨",
@@ -1876,7 +1876,7 @@
       "unlock": {
         "type": "behavior",
         "stat": "samesCalled",
-        "count": 50
+        "count": 40
       },
       "label": "Link Shuffler",
       "icon": "🔀",
@@ -2134,9 +2134,9 @@
     {
       "id": "cardPack",
       "unlock": {
-        "type": "behavior",
-        "stat": "pinkyTipsSeen",
-        "count": 5
+        "type": "milestone",
+        "stat": "dealsWonRegular",
+        "count": 15
       },
       "label": "Large Card Pack",
       "icon": "🎴",

@@ -187,7 +187,7 @@ const NINELIVES_ITEMS = {
       description: "Safe if this card lands on a ♥, or a ♥ lands on this card" },
     { id: "diamondGuard", unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 100 }, label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", suits: ["♦"], tier: "uncommon", price: 5,
       description: "Safe if this card lands on a ♦, or a ♦ lands on this card" },
-    { id: "clubGuard", unlock: { type: "behavior", stat: "cardsBuried", count: 210 }, label: "Club Guard",  icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", suits: ["♣"], tier: "uncommon", price: 5,
+    { id: "clubGuard", unlock: { type: "behavior", stat: "cardsBuried", count: 120 }, label: "Club Guard",  icon: "♣️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♣", suits: ["♣"], tier: "uncommon", price: 5,
       description: "Safe if this card lands on a ♣, or a ♣ lands on this card" },
     // value = coins per Extra Coin UNIT (units = stickers on the alive top card
     // × cards in that pile; Economy multiplies units by this value).
@@ -228,7 +228,7 @@ const NINELIVES_ITEMS = {
     { id: "looseChange", unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 60 }, label: "Loose Change", icon: "🪙", kind: "behavior", behavior: "looseChange", max: 3, tier: "uncommon", price: 2,
       description: "+0–3 coins (random)", suits: ["♥"] },
     // step = how much X (cards buried) grows per correct placement.
-    { id: "snowball", unlock: { type: "behavior", stat: "perfectDeals", count: 5 }, label: "Snowball Bury", icon: "☃️", kind: "behavior", behavior: "snowball", step: 1, tier: "rare", price: 10,
+    { id: "snowball", unlock: { type: "behavior", stat: "perfectDeals", count: 6 }, label: "Snowball Bury", icon: "☃️", kind: "behavior", behavior: "snowball", step: 1, tier: "rare", price: 10,
       description: "Bury X cards. X starts at 0, grows by 1 each correct placement, resets to 0 on a wrong guess", suits: ["♣"] },
     // per = deck cards per +1 coin (floor(deck remaining ÷ per)).
     { id: "deepPockets", unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 140 }, label: "Deep Pockets", icon: "👛", kind: "behavior", behavior: "deepPockets", per: 10, tier: "uncommon", price: 3,
@@ -242,9 +242,9 @@ const NINELIVES_ITEMS = {
     { id: "suitSnob", unlock: { type: "behavior", stat: "spadesPlayed", count: 60 }, label: "Spade Snob",  icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 4,
       description: "When a ♠ lands on this card, or this card lands on a ♠ → peek at the next card", suits: ["♠"] },
     // value = coins paid per Heart Snob on the landing card.
-    { id: "heartSnob", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 8 }, label: "Heart Snob",  icon: "💞", kind: "behavior", behavior: "heartSnob", value: 2, tier: "uncommon", price: 2,
+    { id: "heartSnob", unlock: { type: "behavior", stat: "heartsPlayed", count: 75 }, label: "Heart Snob",  icon: "💞", kind: "behavior", behavior: "heartSnob", value: 2, tier: "uncommon", price: 2,
       description: "When a ♥ lands on this card, or this card lands on a ♥ → +2 coins", suits: ["♥"] },
-    { id: "diamondSnob", unlock: { type: "behavior", stat: "removalsUsed", count: 20 }, label: "Diamond Snob", icon: "💎", kind: "behavior", behavior: "diamondSnob", tier: "uncommon", price: 6,
+    { id: "diamondSnob", unlock: { type: "behavior", stat: "removalsUsed", count: 18 }, label: "Diamond Snob", icon: "💎", kind: "behavior", behavior: "diamondSnob", tier: "uncommon", price: 6,
       description: "When a ♦ lands on this card, or this card lands on a ♦ → shuffle every pile", suits: ["♦"] },
     // digCount = deck cards buried under the pile per Club Snob.
     { id: "clubSnob", unlock: { type: "behavior", stat: "pilesLost", count: 40 }, label: "Club Snob",   icon: "🍀", kind: "behavior", behavior: "clubSnob", digCount: 1, tier: "uncommon", price: 10,
@@ -258,9 +258,9 @@ const NINELIVES_ITEMS = {
     { id: "diamondRipple", unlock: { type: "behavior", stat: "perfectDeals", count: 8 }, label: "Diamond Ripple", icon: "🌊", kind: "behavior", behavior: "diamondRipple", tier: "uncommon", price: 2,
       description: "Shuffle every other pile with a ♦ top card", suits: ["♦"] },
     // digCount = deck cards buried under THIS pile per other ♣-topped pile.
-    { id: "clubRoots", unlock: { type: "behavior", stat: "basesPlaced", count: 35 }, label: "Club Roots", icon: "🌱", kind: "behavior", behavior: "clubRoots", digCount: 1, tier: "rare", price: 8,
+    { id: "clubRoots", unlock: { type: "behavior", stat: "clubsPlayed", count: 120 }, label: "Club Roots", icon: "🌱", kind: "behavior", behavior: "clubRoots", digCount: 1, tier: "rare", price: 8,
       description: "Bury 1 card under each pile with a ♣ top card", suits: ["♣"] },
-    { id: "spadeWhispers", unlock: { type: "behavior", stat: "spadesPlayed", count: 250 }, label: "Spade Whispers", icon: "🌬️", kind: "behavior", behavior: "spadeWhispers", tier: "rare", price: 8,
+    { id: "spadeWhispers", unlock: { type: "behavior", stat: "spadesPlayed", count: 200 }, label: "Spade Whispers", icon: "🌬️", kind: "behavior", behavior: "spadeWhispers", tier: "rare", price: 8,
       description: "The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card", suits: ["♠"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
     { id: "tell", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 3 }, label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 4,
@@ -268,7 +268,7 @@ const NINELIVES_ITEMS = {
     // ---- Same-charge / Same-power stickers (fire on correct placement) ----
     { id: "rechargeSameShield", unlock: { type: "behavior", stat: "correctSames", count: 10 }, label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "rare", price: 8,
       description: "Charge the Same Shield" },
-    { id: "activateSamePower", unlock: { type: "behavior", stat: "correctSames", count: 42 }, label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "rare", price: 6,
+    { id: "activateSamePower", unlock: { type: "behavior", stat: "correctSames", count: 34 }, label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "rare", price: 6,
       description: "Fire your Same-Power" },
     // ---- CURSED stickers -----------------------------------------------------
     // cursed: true keeps a sticker OUT of every normal grant pool (store offers,
@@ -353,20 +353,20 @@ const NINELIVES_ITEMS = {
       description: "From the 3rd consecutive correct guess in this column → +1 pile size per guess. Resets on a wrong guess or any guess in another column" },
     // threshold = the streak step burials start at; digCount = cards buried
     // per correct in-column guess from that step onward (flat, no escalation).
-    { id: "streakTribute", unlock: { type: "behavior", stat: "cardsBuried", count: 160 }, label: "Streak Bury", icon: "🔥",
+    { id: "streakTribute", unlock: { type: "behavior", stat: "cardsBuried", count: 90 }, label: "Streak Bury", icon: "🔥",
       kind: "composition", effect: "streakTribute", threshold: 4, digCount: 1, tier: "rare", price: 10,
       description: "From the 4th consecutive correct guess in this column → bury 1 card per guess. Resets on a wrong guess or any guess in another column" },
     // value = the CAP this column may be widened to. The board's normal 3-way
     // split runs first, then this column gains ONE seat, never past `value` —
     // so a 1-pile column opens with 2 and a column already at the cap is
     // untouched. Ditto mirroring this widens the mirroring column too.
-    { id: "fourthSeat", unlock: { type: "milestone", stat: "bestCampaignScore", count: 150 }, label: "Fourth Seat", icon: "🪑",
+    { id: "fourthSeat", unlock: { type: "milestone", stat: "endlessStagesReached", count: 1 }, label: "Fourth Seat", icon: "🪑",
       kind: "composition", effect: "columnPiles", value: 4, tier: "rare", price: 10,
       description: "This column starts the deal with 1 extra pile (up to 4)" },
     { id: "secondWind", unlock: { type: "behavior", stat: "pilesLost", count: 30 }, label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 6, saveChance: 0.25,
       description: "Each pile that dies in this column has a 25% chance to offer its rescue: take it and all the pile's cards return to the deck, or refuse and let it die" },
-    { id: "greedy", unlock: { type: "milestone", stat: "endlessStagesReached", count: 1 }, label: "Greedy", icon: "🤑",
+    { id: "greedy", unlock: { type: "milestone", stat: "dealsSurvived", count: 6 }, label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 4, tier: "common", price: 5,
       description: "At deal end → +4 coins if this is the only equipped pillar" },
     // value = coins per Fibonacci-rank (A/2/3/5/8) card drawn into the column.
@@ -387,12 +387,12 @@ const NINELIVES_ITEMS = {
     // BULK RATE: the store's Purge ladder climbs `value` less per purchase
     // while equipped (a step of 2 becomes 1). Pure derived pricing — no
     // saved state of its own.
-    { id: "bulkRate", unlock: { type: "behavior", stat: "removalsUsed", count: 25 }, label: "Bulk Rate", icon: "🏷️",
+    { id: "bulkRate", unlock: { type: "behavior", stat: "removalsUsed", count: 16 }, label: "Bulk Rate", icon: "🏷️",
       kind: "meta", effect: "purgeStepDiscount", value: 1, tier: "uncommon", price: 6,
       description: "The store's Purge price climbs by 1 instead of 2. No effect during deal" },
     // FREEBIE: one random shelf item per store visit costs 0 — rolled from
     // the same seeded store stream, so a reload shows the same gift.
-    { id: "freebie", unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 80 }, label: "Freebie", icon: "🎁",
+    { id: "freebie", unlock: { type: "behavior", stat: "pinkyTipsSeen", count: 2 }, label: "Freebie", icon: "🎁",
       kind: "meta", effect: "freebie", tier: "rare", price: 9,
       description: "One random item in every store costs 0 coins. No effect during deal" },
     // RARE HUNTER: the store's rare tier weight is multiplied by `value`
@@ -442,7 +442,7 @@ const NINELIVES_ITEMS = {
       kind: "guess", effect: "shuffler", tier: "uncommon", price: 3,
       description: "When a ♦ lands in this column → shuffle the other piles in this column" },
     // value = coins per buried card in the largest ♥-topped alive pile.
-    { id: "excavator", unlock: { type: "behavior", stat: "cardsBuried", count: 120 }, label: "Excavator", icon: "⛏️",
+    { id: "excavator", unlock: { type: "behavior", stat: "cardsBuried", count: 60 }, label: "Excavator", icon: "⛏️",
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 3,
       description: "At deal end → +1 coin per buried card in this column's largest pile with a ♥ top card" },
     // chance = probability (0–1) the flip pays `value` (no suit requirement).
@@ -460,7 +460,7 @@ const NINELIVES_ITEMS = {
     { id: "wildAces", unlock: { type: "behavior", stat: "jokersPlayed", count: 8 }, label: "Wild Aces", icon: "🃏",
       kind: "guess", effect: "wildAces", tier: "rare", price: 10,
       description: "Aces count as high or low in this column" },
-    { id: "diamondAnchor", unlock: { type: "behavior", stat: "diamondsPlayed", count: 250 }, label: "Diamond Anchor", icon: "⚓",
+    { id: "diamondAnchor", unlock: { type: "behavior", stat: "diamondsPlayed", count: 200 }, label: "Diamond Anchor", icon: "⚓",
       kind: "modifier", effect: "diamondAnchor", tier: "rare", price: 6,
       description: "At deal end → exclude any pile in this column with a ♦ top card from the smallest-pile score" },
     { id: "diamondDistribution", unlock: { type: "behavior", stat: "removalsUsed", count: 10 }, label: "Diamond Distribution", icon: "⚖️",
@@ -510,7 +510,7 @@ const NINELIVES_ITEMS = {
       description: "Recharge your other two bases" },
     // ---- expansion Bases --------------------------------------------------
     // digCount = cards buried under each matching-suit-topped pile.
-    { id: "clubDig", unlock: { type: "behavior", stat: "clubsPlayed", count: 300 }, label: "Club Dig", icon: "♣️",
+    { id: "clubDig", unlock: { type: "behavior", stat: "clubsPlayed", count: 250 }, label: "Club Dig", icon: "♣️",
       kind: "active", effect: "suitDig", suit: "♣", digCount: 1, tier: "rare", price: 8,
       description: "Bury 1 card under each ♣-topped pile in this column" },
     // peekCount = upcoming cards peeked after the demolition. Destroys THIS
@@ -527,16 +527,16 @@ const NINELIVES_ITEMS = {
       kind: "active", effect: "tax", suit: "♥", coinPerCard: 1, tier: "uncommon", price: 5,
       description: "+1 coin per ♥ card in this column" },
     // ---- Same-charge / Same-power bases (activated, once per deal) ----
-    { id: "rechargeSame", unlock: { type: "milestone", stat: "correctSames", count: 32 }, label: "Recharge Cell", icon: "🔋",
+    { id: "rechargeSame", unlock: { type: "milestone", stat: "correctSames", count: 28 }, label: "Recharge Cell", icon: "🔋",
       kind: "active", effect: "rechargeSameShield", tier: "rare", price: 10,
       description: "Charge the Same Shield" },
-    { id: "activateSame", unlock: { type: "behavior", stat: "correctSames", count: 55 }, label: "Power Surge", icon: "⚡",
+    { id: "activateSame", unlock: { type: "behavior", stat: "correctSames", count: 44 }, label: "Power Surge", icon: "⚡",
       kind: "active", effect: "activateSamePower", tier: "rare", price: 10,
       description: "Activate your Same-Power" },
     // LAST RESORT: the panic button — bury the WHOLE remaining deck under
     // one pile here and the deal ends as a win, scored normally. Never in a
     // boss deal. It blows itself up AND any base beside it on use.
-    { id: "lastResort", unlock: { type: "behavior", stat: "pilesLost", count: 60 }, label: "Last Resort", icon: "🧨",
+    { id: "lastResort", unlock: { type: "behavior", stat: "pilesLost", count: 75 }, label: "Last Resort", icon: "🧨",
       kind: "active", effect: "lastResort", tier: "rare", price: 10,
       description: "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Any Base nearby is destroyed" },
     // EMPTY PURSE: every coin you hold, for one peek.
@@ -584,7 +584,7 @@ const NINELIVES_ITEMS = {
     { id: "linkCoins", label: "Dividend", icon: "💰",
       effect: "linkCoins", value: 1, tier: "rare", price: 9,
       description: "Gain 1 coin for each alive pile" },
-    { id: "linkShuffle", unlock: { type: "behavior", stat: "samesCalled", count: 50 }, label: "Link Shuffler", icon: "🔀",
+    { id: "linkShuffle", unlock: { type: "behavior", stat: "samesCalled", count: 40 }, label: "Link Shuffler", icon: "🔀",
       effect: "linkShuffle", tier: "rare", price: 9,
       description: "Shuffle every alive pile" },
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
@@ -798,7 +798,7 @@ const NINELIVES_ITEMS = {
      sticker-pack picks go straight to the sticker inventory.
   -------------------------------------------------------------------- */
   packs: [
-    { id: "cardPack", unlock: { type: "behavior", stat: "pinkyTipsSeen", count: 5 }, label: "Large Card Pack", icon: "🎴", kind: "card", tier: "uncommon",
+    { id: "cardPack", unlock: { type: "milestone", stat: "dealsWonRegular", count: 15 }, label: "Large Card Pack", icon: "🎴", kind: "card", tier: "uncommon",
       size: 5, keep: 2, price: 4,
       description: "Reveals 5 random cards. Keep 2 to swap into your deck" },
     { id: "smallCardPack", label: "Small Card Pack", icon: "🎴", kind: "card", tier: "common",
