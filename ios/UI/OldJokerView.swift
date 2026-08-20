@@ -22,7 +22,7 @@ final class OldJokerView: UIView {
         var enabled = true
     }
 
-    /// One half of a YOURS→HIS comparison — art for real items, a glyph for
+    /// One half of a GIVE→GET comparison — art for real items, a glyph for
     /// sides with nothing to draw (coins, the blind swap's face-down card).
     struct CompareSide {
         var tag: String
@@ -70,6 +70,7 @@ final class OldJokerView: UIView {
     init(title: String, line: String, eventTitle: String? = nil, offer: String,
          items: [(String, String)] = [],
          compares: [CompareRow] = [], well: OutcomeWell? = nil,
+         wellCaptions: [(String, String)] = [],
          options: [Option], mapPeek: Bool = true, givePurse purse: Int? = nil,
          art artImage: UIImage? = nil,
          backLabel: String = "◀ BACK TO THE JOKER",
@@ -136,6 +137,23 @@ final class OldJokerView: UIView {
             content.addSubview(n)
             content.addSubview(d)
             itemLabels.append((n, d))
+        }
+
+        // WELL CAPTIONS (v6.62): under a cursed-card well, the curse's name +
+        // registry description — the mystery reveal's v6.57 caption idiom, so
+        // the Duplicate's closing modal can name the mark it just placed.
+        for (name, desc) in wellCaptions {
+            let cap = NSMutableAttributedString()
+            cap.append(CRTKit.attributed(name.uppercased() + " — ",
+                                         size: 14, color: CRT.suitRed, display: true))
+            cap.append(CRTKit.attributed(desc, size: 14, color: CRT.cardFace))
+            let l = UILabel()
+            l.attributedText = cap
+            l.textAlignment = .center
+            l.numberOfLines = 0
+            l.lineBreakMode = .byWordWrapping
+            content.addSubview(l)
+            wellCaptionLabels.append(l)
         }
 
         // THE TRADE, DRAWN — the store's EQUIPPED→NEW comparison. What
@@ -272,6 +290,7 @@ final class OldJokerView: UIView {
     private var optionDetails: [String?] = []
     private var detailLabels: [UILabel] = []
     private var itemLabels: [(UILabel, UILabel)] = []
+    private var wellCaptionLabels: [UILabel] = []
     private var compareViews: [(CompareSideView, UILabel, CompareSideView)] = []
     /// MAP PEEK. A small CORNER chip — like a pause button, deliberately
     /// apart from the decision stack (a full-width SHOW MAP under the options
@@ -391,6 +410,14 @@ final class OldJokerView: UIView {
                 wv.frame.origin = CGPoint(x: pad, y: y)
                 y += wv.frame.height + 12
             }
+            // The well's captions (a curse's name + description) ride directly
+            // beneath it, inside the same fixed slot flow.
+            for l in wellCaptionLabels {
+                let ch = max(18, ceil(l.sizeThatFits(CGSize(width: w - pad * 2, height: 300)).height))
+                l.frame = CGRect(x: pad, y: y, width: w - pad * 2, height: ch)
+                y += ch + 4
+            }
+            if !wellCaptionLabels.isEmpty { y += 8 }
         }
 
         // The item key: each named item's effect, indented under its name.
@@ -408,7 +435,7 @@ final class OldJokerView: UIView {
         }
         if !itemLabels.isEmpty { y += 2 }
 
-        // The YOURS→HIS rows, the store detail's compare geometry.
+        // The GIVE→GET rows, the store detail's compare geometry.
         if !compareViews.isEmpty {
             let arrowW: CGFloat = 16, gap: CGFloat = 7
             let sideW = (keyW - arrowW - gap * 2) / 2

@@ -229,6 +229,16 @@ enum IVBases {
                         XCTAssertEqual(e.run.tellDrawsLeft, 1, "\(c)")
                         assertSpent(e, c)
                     }),
+                // v6.62: the search is board-WIDE — the only match sits in the
+                // OTHER column (pile 2) and still gets the mark.
+                IV.Scenario("boardwide-marksAnotherColumn", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 9, "♣")],
+                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },
+                    fire: { _ = $0.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.whisperPiles.contains(2), "\(c): a match outside the base's column is marked")
+                        assertSpent(e, c)
+                    }),
                 IV.Scenario("edge-noMatchSaysNothing", allowed: .all,
                     build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6)],
                                         deckOrder: [IV.spec(50, 9), IV.spec(51, 3)]) },

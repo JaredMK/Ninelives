@@ -1494,6 +1494,20 @@ public final class DealController {
             // The cost, brutally clear: the exact number about to vanish.
             confirmDesc += "\nThis spends ALL your coins: ◉ \(campaign.getCoins()). Every one."
         }
+        if def.effect == "setValue" || def.effect == "setSuit" {
+            // Live preview: the exact count about to change, and to what —
+            // mirrors the engine's skip-if-already-matching rule, so the
+            // number is computed from the board, never hardcoded.
+            let alive = baseTargetPiles(col: col)
+            if let srcPile = alive.last, let src = engine.board.top(srcPile) {
+                let isRank = def.effect == "setValue"
+                let n = alive.filter { p in
+                    guard let t = engine.board.top(p) else { return false }
+                    return isRank ? t.value != src.value : t.suit != src.suit
+                }.count
+                confirmDesc += "\nSet \(n) card\(n == 1 ? "" : "s") to \(isRank ? src.label : src.suit)"
+            }
+        }
         // (v6.53 batch 3: Last Resort's destruction warning now lives in its
         // registry description — appending it here printed it twice.)
         handler(def.label, confirmDesc) { [weak self] in

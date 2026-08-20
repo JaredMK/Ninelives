@@ -171,13 +171,13 @@ There are exactly **three characters** a ? node can become. **The character roll
 
 | # | Title [weight] | Trigger / fold | Its line | Outcome text | Art | After CONTINUE |
 |---|---|---|---|---|---|---|
-| 1 | **Windfall** [12] | always | “More cards. Congratulations. A fat deck never saved anyone.” | “[Card] joins your deck” / “N cards join your deck” | the card faces | cards fly to the deck |
-| 2 | **Toll** [12] | coins > 0, else → Cache | “Everyone takes from a two. Today a two takes from you.” | “−N coins” | coin −N | node clears |
-| 3 | **Cursed** [14] | an eligible card exists | “You get stepped on your whole life, you start leaving marks.” | “[Leech / Trapdoor] afflicts your [card]” | the cursed chip | the curse stays on the card |
-| 4 | **Ambush** [8] | always | “Nobody ever backs down from a two. Let's see how you do surrounded.” | “Survive an 18-card deal on 4 piles → +N coins” | 4 face-down piles (your card backs) | the ambush deal starts immediately |
+| 1 | **Windfall** [12] | always | “More cards. Congratulations. A fat deck never saved anyone.” | — *(no caption, v6.65 — the card faces say it)* | the card faces | cards fly to the deck |
+| 2 | **Toll** [12] | coins > 0, else → Cache | “Everyone takes from a two. Today a two takes from you.” | — *(no caption, v6.65 — the well's signed figure says it)* | coin −N | node clears |
+| 3 | **Cursed** [14] | an eligible card exists | “You get stepped on your whole life, you start leaving marks.” | ONLY the curse's name + registry description beneath the card (v6.65) | the marked card wearing ALL its stickers | the curse stays on the card |
+| 4 | **Ambush** [8] | always | “Nobody ever backs down from a two. Let's see how you do surrounded.” | “Survive a 15 card deal with 4 piles” (v6.65 — the bounty is the deal's own reward line now) | 4 face-down piles (your card backs) | the ambush deal starts immediately |
 | 5 | **Peeled** [6] | a stickered card exists, else → Toll | “Shiny little things. You didn't earn them either.” | “[Sticker] + [Sticker] torn off your [card]” — every sticker named | the stripped card | node clears |
-| 6 | **Repossessed** [5] | an equipped Pillar/Base exists, else → Toll | “You'll do without. Twos always do.” | “[Item] is taken off column N” | the item's art | the item is gone — not pocketed, gone |
-| 7 | **Markup** [6] | always | “I had a word with the shop. For once the prices aren't MY problem.” | “At the next shop every item costs DOUBLE” | — | armed for the next shop only |
+| 6 | **Repossessed** [5] | an equipped Pillar/Base exists, else → Toll | “You'll do without. Twos always do.” | “[Item] is taken” (v6.65 — no “off column N”) | the item's art | the item is gone — not pocketed, gone |
+| 7 | **Markup** [6] | always | “I had a word with the shop. For once the prices aren't my problem.” | “At the next shop every item costs double” (v6.65 — de-shouted) | — | armed for the next shop only |
 | 8 | **Punctured** [5] | shield CHARGED, else → Toll | “A shield. Must be nice. Was nice.” | “Your charged Same shield is drained” | — | shield emptied |
 
 ### THE CON [4] — its one conversation offer · needs a ★ Joker held, else → Toll
@@ -185,16 +185,15 @@ There are exactly **three characters** a ? node can become. **The character roll
 - **Line:** “I know Mamma. Personally. I can take you to her. For every coin you've got, or one of them stars.”
 - **Terms:** “Pay what it asks, and Just a Two says it will bring you to Mamma. It seems very sure of itself.”
 - **Buttons:** RED **GIVE ALL YOUR COINS** ↳ “−N coins” *(DEAD at 0 coins)* · RED **GIVE A ★ JOKER** ↳ “one leaves your deck” · PLAIN **WALK AWAY**
-- **If you pay (either):** reveal — **The Long Walk** — “[N coins / Your ★ Joker], gone. It walked you in one big circle and wandered off. Mamma never came.” Its header line: “You believed that? A two doesn't know ANYBODY.” **Nothing arrives. It was lying.**
+- **If you pay (either):** reveal — **The Long Walk** — “He walked you in one big circle and wandered off. Mamma never came.” (v6.65: the SAME line for coins and star — what left is drawn in the well.) Its header line: “You believed that? A two doesn't know anybody.” **Nothing arrives. It was lying.**
 
 ### THE TWO'S GAME [5] — its second conversation offer · needs the Same shield CHARGED, else → Toll
 *Same modal layout as The Con. Corner MAP chip; back button reads ◀ BACK TO THE TWO. There is no walk-away — it demands the call.*
-- **Line:** “I'm thinking of a card. Higher or lower than an 8? Twos always know. Let's see if you do.”
-- **Terms:** “One call against its hidden card. Win and you get nothing. Lose and your Same shield is drained.”
-- **Buttons:** PLAIN **HIGHER** · PLAIN **LOWER** · PLAIN **SAME**
-- **The card:** rolled seeded per node (any suit, any rank in the deck's range); the pivot rank is a knob (`mystery.twoGame.pivot`, 8).
-- **If you win:** reveal — **Nothing** — “You called it. You win nothing. It seems pleased anyway.” The hidden card is shown. Nothing changes.
-- **If you lose:** reveal — **Punctured** — “Wrong. Your Same shield is drained.” The hidden card is shown; the shield empties.
+- **Line:** “I'm thinking of a card. Red or black? Twos always know.” (v6.65 — and NO terms line; the question is the whole offer)
+- **Buttons:** PLAIN **RED** · PLAIN **BLACK**
+- **The card:** rolled seeded per node (one of the four standard suits — never a ★ Joker, so every card has a color — any rank in the deck's range). The call is against its COLOR: ♥♦ red, ♠♣ black (v6.65; the `mystery.twoGame.pivot` knob is retired).
+- **If you win:** reveal — **Nothing** — quote “Hmm. Right.”, then “You called it. You win nothing.” The hidden card is shown. Nothing changes.
+- **If you lose:** reveal — **Punctured** — quote “Ha! Wrong”, then “Your shield is drained”. The hidden card is shown; the shield empties.
 
 ---
 

@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.61"
-    static let note = "ios: pack badges tell the truth about their suits, and Game Center narrates every move it makes."
+    static let version = "v6.64"
+    static let note = "ios: the Queen's reveals lose their captions, her pickers read like the Joker's, and the Cleanse strips the whole card."
     static let line = "build \(version) · \(note)"
 }
 
@@ -1138,11 +1138,9 @@ final class ZenSelectViewController: MenuScreenBase {
             let z = GameData.shared.difficulty.zen(id)
             let e = flow.campaign.zenStats.get(id)
             let unlocked = flow.campaign.zenUnlocks.unlocked(id)
-            // FIRST TIME IN: Easy glows green (like Zen on the menu) so the
-            // brand-new player knows exactly where to go.
-            let firstTime = flow.campaign.saveStore.pref("tutorial2") != "1"
-            let role: PixelButtonView.Role = picked == id ? .charged
-                : (firstTime && id == "easy" && picked == nil ? .cta : .plain)
+            // v6.62: NO default highlight — nothing is selected until the
+            // player picks a row (START stays disabled meanwhile).
+            let role: PixelButtonView.Role = picked == id ? .charged : .plain
             let row = PixelButtonView("", role: role, fontSize: 16)
             row.isEnabled = unlocked
             row.accessibilityLabel = z.label.uppercased()

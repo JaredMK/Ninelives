@@ -126,6 +126,10 @@ public enum OldJoker {
         public var coins: Int = 0
         /// A holding that left the player.
         public var lost: Holding?
+        /// EVERYTHING that left the player, when one offer takes several
+        /// (A Star for Your Flags strips every equipped Pillar) — the closing
+        /// modal's GAVE side needs the whole list, not just one.
+        public var lostMany: [Holding] = []
         /// An item id that arrived.
         public var gained: String?
         /// Cards the player must now choose to remove (the UI opens a picker).
@@ -353,11 +357,11 @@ extension CampaignState {
             return .insurance(cost: cost)
 
         case "refund":
-            // TWO items, rolled — never the whole loadout — each at its own
-            // 2–3× buyback of the price paid.
+            // ONE item, rolled — never the whole loadout (v6.62: he used to
+            // point at two) — at 2–3× the price paid for it.
             var pool = equippedHoldings()
             guard !pool.isEmpty else { return nil }
-            let take = min(cfg.int("refund", "count", 2), pool.count)
+            let take = min(cfg.int("refund", "count", 1), pool.count)
             var options: [OldJoker.Holding] = []
             var values: [Int] = []
             let lo = cfg.num("refund", "minMult", 2), hi = cfg.num("refund", "maxMult", 3)
@@ -380,8 +384,10 @@ extension CampaignState {
             let now = Int(removalPrice())
             let base = Int(shopPrice(data.items.store.removal.price))
             guard now > base else { return nil }
-            // He HALVES what it costs today; the ladder gets steeper for it.
-            return .purgeReset(from: now, to: max(1, now / 2), cost: cfg.int("purgeReset", "cost", 0))
+            // He HALVES what it costs today — an odd price rounds UP (9 → 5),
+            // matching applyPurgeHalving's target — and the ladder gets
+            // steeper for it.
+            return .purgeReset(from: now, to: max(1, (now + 1) / 2), cost: cfg.int("purgeReset", "cost", 0))
 
         case "eights":
             let affected = eightsAffectedCount()

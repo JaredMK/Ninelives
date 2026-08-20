@@ -198,10 +198,11 @@ public final class GameFlowController: UIViewController {
         case "twoDoors": offer = .twoDoors(goodKey: "coinBonus", badKey: "coinLoss", goodIsLeft: true)
         case "insurance": offer = .insurance(cost: 2)
         case "refund":
-            let two = Array(holdings.prefix(2))
-            offer = two.isEmpty ? nil
-                : .refund(options: two,
-                          values: two.map { Int(((campaign.holdingDef($0)?.price ?? 1) * 2.5).rounded()) })
+            // ONE item now (v6.62) — the sample mirrors the real builder.
+            offer = holdings.first.map {
+                .refund(options: [$0],
+                        values: [Int(((campaign.holdingDef($0)?.price ?? 1) * 2.5).rounded())])
+            }
         case "collect":
             campaign.setJokerDebt(24)
             offer = .collect(owed: 24)
@@ -689,7 +690,7 @@ public final class GameFlowController: UIViewController {
                                           art: ItemArt.justATwo(scale: 4),
                                           line: "Remember me? I had a word with the shop. Enjoy the prices."),
                     MysteryOutcome(key: "priceDouble", title: "Markup",
-                                   desc: "Every item here costs DOUBLE"))
+                                   desc: "Every item here costs double"))
         case "one":
             return (MysteryCast.Presenter(name: "The Beheaded Queen",
                                           art: ItemArt.beheadedQueen(scale: 4),
@@ -1813,11 +1814,11 @@ extension GameFlowController: MapScreenDelegate {
                 self.persist(phase: "map")
                 map?.render()
                 Sound.shared.bad()
-                let paid = r.jokerTaken ? "Your ★ Joker"
-                    : "\(r.coinsTaken) coin\(r.coinsTaken == 1 ? "" : "s")"
+                // v6.65: ONE closing line for both payments — what left is
+                // already drawn in the well (the −N coin figure / the star).
                 let after = MysteryOutcome(
                     key: "mammaLie", title: "The Long Walk",
-                    desc: "\(paid), gone. It walked you in one big circle and wandered off. Mamma never came.",
+                    desc: "He walked you in one big circle and wandered off. Mamma never came.",
                     amount: r.coinsTaken > 0 ? r.coinsTaken : nil,
                     cards: r.jokerTaken ? (star.map { [$0] } ?? []) : [])
                 self.presentOverlay(PhaseOverlayView.mystery(
@@ -1839,23 +1840,25 @@ extension GameFlowController: MapScreenDelegate {
         Sound.shared.mysteryStore()
     }
 
-    /// THE TWO'S GAME — one higher/lower/same call against its hidden card
-    /// and the pivot rank. It only turns up when the Same shield is charged,
-    /// because that is the stake: winning pays NOTHING, losing drains the
-    /// shield. There is no walking away from a two with a grudge.
+    /// THE TWO'S GAME — one RED-or-BLACK call against the COLOR of its hidden
+    /// card (v6.65; the higher/lower/same pivot call is gone, and the
+    /// `mystery.twoGame.pivot` knob with it). It only turns up when the Same
+    /// shield is charged, because that is the stake: winning pays NOTHING,
+    /// losing drains the shield. There is no walking away from a two with a
+    /// grudge.
     private func presentTwoGame(_ o: MysteryOutcome, node: MapNode, map: MapViewController?) {
-        let pivot = Int(GameData.shared.items.mystery.raw["twoGame"]?.asObject?["pivot"]?.asNumber ?? 8)
-        let calls = ["higher", "lower", "same"]
+        let calls = ["red", "black"]
         let options: [OldJokerView.Option] = [
-            .init(label: "HIGHER", detail: nil, role: .plain, choice: .pick(0)),
-            .init(label: "LOWER", detail: nil, role: .plain, choice: .pick(1)),
-            .init(label: "SAME", detail: nil, role: .plain, choice: .pick(2)),
+            .init(label: "RED", detail: nil, role: .plain, choice: .pick(0)),
+            .init(label: "BLACK", detail: nil, role: .plain, choice: .pick(1)),
         ]
         let view = OldJokerView(
             title: "Just a Two",
-            line: "I'm thinking of a card. Higher or lower than an \(pivot)? Twos always know. Let's see if you do.",
+            line: "I'm thinking of a card. Red or black? Twos always know.",
             eventTitle: o.title,
-            offer: "One call against its hidden card. Win and you get nothing. Lose and your Same shield is drained.",
+            // No terms line (v6.65): the spoken question IS the whole offer —
+            // a second explanatory sentence under it only repeated it.
+            offer: "",
             options: options,
             art: ItemArt.justATwo(scale: 5),
             backLabel: "◀ BACK TO THE TWO") { [weak self, weak map] choice in
@@ -1867,20 +1870,27 @@ extension GameFlowController: MapScreenDelegate {
                     self.completeMystery(node.id)
                     return
                 }
-                let rank = o.amount ?? 0
-                let won = self.campaign.resolveTwoGame(rank: rank, guess: calls[i])
+                // The hidden card's COLOR decides: ♥♦ red, ♠♣ black.
+                let suit = o.cards.first?.suit ?? "♠"
+                let won = self.campaign.resolveTwoGame(suit: suit, guess: calls[i])
                 self.persist(phase: "map")
                 map?.render()
                 if won { Sound.shared.good() } else { Sound.shared.bad() }
                 let after = MysteryOutcome(
                     key: "twoGame",
                     title: won ? "Nothing" : "Punctured",
-                    desc: won ? "You called it. You win nothing. It seems pleased anyway."
-                              : "Wrong. Your Same shield is drained.",
+                    desc: won ? "You called it. You win nothing."
+                              : "Your shield is drained",
                     cards: o.cards)
+                // The quote above the revealed card knows how the call went —
+                // the cast's generic twoGame line can't (v6.65).
+                let presenter = MysteryCast.Presenter(
+                    name: "Just a Two",
+                    art: ItemArt.justATwo(scale: 4),
+                    line: MysteryCast.twoGameResultLine(won: won))
                 self.presentOverlay(PhaseOverlayView.mystery(
                     outcome: after,
-                    presenter: MysteryCast.presenter(for: after),
+                    presenter: presenter,
                     deckId: self.campaign.deckId,
                     mapPeek: true,
                     onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self] in
@@ -1983,6 +1993,9 @@ extension GameFlowController: MapScreenDelegate {
                     pickNext()
                 }
                 picker.forced = true   // he does not take "never mind" here
+                // HIS wording, not the store's: no "permanent" subline, and the
+                // instruction is "Choose", not "Tap" (v6.62).
+                picker.mysteryPurgeCopy = true
                 present(picker, animated: false)
             }
             pickNext()
@@ -2077,27 +2090,27 @@ extension GameFlowController: MapScreenDelegate {
         done.headline = "His Due"
         done.detail = "\(purged) purged. "
             + (hit.isEmpty ? "No curse found a card to land on."
-                           : "\(hit.count) card\(hit.count == 1 ? "" : "s") took his mark.")
+                           : "\(hit.count) cursed.")
         // The other half of the bargain has to be SEEN. The cards were being
         // marked silently, so the deal read as "remove three, free" — the
         // player only met the curses later, mid-deal, with no idea why.
         guard !hit.isEmpty else { showJokerResult(done, nodeId: nodeId, map: map); return }
-        // The reveal names the curses that landed (they can differ per card
-        // now); the card strip shows each afflicted card with its new chip.
+        // The reveal lists every marked card WITH its curse, one row each
+        // (v6.62): card · curse name · registry description — the per-curse
+        // aggregate caption never said which card took which mark.
         let labels = hit.map { GameData.shared.stickerTypes.get($0.curse)?.label ?? $0.curse }
         let uniqueLabels = labels.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         let hitIds = hit.map(\.cardId)
         let marked = campaign.getRunDeck().filter { hitIds.contains($0.id) }
         let outcome = MysteryOutcome(
             key: "cursedSticker",
-            title: uniqueLabels.count == 1 ? (uniqueLabels[0]) : "His marks",
-            desc: uniqueLabels.count == 1
-                ? "\(hit.count) card\(hit.count == 1 ? "" : "s") took his mark."
-                : "His due: " + uniqueLabels.joined(separator: ", "),
+            title: "His marks",
+            desc: "",   // the per-card rows under the well say it all now
             stickerId: hit[0].curse, stickerLabel: uniqueLabels.joined(separator: ", "),
             cards: marked)
         presentOverlay(PhaseOverlayView.mystery(outcome: outcome, deckId: campaign.deckId,
                                                 mapPeek: true,
+                                                curseRowsPerCard: true,
                                                 onPeekChanged: { [weak map] p in map?.travelBlocked = p }) { [weak self] in
             self?.dismissOverlay()
             self?.showJokerResult(done, nodeId: nodeId, map: map)
@@ -2149,6 +2162,9 @@ extension GameFlowController: MapScreenDelegate {
             completeMystery(nodeId); return
         }
         outcome = withAfflictedCards(outcome)
+        // A coin door shows the coin figure and nothing else (v6.62): the
+        // "+N coins" caption under the well only repeated the well.
+        if outcome.key == "coinBonus" || outcome.key == "coinLoss" { outcome.desc = "" }
         persist(phase: "map")
         presentOverlay(PhaseOverlayView.mystery(outcome: outcome, deckId: campaign.deckId,
                                                 mapPeek: true,
@@ -2160,16 +2176,28 @@ extension GameFlowController: MapScreenDelegate {
     }
 
     /// The result container for a settled offer — what changed, drawn in the
-    /// same cream well the Queen's reveals use. Precedence: cards the result
-    /// snapshotted (cuts, Eights, the minted ★, the placed duplicate), then
-    /// the item that left (buyout / buyback / free shop), then the coin move
-    /// (marker, collection, insurance, the reset, the drink). Trades draw the
-    /// settled compare row instead — two sides need two tiles. nil when the
-    /// decline (or a flag-arm) changed nothing visible.
+    /// same cream well the Queen's reveals use. Precedence: the DUPLICATE's
+    /// cursed copy (card + mark), then cards the result snapshotted (cuts,
+    /// Eights, the minted ★), then the coin move (marker, collection,
+    /// insurance, the reset, the drink). Trades (swap / blind swap / buyout /
+    /// buyback / free shop / star-for-flags) draw the settled GAVE↔GOT compare
+    /// row instead — two sides need two tiles. nil when the decline (or a
+    /// flag-arm) changed nothing visible.
     private func jokerResultWell(_ r: OldJoker.Result) -> OutcomeWell? {
+        // THE DUPLICATE: the placed copy wears its curse chip (the v6.55
+        // cursed-card well), so the mark is SEEN on the card it landed on.
+        if r.key == "duplicate" {
+            let pairs: [(card: CardSpec, curses: [ItemDef])] = r.cards.compactMap { c in
+                let curses = c.stickers
+                    .compactMap { GameData.shared.stickerTypes.get($0.type) }
+                    .filter(\.cursed)
+                return curses.isEmpty ? nil : (c, curses)
+            }
+            if !pairs.isEmpty { return .cursed(pairs) }
+        }
         // A CUT or PURGE result's cards no longer exist — the well draws them
-        // TORN (v6.56), never intact. Other card strips (the minted ★, the
-        // placed duplicate, Eights) still show the real face.
+        // TORN (v6.56), never intact. Other card strips (the minted ★,
+        // Eights) still show the real face.
         if !r.cards.isEmpty {
             if r.key == "cut" || r.key == "purge" { return .purged(r.cards) }
             return .cards(r.cards, torn: [])
@@ -2193,22 +2221,63 @@ extension GameFlowController: MapScreenDelegate {
     private func showJokerResult(_ r: OldJoker.Result, nodeId: Int, map: MapViewController?) {
         // His ONE closing statement, then the plain fact of what changed —
         // never a second quip saying the same thing in different words.
-        // A settled SWAP or BLIND SWAP shows its two faces: both items, drawn
-        // with a two-way arrow between them (router batch) — for the blind
-        // one, the reveal the whole offer was building to.
+        // A settled TRADE shows both faces (GAVE ↔ GOT, the offer's Give/Get
+        // row past tense): the swap and blind swap (the blind one's reveal),
+        // the buyout and the buyback (coins on the GOT side), the free shop,
+        // and the star-for-flags.
         var compares: [OldJokerView.CompareRow] = []
-        if r.key == "blindSwap" || r.key == "swap", let lost = r.lost, let gained = r.gained {
-            func side(_ kind: OldJoker.Holding.Kind, _ id: String, tag: String) -> OldJokerView.CompareSide {
-                let def = campaign.holdingDef(OldJoker.Holding(kind: kind, id: id))
-                return .init(tag: tag,
-                             art: ItemArt.forSlot(kind: kind.rawValue, id: id,
-                                                  card: nil, deckId: campaign.deckId),
-                             name: def?.label ?? id,
-                             desc: def.map { campaign.itemDescription($0) } ?? "")
+        func itemSide(_ kind: OldJoker.Holding.Kind, _ id: String, tag: String) -> OldJokerView.CompareSide {
+            let def = campaign.holdingDef(OldJoker.Holding(kind: kind, id: id))
+            return .init(tag: tag,
+                         art: ItemArt.forSlot(kind: kind.rawValue, id: id,
+                                              card: nil, deckId: campaign.deckId),
+                         name: def?.label ?? id,
+                         desc: def.map { campaign.itemDescription($0) } ?? "")
+        }
+        func coinGotSide(_ amount: Int) -> OldJokerView.CompareSide {
+            if let coin = ArtBundle.image("pxi-coin") {
+                return .init(tag: "GOT", art: coin, name: "+\(amount) coins", desc: "")
             }
-            compares = [.init(old: side(lost.kind, lost.id, tag: "GAVE"),
-                              new: side(lost.kind, gained, tag: "GOT"),
+            return .init(tag: "GOT", glyph: "◉", name: "+\(amount) coins", desc: "")
+        }
+        if r.key == "blindSwap" || r.key == "swap", let lost = r.lost, let gained = r.gained {
+            compares = [.init(old: itemSide(lost.kind, lost.id, tag: "GAVE"),
+                              new: itemSide(lost.kind, gained, tag: "GOT"),
                               twoWay: true)]
+        } else if (r.key == "buyout" || r.key == "refund"), let lost = r.lost {
+            compares = [.init(old: itemSide(lost.kind, lost.id, tag: "GAVE"),
+                              new: coinGotSide(r.coins),
+                              twoWay: true)]
+        } else if r.key == "freeShop", let lost = r.lost {
+            compares = [.init(old: itemSide(lost.kind, lost.id, tag: "GAVE"),
+                              new: .init(tag: "GOT", art: MapArt.shopStall(),
+                                         name: "Free shop",
+                                         desc: "All items in the next shop are free."),
+                              twoWay: true)]
+        } else if r.key == "jokerForPillars", !r.lostMany.isEmpty {
+            let names = r.lostMany.map { campaign.holdingLabel($0) }.joined(separator: " + ")
+            let gave = OldJokerView.CompareSide(
+                tag: "GAVE",
+                art: ItemArt.forSlot(kind: "pillar", id: r.lostMany[0].id,
+                                     card: nil, deckId: campaign.deckId),
+                name: r.lostMany.count == 1 ? campaign.holdingLabel(r.lostMany[0])
+                                            : "All \(r.lostMany.count) Pillars",
+                desc: names)
+            let gotArt = r.cards.first.map { CardArt.image(CardArt.Face($0), scale: .half) }
+            compares = [.init(old: gave,
+                              new: .init(tag: "GOT", art: gotArt,
+                                         name: "★ Joker",
+                                         desc: "Always a correct call"),
+                              twoWay: true)]
+        }
+        // THE DUPLICATE (v6.62): the copy rides the cursed-card well WITH its
+        // mark, and the mark's name + registry description print beneath it —
+        // the mystery reveal's curse-caption idiom.
+        var wellCaptions: [(String, String)] = []
+        if r.key == "duplicate", let sid = r.leechSticker,
+           let def = GameData.shared.stickerTypes.get(sid) {
+            wellCaptions = [(def.label,
+                             def.description.replacingOccurrences(of: "Cursed. ", with: ""))]
         }
         let view = OldJokerView(title: OldJokerCopy.name,
                                 line: OldJokerCopy.closingLine(for: r),
@@ -2216,6 +2285,7 @@ extension GameFlowController: MapScreenDelegate {
                                 offer: r.detail,
                                 compares: compares,
                                 well: compares.isEmpty ? jokerResultWell(r) : nil,
+                                wellCaptions: wellCaptions,
                                 options: [.init(label: "GO ON", detail: nil, role: .cta, choice: .decline)]) { [weak self] _ in
             self?.oldJokerView?.dismiss { [weak self] in
                 self?.oldJokerView = nil
@@ -2272,6 +2342,9 @@ extension GameFlowController: MapScreenDelegate {
                                                       mode: .swap(trayIndex: idx, step: nil)) { [weak self] _ in
                     self?.completeMystery(node.id)
                 }
+                // Her wording (v6.64): the one big "Swap in {card}" heading,
+                // no consequence line, "Tap the card to swap out".
+                picker.queenGiftCopy = true
                 picker.showsSkip = true
                 picker.hidesClose = true
                 present(picker, animated: false)
@@ -2285,6 +2358,9 @@ extension GameFlowController: MapScreenDelegate {
                 // The gift may be DECLINED (router batch): Skip discards the
                 // sticker after the shared confirm. No forcing — a player who
                 // doesn't want the mark on any card shouldn't have to place it.
+                // Her wording (v6.64): "Choose a card to apply it.", and a
+                // suit sticker drops the line that restates its heading.
+                picker.queenGrantCopy = true
                 picker.showsSkip = true
                 present(picker, animated: false)
             } else { completeMystery(node.id) }
@@ -2297,6 +2373,9 @@ extension GameFlowController: MapScreenDelegate {
             // the deck was untouched. Same rule the granted sticker follows.
             // Guarded on there being more than one card: forcing a pick on a
             // one-card deck would demand the player delete their whole deck.
+            // Her wording (v6.64, shared with his v6.62 pickers): no
+            // "permanent" subline, "Choose a card to purge."
+            picker.mysteryPurgeCopy = true
             picker.forced = campaign.deckSize() > 1
             present(picker, animated: false)
         case "stickerStrip":

@@ -246,9 +246,10 @@ public final class StoreViewController: UIViewController {
         }
         // A GIFT SHELF is the Old Joker emptying his coat: no restock, no
         // prices, and the exit says you're done taking rather than shopping.
+        // The title reads in the Give/Get grammar (v6.62) — this is the GET.
         if campaign.isGiftShelf {
             rerollButton.isHidden = true
-            titleLabel.attributedText = CRTKit.attributed("His coat", size: 22,
+            titleLabel.attributedText = CRTKit.attributed("Get…", size: 22,
                                                           color: CRT.gold, display: true)
             goButton.setTitle("DONE")
             setMessage("Take what you want. It's all paid for.")

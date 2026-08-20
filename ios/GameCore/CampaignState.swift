@@ -1235,11 +1235,13 @@ public final class CampaignState {
     }
 
     /// THE OLD JOKER's purge bargain: halve what the slot costs RIGHT NOW, and
-    /// make every future step steeper for the rest of the climb.
+    /// make every future step steeper for the rest of the climb. An odd price
+    /// rounds UP (9 → 5) — the offer quotes the ceiling, so the charge must
+    /// match it (v6.62).
     @discardableResult
     public func applyPurgeHalving(stepIncrease: Int) -> (from: Int, to: Int) {
         let before = Int(removalPrice())
-        let target = max(1, before / 2)
+        let target = max(1, (before + 1) / 2)
         // Steepen FIRST, then discount down to the promised number — otherwise
         // the steeper step immediately claws back part of the halving and the
         // player is quoted a price they never actually see.

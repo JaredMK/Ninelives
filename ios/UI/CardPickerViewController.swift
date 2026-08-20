@@ -5,7 +5,8 @@ import GameCore
 ///   .applySticker(typeId)      — apply an owned sticker (inventory)
 ///   .buySticker(slot, typeId)  — store buy: place-then-confirm-THEN-pay
 ///   .removal(paid:)            — pick a card to permanently remove
-///   .strip                     — mystery Cleanse: pick a stickered card
+///   .strip                     — mystery Cleanse: pick a stickered card, it
+///                                comes back BARE (every sticker, v6.64)
 ///   .swap(trayIndex)           — swap a held pack card into the deck
 ///
 /// A BOTTOM SHEET over the dimmed store/map (the web's .deck-modal): header
@@ -42,6 +43,18 @@ public final class CardPickerViewController: UIViewController {
     /// scrim still answers a tap, but it routes INTO the Skip confirmation
     /// (see scrimTapped) instead of silently dropping the flow.
     public var hidesClose = false
+    /// CAST purge pickers ride `.removal(price: 0)` but drop the store's
+    /// wording: the "permanent" subline goes, and the instruction is
+    /// "Choose", not "Tap" (v6.62 the Old Joker's; v6.64 the Queen's Purge).
+    public var mysteryPurgeCopy = false
+    /// THE QUEEN's keepsake swap (v6.64): the tiny "Swap in {card}" header
+    /// becomes the one big bold banner heading, the "replaced card is purged"
+    /// line goes, and the instruction reads "Tap the card to swap out".
+    public var queenGiftCopy = false
+    /// THE QUEEN's Imprint grant (v6.64): the instruction is "Choose a card to
+    /// apply it." and a changeSuitTo sticker drops its "Change suit to {suit}"
+    /// line — it only restated the label ("Change to {suit}").
+    public var queenGrantCopy = false
 
     // Sheet chrome.
     private let scrim = UIControl()
@@ -257,8 +270,15 @@ public final class CardPickerViewController: UIViewController {
             // sweep: every pick flow states the name ONCE, the instruction
             // ONCE).
             return ""
-        case .choose(let title, _, _, _, _, _): return title
+        case .choose:
+            // Same rule (v6.62): the banner's phosphor heading above the joker
+            // card / the copy already states it — a second title above said
+            // the same thing twice.
+            return ""
         case .swap(let trayIndex, let step):
+            // The Queen's keepsake: no tiny header — the banner carries the
+            // one big "Swap in {card}" heading (v6.64).
+            if queenGiftCopy { return "" }
             let tray = campaign.getPackTray()
             let name = trayIndex < tray.count ? trayCardName(tray[trayIndex]) : ""
             return "Swap in \(name)" + (step ?? "")
@@ -330,16 +350,21 @@ public final class CardPickerViewController: UIViewController {
                     sheet.addSubview(cap)
                     bannerRestriction = cap
                 }
-                setBanner(name: def.label, desc: def.description)
+                // The Queen's Imprint picker (v6.64): a "Change to {suit}"
+                // sticker drops its "Change suit to {suit}" description —
+                // it only restated the heading.
+                let desc = queenGrantCopy && def.behavior == "changeSuitTo" ? "" : def.description
+                setBanner(name: def.label, desc: desc)
             }
         case .removal(let price):
             // Effect + price only — "Tap the card to purge." below is the ONE
-            // instruction (v6.52 sweep).
+            // instruction (v6.52 sweep). The cast's own purge pickers drop the
+            // "permanent" subline entirely (v6.62/v6.64, `mysteryPurgeCopy`).
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "∅ Purge",
                       desc: price > 0
                         ? "◉ \(price) · permanent. The slot stays for more."
-                        : "The purge is permanent.")
+                        : (mysteryPurgeCopy ? "" : "The purge is permanent."))
         case .choose(let title, _, let prompt, _, let subject, let extraSticker):
             // When the pick is ABOUT a specific card (the Old Joker's copy),
             // show that card in the banner — his own mark says nothing about
@@ -354,9 +379,21 @@ public final class CardPickerViewController: UIViewController {
             setBanner(name: title, desc: prompt)
         case .strip:
             bannerIcon.image = ItemArt.removal()
-            setBanner(name: "Cleanse",
-                      desc: "One random sticker is stripped from the card and destroyed.")
+            // The heading carries it (v6.64): the "One random sticker is
+            // stripped…" line is gone — the Cleanse strips the card BARE.
+            setBanner(name: "Cleanse", desc: "")
         case .swap(let trayIndex, _):
+            if queenGiftCopy {
+                // The Queen's keepsake (v6.64): one big bold "Swap in {card}"
+                // heading, no consequence line — the swap confirm says it.
+                let tray = campaign.getPackTray()
+                if trayIndex < tray.count {
+                    let c = tray[trayIndex]
+                    bannerIcon.image = CardArt.image(CardArt.Face(c), scale: .half)
+                    setBanner(name: "Swap in \(trayCardName(c))", desc: "")
+                }
+                return
+            }
             // The header already names the incoming card ("Swap in K ♥") and
             // the hint below carries the ONE instruction — the banner keeps
             // only what neither says: the consequence.
@@ -391,13 +428,17 @@ public final class CardPickerViewController: UIViewController {
         case .applySticker, .buySticker:
             // The banner right above already names the sticker — repeating the
             // label here said it twice (v6.52 sweep).
-            return "Tap a card to apply it."
-        case .removal: return "Tap the card to purge."
-        case .choose(_, let verb, _, _, _, _): return "Tap the card to \(verb.lowercased())." 
-        case .strip: return showsSkip
-            ? "Tap a stickered card, or Skip to keep things as they are."
-            : "Tap a stickered card. You must strip one to continue."
-        case .swap: return showsSkip ? "Tap the card to replace, or Skip to decline this card." : "Tap the card to replace."
+            return queenGrantCopy ? "Choose a card to apply it." : "Tap a card to apply it."
+        case .removal: return mysteryPurgeCopy ? "Choose a card to purge." : "Tap the card to purge."
+        case .choose(_, let verb, _, _, _, _): return "Choose a card to \(verb.lowercased())."
+        case .strip:
+            // v6.64: the Cleanse strips the card bare; one instruction, no
+            // "one random sticker" say-so (that line is gone with the old
+            // behavior).
+            return "Choose a card to strip its stickers"
+        case .swap:
+            if queenGiftCopy { return "Tap the card to swap out" }
+            return showsSkip ? "Tap the card to replace, or Skip to decline this card." : "Tap the card to replace."
         }
     }
 
@@ -672,7 +713,11 @@ public final class CardPickerViewController: UIViewController {
                 .init(verb, role: .cta) { [weak self] in self?.confirm() },
             ]) { [weak self] in self?.cancelChoice() }
         case .strip:
-            prompt.show("Strip ONE random sticker from \(name)? It carries \(card.stickers.count). The stripped one is destroyed.",
+            // v6.64: the Cleanse strips the card BARE — every sticker goes.
+            let n = card.stickers.count
+            prompt.show(n == 1
+                        ? "Strip the sticker from \(name)? It is destroyed."
+                        : "Strip all \(n) stickers from \(name)? They are destroyed.",
                         actions: [
                 .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
                 .init("Strip", role: .cta) { [weak self] in self?.confirm() },
@@ -726,7 +771,8 @@ public final class CardPickerViewController: UIViewController {
         case .removal(let price):
             ok = price > 0 ? campaign.buyRemoval(id) : campaign.removeDeckCard(id)
         case .strip:
-            ok = campaign.removeRandomStickerFrom(id) != nil
+            // v6.64: strips EVERY sticker on the card (was: one random one).
+            ok = !campaign.stripAllStickersFrom(id).isEmpty
         case .swap(let trayIndex, _):
             ok = campaign.replaceDeckCard(id, trayIndex: trayIndex) != nil
         case .choose:
@@ -751,9 +797,9 @@ public final class CardPickerViewController: UIViewController {
         case .removal, .swap:
             crumpleThenClose(cardBtn, cardId: id)
         case .strip:
-            // The CARD stays; a sticker is torn off it. Crumpling the whole
-            // card said "removed", which is the Purge animation and the exact
-            // wrong story for a Cleanse.
+            // The CARD stays; its stickers are torn off it. Crumpling the
+            // whole card said "removed", which is the Purge animation and the
+            // exact wrong story for a Cleanse.
             peelStickerThenClose(cardBtn, cardId: id)
         case .choose:
             // Nothing happened TO the card — it was named, not changed. The

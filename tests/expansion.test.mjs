@@ -124,13 +124,15 @@ export function run() {
     r.eq(e.getRun().secondWindUsed[0], false, "Second Wind resets each run");
   }
 
-  // --- Greedy: only when it's the SOLE Pillar and its column survived ----
+  // --- Greedy: pays whenever it's the SOLE Pillar on the board (no survival
+  //     condition — v6.65 dropped the column-must-survive clause) -----------
   {
+    const val = PillarTypes.get("greedy").value;
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["greedy", null, null]);
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 10, "Greedy: sole Pillar + column all-alive → +10");
+    r.eq(won().pillarPayout.bonus, val, "Greedy: sole Pillar → +value");
   }
   {
     const e = GameEngine.create(deck(), 10, { cols: COLS });
@@ -147,12 +149,13 @@ export function run() {
     r.eq(won().pillarPayout.bonus, 0, "two Greedys disqualify each other (each is the other's second Pillar)");
   }
   {
+    const val = PillarTypes.get("greedy").value;
     const e = GameEngine.create(deck(), 10, { cols: COLS });
     const won = onWon(e);
     e.start(); e.startRun(["greedy", null, null]);
-    e.getBoard().kill(1);   // a pile in Greedy's column dies
+    e.getBoard().kill(1);   // a pile in Greedy's column dies — no longer voids it
     e.debug.winNow();
-    r.eq(won().pillarPayout.bonus, 0, "Greedy voided when a pile in its column died");
+    r.eq(won().pillarPayout.bonus, val, "Greedy still pays when a pile in its column died");
   }
 
   // ===== Stickers ========================================================

@@ -46,7 +46,7 @@
           1
         ]
       ],
-      "description": "Swap card into deck"
+      "description": "A single card. Swap it into your deck"
     },
     "removal": {
       "id": "removal",
@@ -54,7 +54,7 @@
       "icon": "∅",
       "price": 5,
       "priceStep": 2,
-      "description": "Permanently purge a card of your choice from your deck. The price climbs with each one you buy."
+      "description": "Permanently remove a card from your deck. Purge price climbs each time"
     },
     "sell": {
       "common": 1,
@@ -96,7 +96,7 @@
       "rankDelta": 2,
       "tier": "uncommon",
       "price": 2,
-      "description": "+2 card rank (stops at Ace)."
+      "description": "+2 card rank (stops at Ace)"
     },
     {
       "id": "rankDown2",
@@ -126,7 +126,7 @@
       "behavior": "randomFixedValue",
       "tier": "uncommon",
       "price": 1,
-      "description": "Set to random rank"
+      "description": "Change to random rank"
     },
     {
       "id": "changeSuitRandom",
@@ -137,7 +137,7 @@
       "tier": "common",
       "weight": 25,
       "price": 1,
-      "description": "Change to a random suit ♠♣♥♦"
+      "description": "Change to random suit"
     },
     {
       "id": "changeSuitSpade",
@@ -287,7 +287,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 3,
-      "description": "At deal end → earn coins equal to pile size if this card tops its pile",
+      "description": "At deal end if this card tops its pile  → earn coins equal to pile size",
       "suits": [
         "♥"
       ]
@@ -314,7 +314,7 @@
       "behavior": "anchor",
       "tier": "common",
       "price": 2,
-      "description": "At deal end → exclude this pile from the smallest-pile score if this card tops its pile",
+      "description": "At deal end → exclude pile from the smallest-pile score if this card is on top",
       "suits": [
         "♦"
       ]
@@ -342,7 +342,7 @@
       "value": 1,
       "tier": "common",
       "price": 1,
-      "description": "When placed → +1 toward pile size",
+      "description": "+1 pile size",
       "suits": [
         "♦"
       ]
@@ -361,7 +361,7 @@
       "value": 2,
       "tier": "uncommon",
       "price": 2,
-      "description": "When placed → +2 toward pile size",
+      "description": "+2 pile size",
       "suits": [
         "♦"
       ]
@@ -399,7 +399,7 @@
       "step": 1,
       "tier": "rare",
       "price": 6,
-      "description": "+X coins. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
+      "description": "+X coins. X starts at 0, grows by 1 each correct placement, resets to 0 on a wrong guess",
       "suits": [
         "♥"
       ]
@@ -472,7 +472,7 @@
       "behavior": "quickBury",
       "tier": "rare",
       "price": 7,
-      "description": "Bury 1 deck card under the pile",
+      "description": "Bury 1 card under the pile",
       "suits": [
         "♣"
       ]
@@ -528,7 +528,7 @@
       "step": 1,
       "tier": "rare",
       "price": 10,
-      "description": "Bury X cards. X starts at 0, grows by 1 per correct placement, resets on a wrong guess",
+      "description": "Bury X cards. X starts at 0, grows by 1 each correct placement, resets to 0 on a wrong guess",
       "suits": [
         "♣"
       ]
@@ -565,7 +565,7 @@
       "behavior": "pillarScout",
       "tier": "uncommon",
       "price": 2,
-      "description": "Peek at the next card if this column has no pillar",
+      "description": "Peek the next card if this column has no pillar",
       "suits": [
         "♠"
       ]
@@ -601,7 +601,7 @@
       "behavior": "suitSnob",
       "tier": "uncommon",
       "price": 4,
-      "description": "When a ♠ lands on this card, or this card lands on a ♠ → peek at the next deck card",
+      "description": "When a ♠ lands on this card, or this card lands on a ♠ → peek at the next card",
       "suits": [
         "♠"
       ]
@@ -638,7 +638,7 @@
       "behavior": "diamondSnob",
       "tier": "uncommon",
       "price": 6,
-      "description": "When a ♦ lands on this card, or this card lands on a ♦ → shuffle every alive pile",
+      "description": "When a ♦ lands on this card, or this card lands on a ♦ → shuffle every pile",
       "suits": [
         "♦"
       ]
@@ -676,7 +676,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 3,
-      "description": "+1 coin per other pile with a ♥ top card",
+      "description": "+1 coin per each pile with a ♥ top card",
       "suits": [
         "♥"
       ]
@@ -713,7 +713,7 @@
       "digCount": 1,
       "tier": "rare",
       "price": 8,
-      "description": "Bury 1 deck card under each pile with a ♣ top card",
+      "description": "Bury 1 card under each pile with a ♣ top card",
       "suits": [
         "♣"
       ]
@@ -767,7 +767,7 @@
       "behavior": "rechargeSameShield",
       "tier": "rare",
       "price": 8,
-      "description": "Bank a Same Charge (max 1)"
+      "description": "Charge the Same Shield"
     },
     {
       "id": "activateSamePower",
@@ -782,7 +782,7 @@
       "behavior": "activateSamePower",
       "tier": "rare",
       "price": 6,
-      "description": "Fire your equipped Same-Power"
+      "description": "Fire your Same-Power"
     },
     {
       "id": "leech",
@@ -808,7 +808,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 10,
-      "description": "Cursed. This card counts −1 toward its pile's size"
+      "description": "Cursed. This card counts −1 toward pile size"
     },
     {
       "id": "mute",
@@ -832,7 +832,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 8,
-      "description": "Cursed. When it lands, the card at the BOTTOM of its pile returns to the deck"
+      "description": "Cursed. When it lands, the card at the BOTTOM of the pile returns to the deck"
     },
     {
       "id": "spoiler",
@@ -844,7 +844,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 6,
-      "description": "Cursed. Bonus coins earned this deal reset to 0"
+      "description": "Cursed. Reset bonus coins earned this deal to 0"
     },
     {
       "id": "drainShield",
@@ -856,7 +856,7 @@
       "price": 0,
       "cursed": true,
       "curseWeight": 6,
-      "description": "Cursed. Your Same Charge drains"
+      "description": "Cursed. Drain the Same Shield"
     },
     {
       "id": "flatline",
@@ -871,7 +871,7 @@
       "curseExclude": [
         "duplicate"
       ],
-      "description": "Cursed. While this is a pile's top card, that pile counts as size 1"
+      "description": "Cursed. While this card is a pile's top card, that pile size is 1"
     },
     {
       "id": "magnet",
@@ -931,7 +931,7 @@
       "curseExclude": [
         "duplicate"
       ],
-      "description": "Cursed. The column's Base is spent for the deal"
+      "description": "Cursed. The column's Base is drained"
     },
     {
       "id": "malfunction",
@@ -947,7 +947,7 @@
       "curseExclude": [
         "duplicate"
       ],
-      "description": "Cursed. 10% chance a correct guess against this card kills the pile anyway"
+      "description": "Cursed. 10% chance this card kills the pile anyway, even if the guess is correct"
     },
     {
       "id": "saboteur",
@@ -993,7 +993,7 @@
       "effect": "columnTieSafe",
       "tier": "rare",
       "price": 10,
-      "description": "Every pile in this column survives a tie"
+      "description": "Any tie is safe in this column"
     },
     {
       "id": "lastLicks",
@@ -1036,7 +1036,7 @@
       "digCount": 1,
       "tier": "rare",
       "price": 10,
-      "description": "When a ♣ with no stickers lands correctly in this column → bury 1 deck card under that pile"
+      "description": "When a ♣ with no stickers lands in this column → bury 1 card under that pile"
     },
     {
       "id": "allHeartsCoin",
@@ -1092,7 +1092,7 @@
       "digCount": 1,
       "tier": "rare",
       "price": 10,
-      "description": "From the 4th consecutive correct guess in this column → bury 1 deck card per guess. Resets on a wrong guess or any guess in another column"
+      "description": "From the 4th consecutive correct guess in this column → bury 1 card per guess. Resets on a wrong guess or any guess in another column"
     },
     {
       "id": "fourthSeat",
@@ -1137,10 +1137,10 @@
       "icon": "🤑",
       "kind": "scoring",
       "effect": "greedy",
-      "value": 10,
-      "tier": "rare",
+      "value": 4,
+      "tier": "common",
       "price": 5,
-      "description": "At deal end → +10 coins if every pile in this column survived and no other pillar is on the board"
+      "description": "At deal end → +4 coins if this is the only equipped pillar"
     },
     {
       "id": "fibonacci",
@@ -1156,7 +1156,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 4,
-      "description": "When a Fibonacci-rank card (A/2/3/5/8) lands correctly into this column → +1 coin"
+      "description": "When a Fibonacci-rank card (A/2/3/5/8) lands correctly in this column → +1 coin"
     },
     {
       "id": "highestEven",
@@ -1188,7 +1188,7 @@
       "digCount": 1,
       "tier": "rare",
       "price": 10,
-      "description": "When a ♣ with 2+ stickers lands correctly in this column → bury 1 deck card under that pile"
+      "description": "When a ♣ with 2+ stickers lands correctly in this column → bury 1 card under that pile"
     },
     {
       "id": "revive",
@@ -1204,7 +1204,7 @@
       "trigger": 10,
       "tier": "rare",
       "price": 10,
-      "description": "When a pile in this column reaches 10 cards → revive one dead pile on the board"
+      "description": "When a pile in this column reaches 10 cards → revive one dead pile"
     },
     {
       "id": "bulkRate",
@@ -1220,7 +1220,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "The store's Purge price climbs 1 less per purchase"
+      "description": "The store's Purge price climbs by 1 instead of 2. No effect during deal"
     },
     {
       "id": "freebie",
@@ -1235,7 +1235,7 @@
       "effect": "freebie",
       "tier": "rare",
       "price": 9,
-      "description": "One random item in every store costs 0 coins"
+      "description": "One random item in every store costs 0 coins. No effect during deal"
     },
     {
       "id": "rareHunter",
@@ -1251,7 +1251,7 @@
       "value": 2,
       "tier": "rare",
       "price": 8,
-      "description": "Rare items appear in the store twice as often"
+      "description": "Rare items appear in the store twice as often. No effect during deal"
     },
     {
       "id": "twoWard",
@@ -1267,7 +1267,7 @@
       "chance": 0.3,
       "tier": "uncommon",
       "price": 5,
-      "description": "30% chance to turn away a Just a Two mystery outcome. He takes nothing"
+      "description": "30% chance to turn away a Just a Two mystery outcome. No effect during deal"
     },
     {
       "id": "flypaper",
@@ -1328,10 +1328,10 @@
       "icon": "🛟",
       "kind": "scoring",
       "effect": "insurance",
-      "value": 10,
+      "value": 5,
       "tier": "rare",
       "price": 4,
-      "description": "At deal end → +10 coins if only one pile is alive board-wide and it's in this column"
+      "description": "At deal end → +5 coins if only one pile is alive"
     },
     {
       "id": "ditto",
@@ -1388,7 +1388,7 @@
       "effect": "queensEye",
       "tier": "uncommon",
       "price": 4,
-      "description": "When a royal ♠ (J/Q/K) lands correctly in this column → peek at the next card"
+      "description": "When a royal ♠ (J/Q/K) lands in this column → peek at the next card"
     },
     {
       "id": "royalCourt",
@@ -1422,11 +1422,11 @@
       "icon": "🎲",
       "kind": "scoring",
       "effect": "gambler",
-      "value": 10,
+      "value": 3,
       "chance": 0.5,
       "tier": "uncommon",
       "price": 5,
-      "description": "At deal end → 50/50: +10 coins or nothing"
+      "description": "At deal end → 50/50: +3 coins or nothing"
     },
     {
       "id": "lastRites",
@@ -1441,7 +1441,7 @@
       "effect": "lastRites",
       "tier": "rare",
       "price": 10,
-      "description": "When a pile in this column dies → peek at the next card"
+      "description": "When a pile in this column dies → peek the next card"
     },
     {
       "id": "static",
@@ -1472,7 +1472,7 @@
       "effect": "wildAces",
       "tier": "rare",
       "price": 10,
-      "description": "Aces count as high or low when landing in this column"
+      "description": "Aces count as high or low in this column"
     },
     {
       "id": "diamondAnchor",
@@ -1502,7 +1502,7 @@
       "effect": "diamondDistribution",
       "tier": "uncommon",
       "price": 3,
-      "description": "When a ♦ lands in this column → redistribute all piles in this column to equal size"
+      "description": "When a ♦ lands in this column → make all piles in this column equal size"
     }
   ],
   "bases": [
@@ -1520,7 +1520,7 @@
       "peekCount": 2,
       "tier": "rare",
       "price": 8,
-      "description": "Kill a random ♠-topped pile in this column, then peek the next 2 cards"
+      "description": "Kill a random ♠-topped pile in this column, → peek the next 2 cards"
     },
     {
       "id": "spadePeek",
@@ -1535,7 +1535,7 @@
       "effect": "spadePeek",
       "tier": "uncommon",
       "price": 7,
-      "description": "Peek the next card. Only fires when EVERY pile in this column has a ♠ on top"
+      "description": "Peek the next card. Requires every pile in this column has a ♠ on top"
     },
     {
       "id": "shuffleColumn",
@@ -1560,7 +1560,7 @@
       "effect": "reviveBase",
       "tier": "uncommon",
       "price": 7,
-      "description": "Revive a random dead pile in this column with one fresh card (buried cards return to the deck)"
+      "description": "Revive a random dead pile in this column. Buried cards return to the deck"
     },
     {
       "id": "randomSticker",
@@ -1585,7 +1585,7 @@
       "effect": "evenOut",
       "tier": "common",
       "price": 5,
-      "description": "Redistribute all piles in this column to equal size"
+      "description": "Make all piles in this column equal size"
     },
     {
       "id": "setValue",
@@ -1594,7 +1594,7 @@
         "stat": "runsWon",
         "count": 2
       },
-      "label": "Cast",
+      "label": "Rank Setter",
       "icon": "🗿",
       "kind": "active",
       "effect": "setValue",
@@ -1632,7 +1632,7 @@
       "buryPerSticker": 2,
       "tier": "uncommon",
       "price": 6,
-      "description": "Choose a pile → bury 2 deck cards per sticker on its top card, then peel all those stickers"
+      "description": "Choose a pile → bury 2 cards per sticker on its top card, then peel all those stickers"
     },
     {
       "id": "refreshBases",
@@ -1647,7 +1647,7 @@
       "effect": "refreshBases",
       "tier": "rare",
       "price": 9,
-      "description": "Recharge your other two bases (never another Reactor)"
+      "description": "Recharge your other two bases"
     },
     {
       "id": "clubDig",
@@ -1664,7 +1664,7 @@
       "digCount": 1,
       "tier": "rare",
       "price": 8,
-      "description": "Bury 1 deck card under each ♣-topped pile in this column"
+      "description": "Bury 1 card under each ♣-topped pile in this column"
     },
     {
       "id": "demolish",
@@ -1723,7 +1723,7 @@
       "effect": "rechargeSameShield",
       "tier": "rare",
       "price": 10,
-      "description": "Bank a Same Charge (max 1)"
+      "description": "Charge the Same Shield"
     },
     {
       "id": "activateSame",
@@ -1738,7 +1738,7 @@
       "effect": "activateSamePower",
       "tier": "rare",
       "price": 10,
-      "description": "Fire your Same-Power on a random pile in this column"
+      "description": "Activate your Same-Power"
     },
     {
       "id": "lastResort",
@@ -1753,7 +1753,7 @@
       "effect": "lastResort",
       "tier": "rare",
       "price": 10,
-      "description": "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Last Resort and any base beside it are destroyed."
+      "description": "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Any Base nearby is destroyed"
     },
     {
       "id": "emptyPurse",
@@ -1783,7 +1783,7 @@
       "effect": "sameTell",
       "tier": "uncommon",
       "price": 5,
-      "description": "If the next card is the SAME rank as a top card in this column, the = mark appears on that card. No match, no word"
+      "description": "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card. No match, no word"
     },
     {
       "id": "lonePeek",
@@ -1798,7 +1798,7 @@
       "effect": "lonePeek",
       "tier": "rare",
       "price": 10,
-      "description": "Peek the next card. Only works while NO Same-Power is equipped"
+      "description": "Peek the next card. Only works while no Same-Power is equipped"
     },
     {
       "id": "clubOracle",
@@ -1813,7 +1813,7 @@
       "effect": "clubTell",
       "tier": "uncommon",
       "price": 8,
-      "description": "Put a tell marker on each club pile in this column for the next draw."
+      "description": "Put a tell marker on each ♣-topped pile in this column for the next draw. Tell marker shows if the next card is higher, lower, or same"
     },
     {
       "id": "ambushOut",
@@ -1828,7 +1828,7 @@
       "effect": "ambushWin",
       "tier": "rare",
       "price": 8,
-      "description": "Only usable in an ambush → clear the deal instantly"
+      "description": "Only usable in an ambush → clear the deal instantly. No effect during deal"
     }
   ],
   "samePowers": [
@@ -1845,7 +1845,7 @@
       "value": 1,
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Bury 1 card under every alive pile with a {suit} top card"
+      "description": "Bury 1 card under every pile with a {suit} top card"
     },
     {
       "id": "linkRevive",
@@ -1859,7 +1859,7 @@
       "effect": "linkRevive",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Revive the largest dead pile on the board"
+      "description": "Revive a dead pile"
     },
     {
       "id": "linkCoins",
@@ -1869,7 +1869,7 @@
       "value": 1,
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Gain 1 coin for each alive pile on the board"
+      "description": "Gain 1 coin for each alive pile"
     },
     {
       "id": "linkShuffle",
@@ -1883,7 +1883,7 @@
       "effect": "linkShuffle",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Shuffle every alive pile"
+      "description": "Shuffle every alive pile"
     },
     {
       "id": "samePeek",
@@ -1892,7 +1892,7 @@
       "effect": "samePeek",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Peek at the next upcoming card"
+      "description": "Peek the next card"
     },
     {
       "id": "linkTell",
@@ -1906,7 +1906,7 @@
       "effect": "linkTell",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a {color} top card"
+      "description": "For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a {color} top card"
     },
     {
       "id": "linkSticker",
@@ -1920,7 +1920,7 @@
       "effect": "linkSticker",
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Apply a random sticker to every top card in this column"
+      "description": "Apply a random sticker to every top card in this column"
     },
     {
       "id": "linkPurge",
@@ -1935,7 +1935,7 @@
       "chance": 0.25,
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: 25% chance to purge a random card from the rest of the deck"
+      "description": "25% chance to permanently purge a card from the deck"
     },
     {
       "id": "linkHeavy",
@@ -1951,7 +1951,7 @@
       "hubValue": 3,
       "tier": "rare",
       "price": 9,
-      "description": "Trigger: You make a correct Same\nEffect: Add +1 pile size to every alive pile, and another +3 to the pile you called Same on"
+      "description": "Add +1 pile size to every pile, and +3 to the pile you called Same on"
     }
   ],
   "packStickerOdds": [
@@ -2001,9 +2001,6 @@
       "giftCard": 5,
       "mammaLie": 4,
       "twoGame": 5
-    },
-    "twoGame": {
-      "pivot": 8
     },
     "coinRangeByStage": [
       [
@@ -2094,7 +2091,7 @@
       "cost": 2
     },
     "refund": {
-      "count": 2,
+      "count": 1,
       "minMult": 2,
       "maxMult": 3
     },
@@ -2148,7 +2145,7 @@
       "size": 5,
       "keep": 2,
       "price": 4,
-      "description": "Reveals 5 random cards. Keep 2 to swap into your deck before a deal, replacing a card of your choice."
+      "description": "Reveals 5 random cards. Keep 2 to swap into your deck"
     },
     {
       "id": "smallCardPack",
@@ -2159,7 +2156,7 @@
       "size": 3,
       "keep": 1,
       "price": 2,
-      "description": "Reveals 3 random cards. Keep 1 to swap into your deck before a deal, replacing a card of your choice."
+      "description": "Reveals 3 random cards. Keep 1 to swap into your deck"
     },
     {
       "id": "stickerPack",
@@ -2170,7 +2167,7 @@
       "size": 3,
       "keep": 1,
       "price": 3,
-      "description": "Reveals 3 random stickers. Keep 1 to add to a card."
+      "description": "Reveals 3 random stickers. Keep 1"
     },
     {
       "id": "largeStickerPack",
@@ -2186,7 +2183,7 @@
       "size": 5,
       "keep": 2,
       "price": 6,
-      "description": "Reveals 5 random stickers. Keep 2 for your inventory. The rest are discarded."
+      "description": "Reveals 5 random stickers. Keep 2"
     }
   ]
 }

@@ -93,20 +93,29 @@ export function run() {
 
   // (Same Spark was removed in the rebalance — its test is gone.)
 
-  // ---- Insurance: +20 if the board's sole survivor is in this column ----
+  // ---- Insurance: +value if only one pile is alive (board-wide, any column) ----
   {
+    const pay = PillarTypes.get("insurance").value;
     const e = game(["insurance", null, null]);
     const b = e.getBoard();
     for (let i = 1; i < b.size; i++) b.kill(i);   // leave only pile 0 (col 0) alive
     const pp = winPayout(e);
     const ins = pp.lines.find(l => l.label === "Insurance");
-    r.ok(ins && ins.amount === 10, "Insurance pays +10 when its column holds the only survivor");
-    // If the survivor is in another column, nothing.
+    r.ok(ins && ins.amount === pay, "Insurance pays +value when only one pile is alive");
+    // The survivor may be in ANY column — the check is board-wide (v6.65
+    // dropped the "and it's in this column" clause).
     const e2 = game(["insurance", null, null]);
     const b2 = e2.getBoard();
     for (let i = 0; i < b2.size; i++) if (i !== 5) b2.kill(i);   // sole survivor in col 1
     const pp2 = winPayout(e2);
-    r.ok(!pp2.lines.some(l => l.label === "Insurance"), "Insurance pays nothing when the survivor is elsewhere");
+    const ins2 = pp2.lines.find(l => l.label === "Insurance");
+    r.ok(ins2 && ins2.amount === pay, "Insurance pays even when the sole survivor is elsewhere");
+    // Two survivors → nothing.
+    const e3 = game(["insurance", null, null]);
+    const b3 = e3.getBoard();
+    for (let i = 2; i < b3.size; i++) b3.kill(i);   // two piles alive
+    const pp3 = winPayout(e3);
+    r.ok(!pp3.lines.some(l => l.label === "Insurance"), "Insurance pays nothing with 2+ piles alive");
   }
 
   // ---- Massive Diamond: every ♦ in the column counts +value toward pile size --
@@ -140,7 +149,7 @@ export function run() {
     r.ok(ex && ex.amount === 2, "Excavator pays +1 per buried card in the largest ♥-topped pile (2 × 1 = 2)");
   }
 
-  // ---- Gambler: 50/50 +10 or +0 (no suit requirement — the flip always runs) ----
+  // ---- Gambler: 50/50 +value or +0 (no suit requirement — the flip always runs) ----
   {
     const pay = ItemData.pillars.find(p => p.id === "gambler").value;
     let sawWin = false, sawLoss = false, alwaysLine = true;

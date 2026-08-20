@@ -37,8 +37,11 @@ export function run() {
     r.ok(ids.every(id => !!SamePowerTypes.get(id)), "the original six by id");
     r.ok(SamePowerTypes.all().every(t => t.description && t.icon && typeof t.price === "number" && t.tier),
       "every Same-Power has a description + icon + price + tier");
-    r.ok(SamePowerTypes.all().every(t => /Trigger:.*\n.*Effect:/s.test(t.description)),
-      "every Same-Power uses the Trigger/Effect description format");
+    // v6.65 help-text pass: Same-Power descriptions dropped the Trigger/Effect
+    // preamble — the trigger is always "you made a correct Same", so the text
+    // is the plain single-line effect now.
+    r.ok(SamePowerTypes.all().every(t => t.description && !/Trigger:/.test(t.description) && !t.description.includes("\n")),
+      "every Same-Power uses the plain single-line effect description");
     r.ok(SamePowerTypes.all().every(t => t.tier === "rare"), "every Same-Power is Rare");
     r.ok(SamePowerTypes.all().every(t => t.price > 0 && t.price <= 10), "every Same-Power price is in the 1–10 cap band");
   }

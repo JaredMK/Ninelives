@@ -165,6 +165,29 @@ final class MysteryCastOutcomeTests: XCTestCase {
         XCTAssertFalse(c2.consumeFreeRedeal(), "…exactly once")
     }
 
+    /// v6.64: her Cleanse strips the chosen card BARE — every sticker, not
+    /// one random one (the picker copy always said "strip the stickers").
+    func testStripAllStickersFromLeavesTheCardBare() {
+        let c = campaign()
+        guard let card = c.getRunDeck().first(where: { !$0.joker && !$0.blank }) else {
+            return XCTFail("setup: no plain card in the deck")
+        }
+        // Two distinct unrestricted, non-cursed stickers, so "all" > 1.
+        let open = data.stickerTypes.all().filter { !$0.cursed && ($0.suits ?? []).isEmpty }
+        guard open.count >= 2 else { return XCTFail("setup: need two unrestricted sticker types") }
+        XCTAssertTrue(c.applyStickerDirect(card.id, open[0].id), "setup: sticker one")
+        XCTAssertTrue(c.applyStickerDirect(card.id, open[1].id), "setup: sticker two")
+        XCTAssertEqual(c.getRunDeck().first { $0.id == card.id }?.stickers.count, 2,
+                       "setup: the card carries two stickers")
+        let removed = c.stripAllStickersFrom(card.id)
+        XCTAssertEqual(Set(removed), Set([open[0].id, open[1].id]),
+                       "EVERY sticker goes, and the removed ids are reported")
+        XCTAssertEqual(c.getRunDeck().first { $0.id == card.id }?.stickers.count, 0,
+                       "the chosen card comes back bare")
+        XCTAssertTrue(c.stripAllStickersFrom(card.id).isEmpty,
+                      "a bare card has nothing to strip")
+    }
+
     func testPriceModsSurviveASaveInBothStates() {
         let c = campaign()
         _ = c.applyMysteryEvent("priceDouble", nodeId: 7)
@@ -221,24 +244,58 @@ final class MysteryCastOutcomeTests: XCTestCase {
         let rank = o.amount ?? 0
         XCTAssertTrue((minRank...maxRank).contains(rank), "the hidden card is a real rank")
         XCTAssertEqual(o.cards.first?.currentRank, rank, "the phantom card matches the roll")
+        guard let suit = o.cards.first?.suit else { return XCTFail("no hidden card") }
+        // The hidden card is always one of the four standard suits — a ★
+        // Joker can never sit there, so every roll has a color.
+        guard let red = DeckManager.suits.first(where: { $0.symbol == suit })?.red else {
+            return XCTFail("the hidden card's suit has no color: \(suit)")
+        }
         XCTAssertTrue(c2.getSameCharge(), "the offer itself drains nothing")
-        // A CORRECT call wins nothing and keeps the shield…
-        let rightCall = rank > 8 ? "higher" : rank < 8 ? "lower" : "same"
+        // A CORRECT color call wins nothing and keeps the shield…
+        let rightCall = red ? "red" : "black"
         let deckBefore = c2.deckSize(), purse = c2.getCoins()
-        XCTAssertTrue(c2.resolveTwoGame(rank: rank, guess: rightCall))
+        XCTAssertTrue(c2.resolveTwoGame(suit: suit, guess: rightCall))
         XCTAssertTrue(c2.getSameCharge())
         XCTAssertEqual(c2.deckSize(), deckBefore, "you win NOTHING")
         XCTAssertEqual(c2.getCoins(), purse)
         // …and a wrong one drains it and takes nothing else.
-        let wrongCall = rightCall == "higher" ? "lower" : "higher"
-        XCTAssertFalse(c2.resolveTwoGame(rank: rank, guess: wrongCall))
+        let wrongCall = red ? "black" : "red"
+        XCTAssertFalse(c2.resolveTwoGame(suit: suit, guess: wrongCall))
         XCTAssertFalse(c2.getSameCharge())
         XCTAssertEqual(c2.deckSize(), deckBefore)
         XCTAssertEqual(c2.getCoins(), purse)
-        // Determinism: the same run+node hides the same card.
+        // Determinism: the same run+node hides the same card — suit AND rank.
         let c3 = campaign()
         c3.setSameCharge(true)
-        XCTAssertEqual(c3.applyMysteryEvent("twoGame", nodeId: 7)?.amount, rank)
+        let o3 = c3.applyMysteryEvent("twoGame", nodeId: 7)
+        XCTAssertEqual(o3?.amount, rank)
+        XCTAssertEqual(o3?.cards.first?.suit, suit)
+    }
+
+    /// v6.65: the call is RED-or-BLACK against the hidden card's COLOR
+    /// (♥♦ red, ♠♣ black) — the old higher/lower/same pivot is gone, and the
+    /// `mystery.twoGame` config block with it. Every suit, both calls: the
+    /// right color wins NOTHING and keeps the shield; the wrong one drains
+    /// it and takes nothing else.
+    func testTwoGameResolvesOnColorBothWays() {
+        // The pivot knob is dead — the config block must not come back.
+        XCTAssertNil(data.items.mystery.raw["twoGame"],
+                     "mystery.twoGame was retired with the pivot (v6.65)")
+        for s in DeckManager.suits {
+            for guess in ["red", "black"] {
+                let c = campaign()
+                c.setSameCharge(true)
+                c.addCoins(9)
+                let purse = c.getCoins(), size = c.deckSize()
+                let expectWin = guess == (s.red ? "red" : "black")
+                XCTAssertEqual(c.resolveTwoGame(suit: s.symbol, guess: guess), expectWin,
+                               "\(s.symbol) is \(s.red ? "red" : "black"); calling \(guess)")
+                XCTAssertEqual(c.getSameCharge(), expectWin,
+                               "a win keeps the Same shield, a loss drains it")
+                XCTAssertEqual(c.getCoins(), purse, "the game never moves coins")
+                XCTAssertEqual(c.deckSize(), size, "the game never moves cards")
+            }
+        }
     }
 
     // MARK: - The Old Joker's star-for-flags

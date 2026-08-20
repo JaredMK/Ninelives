@@ -79,7 +79,7 @@ extension CampaignState {
                 _ = removeDeckCard(victim.id)
                 var r = OldJoker.Result(
                     key: "cut", headline: "His pick",
-                    detail: "\(cardName(victim)) never existed.",
+                    detail: "\(cardName(victim)) purged.",
                     cardId: victim.id, good: false)
                 r.cards = [victim]   // snapshotted — the card no longer exists to look up
                 return r
@@ -100,7 +100,7 @@ extension CampaignState {
             jokerDebt = repay
             return OldJoker.Result(
                 key: "marker", headline: "Take it",
-                detail: "He'll want \(repay) back. Sometime.",
+                detail: "He'll want it back with interest. Sometime.",
                 coins: coinsGiven)
 
         // ── 7. THE BLIND SWAP ────────────────────────────────────────────────
@@ -157,7 +157,7 @@ extension CampaignState {
             return OldJoker.Result(
                 key: "collect", headline: "Settled",
                 detail: taken >= owed ? "He counts it twice and nods."
-                                      : "He takes what there is. Calls it even.",
+                                      : "You're short. He'll accept it this time. Debts are settled.",
                 coins: -taken, good: false)
 
         // ── 12. THE FREE SHOP ────────────────────────────────────────────────
@@ -168,7 +168,7 @@ extension CampaignState {
             freeShopPending = true
             return OldJoker.Result(
                 key: "freeShop", headline: "On the house",
-                detail: "\(holdingLabel(taken)) for a shop with no prices on it.",
+                detail: "All items in the next shop are free.",
                 lost: taken)
 
         // ── 13. THE PURGE RESET ──────────────────────────────────────────────
@@ -251,8 +251,9 @@ extension CampaignState {
             ownedIds.append(jid)
             var r = OldJoker.Result(
                 key: "jokerForPillars", headline: "A star for your flags",
-                detail: "\(taken) Pillar\(taken == 1 ? "" : "s") down; a ★ Joker joins your deck.",
+                detail: "\(taken) Pillar\(taken == 1 ? "" : "s") lost; a ★ Joker joins your deck.",
                 cardId: jid)
+            r.lostMany = pillars   // the GAVE side of the closing trade row
             r.cards = findById(jid).map { [$0] } ?? []   // the star, in the result container
             return r
 

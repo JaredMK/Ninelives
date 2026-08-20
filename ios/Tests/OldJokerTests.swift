@@ -416,19 +416,18 @@ final class OldJokerTests: XCTestCase {
         XCTAssertFalse(c.equippedHoldings().contains(target), "…and the item is gone")
     }
 
-    /// The built offer: at most `count` items (never the whole loadout), each
-    /// priced 2–3× what it cost.
-    func testRefundOffersTwoItemsAtTwoToThreeTimesTheirPrice() {
+    /// The built offer: exactly ONE item (v6.62 — he points at a single
+    /// thing, no longer a choice of two), priced minMult–maxMult × its cost.
+    func testRefundOffersOneItemAtTwoToThreeTimesItsPrice() {
         let c = campaign()
         equipEverything(c)
         let all = c.equippedHoldings().count
-        XCTAssertGreaterThan(all, 2, "setup: enough equipped to see the cap bite")
+        XCTAssertGreaterThan(all, 1, "setup: more equipped than he points at")
         var seen = false
         for node in 1...200 {
             guard case .refund(let options, let values)? = c.rollOldJoker(node) else { continue }
             seen = true
-            XCTAssertEqual(options.count, cfg.int("refund", "count", 2),
-                           "node \(node): he points at exactly `count` items")
+            XCTAssertEqual(options.count, 1, "node \(node): he points at exactly ONE item")
             XCTAssertEqual(options.count, values.count, "node \(node): one price per item")
             let lo = cfg.num("refund", "minMult", 2), hi = cfg.num("refund", "maxMult", 3)
             for (h, v) in zip(options, values) {
@@ -567,6 +566,25 @@ final class OldJokerTests: XCTestCase {
         XCTAssertGreaterThan(c.removalPrice() - afterOne,
                              GameData.shared.items.store.removal.priceStep - 0.01,
                              "the ladder climbs faster after the bargain")
+    }
+
+    /// v6.62: halving an ODD price rounds UP (9 → 5), so the offer never
+    /// quotes a number the charge then undercuts.
+    func testPurgeHalvingRoundsAnOddPriceUp() {
+        let c = campaign()
+        c.addCoins(200)
+        _ = c.buyRemoval(c.getRunDeck().first!.id)   // the ladder off its base
+        let before = Int(c.removalPrice())
+        XCTAssertEqual(before % 2, 1,
+                       "setup: the ladder must sit on an ODD rung here (base + step×1) — if a data retune changed the parity, this test needs a new setup")
+        guard before % 2 == 1 else { return }
+        let r = c.resolveOldJoker(.purgeReset(from: before, to: (before + 1) / 2, cost: 0),
+                                  choice: .accept, nodeId: 1)
+        XCTAssertNotNil(r)
+        XCTAssertEqual(Int(c.removalPrice()), (before + 1) / 2,
+                       "half of an odd price rounds UP: \(before) → \((before + 1) / 2), not \(before / 2)")
+        XCTAssertTrue(r?.detail.contains("\((before + 1) / 2)") ?? false,
+                      "the return line quotes the price actually charged")
     }
 
     // MARK: - 14. Eights

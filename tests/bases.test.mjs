@@ -37,7 +37,7 @@ export function run() {
     r.eq(BaseTypes.all().filter(b => b.suit).map(b => b.id).sort().join(","), "clubDig,tax", "exactly Club Dig + Heart Tax carry a suit");
     r.ok(!BaseTypes.get("demolish").target, "Demolish has no player target (v6.51: it destroys its OWN column's Pillar)");
     r.ok(!!BaseTypes.get("spadePeek") && !!BaseTypes.get("setSuit") && !!BaseTypes.get("heartDemolish"), "new bases Spade Peeker / Suit Setter / Heart Demolish registered");
-    r.eq(BaseTypes.get("setValue").price, ItemData.bases.find(x => x.id === "setValue").price, "Cast = its items.js price");
+    r.eq(BaseTypes.get("setValue").price, ItemData.bases.find(x => x.id === "setValue").price, "Rank Setter = its items.js price");
     r.eq(BaseTypes.get("demolish").price, ItemData.bases.find(x => x.id === "demolish").price, "Demolish = its items.js price");
     r.eq(BaseTypes.get("randomSticker").price, ItemData.bases.find(x => x.id === "randomSticker").price, "Wild Sticker = its items.js price");
     r.ok(BaseTypes.all().every(b => typeof b.price === "number" && b.description), "every Base has a price + description");
@@ -161,7 +161,7 @@ export function run() {
 
   // (Landslide was removed from the roster — its bury-all effect is gone.)
 
-  // --- effect: Cast (copy the bottom pile's RANK onto the column's tops) --
+  // --- effect: Rank Setter (copy the bottom pile's RANK onto the column's tops) --
   {
     const e = game(["setValue", null, null]);
     const b = e.getBoard();

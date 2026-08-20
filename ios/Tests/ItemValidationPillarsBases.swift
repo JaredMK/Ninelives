@@ -647,8 +647,7 @@ enum IVPillarsBases {
             e.computePillarPayout().lines.first { $0.id == def.id || $0.label == def.label }
         }
         switch def.effect {
-        case "columnAllAlive", "greedy":
-            let needsSole = def.effect == "greedy"
+        case "columnAllAlive":
             return [
                 IV.Scenario("trigger-columnSurvived", allowed: [],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
@@ -664,18 +663,38 @@ enum IVPillarsBases {
                                        cols: [2, 1], pillars: [def.id, nil]) },
                     fire: { _ in },
                     expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c): a death voids it") }),
-                needsSole
-                    ? IV.Scenario("mustNotFire-secondPillarVoids", allowed: [],
-                        build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
-                                           deckOrder: [IV.spec(50, 9)],
-                                           pillars: [def.id, "fibonacci", nil]) },
-                        fire: { _ in },
-                        expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c): not the sole pillar") })
-                    : IV.Scenario("mustNotFire-noPillar", allowed: [],
-                        build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
-                                           deckOrder: [IV.spec(50, 9)]) },
-                        fire: { _ in },
-                        expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c)") }),
+                IV.Scenario("mustNotFire-noPillar", allowed: [],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9)]) },
+                    fire: { _ in },
+                    expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c)") }),
+            ]
+        case "greedy":
+            // v6.65: sole-Pillar-only — the column-survival clause is gone, so
+            // a dead pile no longer voids it; a second Pillar still does.
+            return [
+                IV.Scenario("trigger-solePillar", allowed: [],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9)],
+                                       pillars: [def.id, nil, nil]) },
+                    fire: { _ in },
+                    expect: { e, _, c in
+                        XCTAssertEqual(payoutLine(e)?.amount, v, "\(c): +\(v) at the payout")
+                    }),
+                IV.Scenario("trigger-deadPileStillPays", allowed: [],
+                    build: { IV.engine(tops: [nil, IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9)],
+                                       cols: [2, 1], pillars: [def.id, nil]) },
+                    fire: { _ in },
+                    expect: { e, _, c in
+                        XCTAssertEqual(payoutLine(e)?.amount, v, "\(c): a death no longer voids it")
+                    }),
+                IV.Scenario("mustNotFire-secondPillarVoids", allowed: [],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9)],
+                                       pillars: [def.id, "fibonacci", nil]) },
+                    fire: { _ in },
+                    expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c): not the sole pillar") }),
             ]
         case "columnNoneAlive":
             return [
@@ -760,12 +779,15 @@ enum IVPillarsBases {
                                        pillars: [def.id, nil, nil]) },
                     fire: { _ in },
                     expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c)") }),
-                IV.Scenario("mustNotFire-survivorElsewhere", allowed: [],
+                IV.Scenario("trigger-survivorElsewhere", allowed: [],
                     build: { IV.engine(tops: [nil, IV.spec(2, 6), nil],
                                        deckOrder: [IV.spec(50, 9)],
                                        pillars: [def.id, nil, nil]) },
                     fire: { _ in },
-                    expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c)") }),
+                    expect: { e, _, c in
+                        // v6.65: board-wide — the sole survivor can be anywhere.
+                        XCTAssertEqual(payoutLine(e)?.amount, v, "\(c): the survivor's column no longer matters")
+                    }),
             ]
         case "gambler":
             return [

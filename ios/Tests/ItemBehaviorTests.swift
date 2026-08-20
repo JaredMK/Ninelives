@@ -416,6 +416,10 @@ final class ItemBehaviorTests: XCTestCase {
         else { XCTFail("need a greedy + another scoring pillar"); return }
         let solo = engine(pillars: [g.id, nil, nil])
         XCTAssertEqual(solo.pillarPayout().lines.filter { $0.label == g.label }.count, 1)
+        // v6.65: the column-survival clause is gone — a dead pile doesn't void it.
+        solo.board.kill(0)
+        XCTAssertEqual(solo.pillarPayout().lines.filter { $0.label == g.label }.count, 1,
+                       "a dead pile in Greedy's column no longer voids it")
         let shared = engine(pillars: [g.id, other.id, nil])
         XCTAssertTrue(shared.pillarPayout().lines.filter { $0.label == g.label }.isEmpty,
                       "a second Pillar anywhere voids Greedy")
@@ -742,14 +746,14 @@ final class ItemBehaviorTests: XCTestCase {
         let res = e.baseActivate(col: 0, targetIndex: nil)
         XCTAssertEqual(res?.peekCount, 1)
         XCTAssertEqual(res?.cards?.count, 1)
-        // Same Tell: the = mark only on a genuine rank match.
+        // Same Tell: the = mark only on a genuine rank match, board-wide (v6.62).
         let e2 = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
                             runConfig: RunConfig(cols: [3, 3, 3]))
         e2.start(seedOverride: 424242)
         e2.startRun(pillars: [nil, nil, nil], bases: ["sameTell", nil, nil], samePower: nil)
         guard let next = e2.deck.peek(1).first else { return XCTFail("empty deck") }
-        let colPiles = (0..<9).filter { e2.run.pileColumns?[$0] == 0 && e2.board.isActive($0) }
-        let hasMatch = colPiles.contains { e2.board.top($0)?.value == next.value && e2.board.top($0)?.joker == false }
+        let alivePiles = (0..<9).filter { e2.board.isActive($0) }
+        let hasMatch = alivePiles.contains { e2.board.top($0)?.value == next.value && e2.board.top($0)?.joker == false }
         let res2 = e2.baseActivate(col: 0, targetIndex: nil)
         if hasMatch {
             XCTAssertEqual(res2?.tellDirection, .same, "a match gets the = mark")

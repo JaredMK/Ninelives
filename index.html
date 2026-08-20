@@ -6994,7 +6994,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v6.57 · roll hit/miss feedback, saved-landing stickers, Gambler +10 unconditioned, pack suit indicators, Restock rename";
+const APP_VERSION = "v6.64 · ios: Beheaded Queen event copy/presentation sweep; Cleanse strips all stickers";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -13797,7 +13797,6 @@ const GameEngine = (() => {
         return a;
       };
       const aliveInCol = (c) => colIdxs(c).filter(i => board.isActive(i)).length;
-      const allAliveInCol = (c) => { const a = colIdxs(c); return a.length > 0 && a.every(i => board.isActive(i)); };
       const pillarsOnBoard = run.pillars.filter(Boolean).length;
       for (let col = 0; col < run.cols.length; col++) {
         const t = resolvePillarDef(col);
@@ -13836,11 +13835,11 @@ const GameEngine = (() => {
             lines.push({ label: t.label, detail: n + " ♥ top" + (n === 1 ? "" : "s"), amount: amt, col });
           }
         } else if (t.effect === "greedy") {
-          // +value only if this column fully survived AND it's the SOLE Pillar on
-          // the board (a second Pillar anywhere — even another Greedy — voids it).
-          if (pillarsOnBoard === 1 && allAliveInCol(col)) {
+          // +value if it's the SOLE Pillar on the board (a second Pillar
+          // anywhere — even another Greedy — voids it). No survival condition.
+          if (pillarsOnBoard === 1) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "sole Pillar, column survived", amount: t.value, col });
+            lines.push({ label: t.label, detail: "only Pillar on the board", amount: t.value, col });
           }
         } else if (t.effect === "highestHeart") {
           // Look ONLY at the single card currently on TOP of each ALIVE pile in
@@ -13862,10 +13861,10 @@ const GameEngine = (() => {
             lines.push({ label: t.label, detail: "highest ♥ = " + best, amount: best, col });
           }
         } else if (t.effect === "insurance") {
-          // +value if the WHOLE board has exactly one survivor and it's here.
-          if (board.aliveCount() === 1 && colIdxs(col).some(i => board.isActive(i))) {
+          // +value if the WHOLE board has exactly one surviving pile (any column).
+          if (board.aliveCount() === 1) {
             bonus += t.value;
-            lines.push({ label: t.label, detail: "sole survivor in this column", amount: t.value, col });
+            lines.push({ label: t.label, detail: "only one pile alive", amount: t.value, col });
           }
         } else if (t.effect === "excavator") {
           // +value per BURIED card in this column's LARGEST alive pile whose TOP is
@@ -20717,7 +20716,7 @@ const UIRenderer = (() => {
     const inSetup = engine && engine.canApplyStickers();
     const started = engine && engine.isRunStarted && engine.isRunStarted();
     const run = engine && engine.getRun ? engine.getRun() : null;
-    // Cast (setValue) is a hidden gamble — never reveal the rank it will set in
+    // Rank Setter (setValue) is a hidden gamble — never reveal the rank it will set in
     // advance. (Suit Tally's live suit is shown via itemDescription instead.)
     const roll = "";
     let charge = "";
@@ -23642,7 +23641,7 @@ const UIRenderer = (() => {
     if (coins) floatCoins(cell, coins, "base-float");   // shared coin float
   }
   /* A brief good-pulse across a column's alive piles — confirms an otherwise
-     subtle whole-column composition change (Cast / Upheaval / Ballast / Storm). */
+     subtle whole-column composition change (Rank Setter / Upheaval / Ballast / Storm). */
   function pulseBaseColumn(col) {
     for (const i of baseColumnPiles(col)) {
       const pe = pileEls[i];
@@ -23846,7 +23845,7 @@ const UIRenderer = (() => {
         // Spade Peeker reveals the next X upcoming cards — refresh the peek strip.
         if (payload.effect === "spadePeek") renderDeckReveal();
 
-        // Durable card modifications (Cast's value change, Sticker Storm / Wild
+        // Durable card modifications (Rank Setter's value change, Sticker Storm / Wild
         // Sticker's stickers) must last the REST OF THE RUN, not just this deal.
         // The engine only mutated the deal-level board card; write the SAME change
         // onto the PERSISTENT campaign card here so it survives every redeal. A
@@ -26843,7 +26842,7 @@ const UIRenderer = (() => {
        DESTROY   (red):    Kamikaze, Demolish
        COINS     (gold):   Suit Tally, Tax
        UTILITY   (purple): Upheaval, Phoenix, Wild Sticker, Sticker Storm, Ballast,
-                           Cast, Reactor, Replica
+                           Rank Setter, Reactor, Replica
        PEEK/reveal (blue): reserved — no base is primarily peek today. */
   const BASE_FAMILY = {
     clubDig: "dig",
@@ -29005,7 +29004,7 @@ const UIRenderer = (() => {
     el.storeOverlay.classList.remove("mdeck-pink", "mdeck-mamma", "mdeck-smith", "mdeck-lammy");
     el.storeOverlay.classList.add("mdeck-" + selectedDeck().id);
     selectedStickerSlot = null; selectedMixedSlot = null;
-    el.storeMsg.textContent = "Buy from the offer, refresh, then press Start Deal.";
+    el.storeMsg.textContent = "Buy from the offer, restock, then press Start Deal.";
     renderStore();
     el.storeOverlay.classList.remove("hidden");
     // The persistent top shell shows over the store too: refresh the histogram +
@@ -31305,7 +31304,7 @@ const UIRenderer = (() => {
       Sound.refresh();           // whoosh-ding on a store refresh
       selectedStickerSlot = null; selectedMixedSlot = null;
       el.storeMsg.textContent = "Restocked the offer.";
-      if (engine) engine.logAction("Store: refreshed the offer");
+      if (engine) engine.logAction("Store: restocked the offer");
       renderStore();
       refreshDebug();
     }
@@ -31637,6 +31636,18 @@ const UIRenderer = (() => {
         help += preview.length >= 2
           ? "\n\nWill balance the piles: " + preview.map(i => "#" + (i + 1)).join(", ")
           : "\n\nNeeds at least two alive piles to balance.";
+      }
+      if (base.effect === "setValue" || base.effect === "setSuit") {
+        // Live preview: how many tops in the column actually change, and to
+        // what — the count mirrors the engine's skip-if-already-matching rule.
+        const board = engine.getBoard();
+        const alive = baseColumnPiles(col);
+        const src = alive.length ? board.top(alive[alive.length - 1]) : null;
+        if (src) {
+          const isRank = base.effect === "setValue";
+          const n = alive.filter(i => { const t = board.top(i); return t && (isRank ? t.value !== src.value : t.suit !== src.suit); }).length;
+          help += "\n\nSet " + n + " card" + (n === 1 ? "" : "s") + " to " + (isRank ? src.label : src.suit);
+        }
       }
       showActionBar("Activate " + escHtml(base.label) + "?", [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },

@@ -1,5 +1,5 @@
 // Run-level persistence + live behaviors:
-//  #1 Cast (setValue) and Wild Sticker (randomSticker) record durable per-card
+//  #1 Rank Setter (setValue) and Wild Sticker (randomSticker) record durable per-card
 //     mods (cardId + change) that the UI writes onto the PERSISTENT campaign card
 //     — so they last the rest of the run.
 //  #5 Fibonacci pays live when a fib-rank card lands CORRECTLY in its column
@@ -18,27 +18,27 @@ export function run() {
   // still projects ★/0 (the durability these fixtures pin is a base-card rule).
   const dealCards = (camp) => camp.getCards().filter(c => !c.joker && !c.blank);
 
-  // --- #1 Cast: value change persists onto the campaign card -------------
-  // Cast copies the column's bottom pile RANK onto the other tops. Mimic the real
-  // flow: engine fires Cast → res.valueApplied → UI writes each change to the
+  // --- #1 Rank Setter: value change persists onto the campaign card -------------
+  // Rank Setter copies the column's bottom pile RANK onto the other tops. Mimic the real
+  // flow: engine fires Rank Setter → res.valueApplied → UI writes each change to the
   // persistent deck (campaign.randomizeCard) → re-materialize.
   {
     const camp = CampaignState.create();
     const e = GameEngine.create(dealCards(camp), 7, { cols: COLS });
     e.start();
-    e.startRun([null, null, null], ["setValue", null, null]);   // Cast on col 0
+    e.startRun([null, null, null], ["setValue", null, null]);   // Rank Setter on col 0
     const b = e.getBoard();
     b.top(0).value = 5; b.top(1).value = 9; b.top(2).value = 3;   // bottom pile (2) → source rank 3
     const res = e.baseActivate(0);
-    r.eq(res.sourceValue, 3, "Cast's source is the bottom pile's rank (3)");
-    r.eq(res.valueApplied.length, 2, "Cast recorded the 2 changed tops (bottom pile is the source, unchanged)");
+    r.eq(res.sourceValue, 3, "Rank Setter's source is the bottom pile's rank (3)");
+    r.eq(res.valueApplied.length, 2, "Rank Setter recorded the 2 changed tops (bottom pile is the source, unchanged)");
     r.ok(res.valueApplied.every(v => v.value === 3 && v.cardId != null), "each record carries cardId + the copied rank");
 
     for (const v of res.valueApplied) camp.randomizeCard(v.cardId, v.value);   // what the UI does
     for (const v of res.valueApplied) {
       const cc = camp.getCards().find(x => x.id === v.cardId);
-      r.eq(cc.currentRank, 3, "campaign card " + v.cardId + " holds the Cast rank");
-      r.eq(DeckManager.toCard(cc).value, 3, "a fresh deal materializes card " + v.cardId + " at the Cast rank");
+      r.eq(cc.currentRank, 3, "campaign card " + v.cardId + " holds the Rank Setter rank");
+      r.eq(DeckManager.toCard(cc).value, 3, "a fresh deal materializes card " + v.cardId + " at the Rank Setter rank");
     }
   }
 

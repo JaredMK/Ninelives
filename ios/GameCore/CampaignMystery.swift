@@ -66,8 +66,11 @@ extension CampaignState {
         func coinBonus() -> MysteryOutcome {
             let amount = coinAmount()
             _ = earnCoins(amount)
+            // No caption (v6.64): the reveal's coin well already shows the
+            // ◉ figure and the signed amount — a "+N coins" line under it
+            // only repeated the well.
             return MysteryOutcome(key: "coinBonus", title: "Cache",
-                                  desc: "+\(amount) coins", amount: amount)
+                                  desc: "", amount: amount)
         }
 
         DebugEventLog.shared.add("mystery: \(key) at node \(nodeId) (path \(cursePath))")
@@ -81,7 +84,10 @@ extension CampaignState {
             guard coins > 0 else { return coinBonus() }
             let amount = min(coins, coinAmount())   // floored at 0 — never negative
             coins -= amount
-            return MysteryOutcome(key: key, title: "Toll", desc: "−\(amount) coins", amount: amount)
+            // No caption (v6.65, the Cache's v6.64 shape): the reveal's coin
+            // well already shows the ◉ figure and the signed amount — a
+            // "−N coins" line under it only repeated the well.
+            return MysteryOutcome(key: key, title: "Toll", desc: "", amount: amount)
 
         case "stickerPack":
             // Only ever offer a sticker the player can actually PLACE. Rolling
@@ -94,8 +100,10 @@ extension CampaignState {
             let ids = StoreRoll.rollIds(pool, 1, rng, tierWeights: data.items.store.tierWeights)
             guard let sid = ids.first, let t = data.stickerTypes.get(sid) else { return coinBonus() }
             stickerInventory[sid, default: 0] += 1
+            // No prose caption (v6.64): the reveal prints the sticker's NAME
+            // over its registry description under the chip instead.
             return MysteryOutcome(key: key, title: "Imprint",
-                                  desc: "A \(t.label) sticker to place on a card",
+                                  desc: "",
                                   stickerId: sid, stickerLabel: t.label)
 
         case "cards":
@@ -114,10 +122,9 @@ extension CampaignState {
                 }
             }
             guard !granted.isEmpty else { return nil }
-            let desc = granted.count == 1
-                ? "\(cardName(granted[0])) joins your deck"
-                : "\(granted.count) cards join your deck"
-            return MysteryOutcome(key: key, title: "Windfall", desc: desc, cards: granted)
+            // No caption (v6.65): the granted cards are drawn in the well —
+            // the image is the news, "N cards join your deck" only repeated it.
+            return MysteryOutcome(key: key, title: "Windfall", desc: "", cards: granted)
 
         case "joker":
             // HELD-vs-CAP gate: at cap the roll deterministically folds to coins.
@@ -146,7 +153,7 @@ extension CampaignState {
                 c.stickers.contains { data.stickerTypes.get($0.type)?.cursed == true }
             }) else { return coinBonus() }
             return MysteryOutcome(key: key, title: "Cleanse",
-                                  desc: "Strip a sticker from a card")
+                                  desc: "Strip the stickers from a card")
 
         case "cursedSticker":
             // UNGATED by design: a curse is INFLICTED, never player-acquired.
@@ -161,22 +168,28 @@ extension CampaignState {
             let at = eligible[rng.index(eligible.count)]
             guard applyStickerToCard(&baseDeck[at], t.id, rng: rng) else { return nil }
             DebugEventLog.shared.add("curse: \(t.label) afflicts \(cardName(baseDeck[at])) (path \(cursePath))")
+            // No prose caption (v6.65): the reveal draws the afflicted card
+            // wearing ALL its stickers, and beneath it ONLY the curse's name
+            // + registry description print (PhaseOverlayView's per-curse
+            // captions) — "X afflicts your Y" was a third telling.
             return MysteryOutcome(key: key, title: "Cursed",
-                                  desc: "\(t.label) afflicts your \(cardName(baseDeck[at]))",
+                                  desc: "",
                                   stickerId: t.id, stickerLabel: t.label,
                                   cardId: baseDeck[at].id)
 
         case "ambush":
             let a = data.items.mystery.ambush
+            // v6.65: the terms only — the bounty figure is the deal's own
+            // reward line now, not the invitation's. Numbers stay config-read.
             return MysteryOutcome(key: key, title: "Ambush",
-                                  desc: "Survive a \(Int(a.cards))-card deal on \(Int(a.piles)) piles → +\(Int(a.bounty)) coins",
+                                  desc: "Survive a \(Int(a.cards)) card deal with \(Int(a.piles)) piles",
                                   ambushCards: Int(a.cards), ambushPiles: Int(a.piles), ambushBounty: a.bounty)
 
         // ── JUST A TWO's tricks ──────────────────────────────────────────────
 
         case "stickerTheft":
-            // A RANDOM stickered card is stripped BARE (unlike Cleanse, which
-            // strips one sticker from a card you pick). No target → a Toll.
+            // A RANDOM stickered card is stripped BARE (like her Cleanse, but
+            // he picks the card). No target → a Toll.
             let stickered = ownedIds.compactMap { id in
                 baseDeck.first { $0.id == id && !$0.stickers.isEmpty }
             }
@@ -206,14 +219,16 @@ extension CampaignState {
             let pick = slots[rng.index(slots.count)]
             if pick.kind == "pillar" { columnPillars[pick.col] = nil } else { columnBases[pick.col] = nil }
             let label = labelOf(kind: pick.kind == "pillar" ? .pillar : .base, id: pick.id)
+            // v6.65: "off column N" dropped — the taken item's art is in the
+            // well, and the column it leaves empty is plain to see.
             return MysteryOutcome(key: key, title: "Repossessed",
-                                  desc: "\(label) is taken off column \(pick.col + 1)",
+                                  desc: "\(label) is taken",
                                   itemKind: pick.kind, itemId: pick.id)
 
         case "priceDouble":
             storePriceModPending = "double"
             return MysteryOutcome(key: key, title: "Markup",
-                                  desc: "At the next shop every item costs DOUBLE")
+                                  desc: "At the next shop every item costs double")
 
         case "shieldDrain":
             // Only lands on a CHARGED shield; empty → a Toll.
@@ -232,27 +247,28 @@ extension CampaignState {
         case "freeRefresh":
             freeRerollPending = true
             return MysteryOutcome(key: key, title: "Restock",
-                                  desc: "The next shop's first restock costs nothing")
+                                  desc: "Your next deal's first restock is free")
 
         case "freeRedeal":
             freeRedealPending = true
             return MysteryOutcome(key: key, title: "Mulligan",
-                                  desc: "Your next deal's first RESHUFFLE costs nothing")
+                                  desc: "Your next deal's first reshuffle is free")
 
         case "shieldCharge":
             // Only fills an EMPTY shield; already charged → a Cache.
             guard !sameCharge else { return applyMysteryEvent("coinBonus", nodeId: nodeId) }
             sameCharge = true
             return MysteryOutcome(key: key, title: "Charged",
-                                  desc: "Your Same shield is charged, on her")
+                                  desc: "Your Same shield is charged")
 
         case "coinDouble":
             // Doubling an empty purse is nothing — fold to a Cache.
             guard coins > 0 else { return applyMysteryEvent("coinBonus", nodeId: nodeId) }
             let gained = coins
             _ = earnCoins(gained)
+            // No caption (v6.64): the coin well's signed figure says it.
             return MysteryOutcome(key: key, title: "Doubled",
-                                  desc: "+\(gained) coins. Your purse, matched.", amount: gained)
+                                  desc: "", amount: gained)
 
         case "mammaLie":
             // THE CON. Nothing is taken HERE — the UI presents the offer and
@@ -266,17 +282,21 @@ extension CampaignState {
                                   amount: coins)
 
         case "twoGame":
-            // THE TWO'S GAME. It only plays when there is something on the
-            // table: a CHARGED Same shield. No shield → a Toll. The hidden
-            // card rolls HERE (seeded, like every mystery detail); the UI
-            // presents the call and `resolveTwoGame` settles it. The card is
-            // a phantom for the reveal — it never joins the deck.
+            // THE TWO'S GAME (v6.65: a RED-or-BLACK call on the hidden card's
+            // COLOR — the higher/lower/same pivot call is gone). It only plays
+            // when there is something on the table: a CHARGED Same shield. No
+            // shield → a Toll. The hidden card rolls HERE (seeded, like every
+            // mystery detail); the UI presents the call and `resolveTwoGame`
+            // settles it. The card is a phantom for the reveal — it never
+            // joins the deck. The suit draw is one of the four standard suits
+            // (`DeckManager.suits`), so a ★ Joker can never be the hidden
+            // card: every roll has a color.
             guard sameCharge else { return applyMysteryEvent("coinLoss", nodeId: nodeId) }
             let suit = allSuits[rng.index(allSuits.count)]
             let rank = minRank + rng.index(maxRank - minRank + 1)
             let card = CardSpec(id: -1, suit: suit, originalRank: rank, currentRank: rank)
             return MysteryOutcome(key: key, title: "The Two's Game",
-                                  desc: "One call against its hidden card",
+                                  desc: "",
                                   amount: rank, cards: [card])
 
         case "giftCard":
@@ -299,7 +319,7 @@ extension CampaignState {
             packTray.append(card)
             baseDeck.append(card)
             return MysteryOutcome(key: key, title: "Keepsake",
-                                  desc: "\(cardName(card)). Swap it in for a card of your choice.",
+                                  desc: "Swap it in for a card of your choice",
                                   cards: [card], cardId: card.id)
 
         default:
@@ -322,14 +342,14 @@ extension CampaignState {
         }
     }
 
-    /// THE TWO'S GAME, settled. `guess` is "higher" / "lower" / "same",
-    /// called against `mystery.twoGame.pivot`. A win changes NOTHING — that
-    /// is the whole joke — and a loss drains the Same shield.
-    public func resolveTwoGame(rank: Int, guess: String) -> Bool {
-        let pivot = Int(data.items.mystery.raw["twoGame"]?.asObject?["pivot"]?.asNumber ?? 8)
-        let won = rank > pivot ? guess == "higher"
-                : rank < pivot ? guess == "lower"
-                : guess == "same"
+    /// THE TWO'S GAME, settled (v6.65): `guess` is "red" / "black", called
+    /// against the hidden card's COLOR (♥♦ red, ♠♣ black — `DeckManager.suits`
+    /// carries each suit's color). Pure string matching: no rng is consumed
+    /// here, so the seeded card roll alone decides everything. A win changes
+    /// NOTHING — that is the whole joke — and a loss drains the Same shield.
+    public func resolveTwoGame(suit: String, guess: String) -> Bool {
+        let red = DeckManager.suits.first { $0.symbol == suit }?.red ?? false
+        let won = guess == (red ? "red" : "black")
         if !won { sameCharge = false }
         return won
     }

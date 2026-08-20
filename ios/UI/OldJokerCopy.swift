@@ -34,7 +34,7 @@ enum OldJokerCopy {
         case .insurance:
             return "That shield of yours is empty. Empty things break first."
         case .refund:
-            return "Sell it back. No shame in it. The deck remembers, you know."
+            return "Sell it back. No shame in it."
         case .collect:
             return "There you are. I did say I'd see you again."
         case .freeShop:
@@ -50,7 +50,7 @@ enum OldJokerCopy {
                 ? "You bought me a drink. I don't forget either kind of thing."
                 : "You had coins. I watched you keep them."
         case .duplicate:
-            return "Anything worth having is worth having twice. There's a cost to the second one."
+            return "Anything worth having is worth having twice."
         case .jokerForPillars:
             return "All them flags you're flying. Give me the lot and I'll deal you a star."
         }
@@ -97,7 +97,7 @@ enum OldJokerCopy {
         case .purge(let removeCount, let curses):
             // He never says WHICH curses — only how many. The reveal after
             // the picker names them.
-            return "Purge \(removeCount) cards of your choosing, but \(curses.count) others take a curse."
+            return "Choose \(removeCount) cards to purge, but \(curses.count) other cards are cursed"
         case .ride(_, _, let cost):
             return "\(cost) coins for the lift. Ride to the next shop."
         case .cut(let chooseCost):
@@ -110,24 +110,26 @@ enum OldJokerCopy {
             _ = repay
             return "\(coins) coins now. He may come looking for it later, with interest."
         case .blindSwap(let from, _):
-            return "One of your common items for something rarer. Neither is shown until it's done. He's looking at \(c.label(from))."
+            return "One of your common items for something rarer. Neither is shown until it's done. He wants \(c.label(from))."
         case .twoDoors:
             // No detail line (v6.52): his own opening line says everything the
             // player is allowed to know about the doors.
             return ""
         case .insurance(let cost):
-            return "\(cost) coins and your Same shield is charged."
+            return "Pay \(cost) coins to charge your Same Shield"
         case .refund:
-            // Every item's OWN price is on its button; quoting a range and the
-            // word "rarity" made the player do arithmetic to find it.
-            return "He's pointing at two of your things, and he pays well over what you did. Sell him one, or neither."
+            // ONE item now (v6.62); its own price is on its button.
+            return "He's pointing at your things"
         case .collect(let owed):
-            return "The marker is due: \(owed) coins. He takes what's there if it's short."
+            return "The marker is due: \(owed) coins."
         case .freeShop(let taken, _):
-            return "Give him \(c.label(taken)). The next shop's whole shelf costs nothing."
-        case .purgeReset(let from, let to, let cost):
-            let fee = cost > 0 ? "\(cost) coins and t" : "T"
-            return "\(fee)he Purge slot halves, \(from) down to \(to). Every Purge after this one climbs faster."
+            return "Give him \(c.label(taken)). All items in the next shop are free."
+        case .purgeReset(let from, let to, _):
+            // The step figures are LIVE: base ladder step + resets already
+            // taken, then the same plus this bargain's stepIncrease.
+            let stepNow = Int(GameData.shared.items.store.removal.priceStep) + c.purgeStepBonus
+            let stepAfter = stepNow + GameData.shared.items.oldJoker.int("purgeReset", "stepIncrease", 1)
+            return "The cost to purge a card in the shop is cut in half, \(from) down to \(to). But purge cost increases by \(stepAfter)+ each time after instead of \(stepNow)."
         case .eights(let from, let to, let affected):
             let names = from.sorted(by: >).map { rankWord($0) }.joined(separator: " and ")
             return "Every \(names) in your deck becomes a \(to). \(affected) card\(affected == 1 ? "" : "s") in all."
@@ -143,8 +145,8 @@ enum OldJokerCopy {
         case .duplicate:
             // WHICH curse stays hidden until the copy is placed (v6.52).
             return "Copy any card, stickers and all, to swap into your deck. The copy will contain a curse though."
-        case .jokerForPillars(let pillars):
-            return "Every equipped Pillar comes down, all \(pillars.count), and a ★ Joker joins your deck."
+        case .jokerForPillars:
+            return "Lose your pillars and gain a Joker"
         }
     }
 
@@ -189,7 +191,7 @@ enum OldJokerCopy {
             // whole bargain up front — they show only when they land on cards.
             break
         case .blindSwap(let from, _):
-            add(from)   // the item he is LOOKING at; what he'd give stays hidden
+            add(from)   // the item he WANTS; what he'd give stays hidden
         case .refund(let options, _):
             for h in options { add(h) }
         case .freeShop(let taken, _):
@@ -207,7 +209,7 @@ enum OldJokerCopy {
 
     /// THE TRADE, DRAWN — the standard for every item decision he offers:
     /// the store's EQUIPPED→NEW comparison, one row per thing that would
-    /// leave. What you have on the left, what you'd get on the right, and
+    /// leave. What you GIVE on the left, what you GET on the right, and
     /// the buttons below are the confirm/walk-away.
     ///
     /// Offers with rows here get NO itemKey — the rows carry the same
@@ -226,57 +228,57 @@ enum OldJokerCopy {
         }
         func coinSide(_ amount: Int) -> OldJokerView.CompareSide {
             if let coin = ArtBundle.image("pxi-coin") {
-                return .init(tag: "HE PAYS", art: coin,
-                             name: "+\(amount) coins", desc: "into your purse")
+                return .init(tag: "GET", art: coin,
+                             name: "+\(amount) coins", desc: "")
             }
-            return .init(tag: "HE PAYS", glyph: "◉",
-                         name: "+\(amount) coins", desc: "into your purse")
+            return .init(tag: "GET", glyph: "◉",
+                         name: "+\(amount) coins", desc: "")
         }
         switch offer {
         case .swap(let taken, let given):
-            return [.init(old: itemSide(taken, tag: "YOURS"),
-                          new: itemSide(kind: taken.kind, id: given, tag: "HIS"))]
+            return [.init(old: itemSide(taken, tag: "GIVE"),
+                          new: itemSide(kind: taken.kind, id: given, tag: "GET"))]
         case .blindSwap(let from, _):
             // The hidden side stays hidden — a face-down "?" is the offer.
-            return [.init(old: itemSide(from, tag: "YOURS"),
-                          new: .init(tag: "HIS", glyph: "?",
+            return [.init(old: itemSide(from, tag: "GIVE"),
+                          new: .init(tag: "GET", glyph: "?",
                                      name: "Something rarer",
                                      desc: ""))]
         case .buyout(let cheap, let cheapCoins, let rich, let richCoins):
-            var rows = [OldJokerView.CompareRow(old: itemSide(rich, tag: "YOURS"),
+            var rows = [OldJokerView.CompareRow(old: itemSide(rich, tag: "GIVE"),
                                                 new: coinSide(richCoins))]
             if cheap != rich {
-                rows.append(.init(old: itemSide(cheap, tag: "YOURS"),
+                rows.append(.init(old: itemSide(cheap, tag: "GIVE"),
                                   new: coinSide(cheapCoins)))
             }
             return rows
         case .refund(let options, let values):
             return options.enumerated().map { i, h in
-                .init(old: itemSide(h, tag: "YOURS"),
+                .init(old: itemSide(h, tag: "GIVE"),
                       new: coinSide(values[safe: i] ?? 0))
             }
         case .freeShop(let taken, _):
-            return [.init(old: itemSide(taken, tag: "YOURS"),
-                          new: .init(tag: "ON HIM", art: MapArt.shopStall(),
-                                     name: "The next shop, comped",
-                                     desc: "The whole shelf costs nothing."))]
+            return [.init(old: itemSide(taken, tag: "GIVE"),
+                          new: .init(tag: "GET", art: MapArt.shopStall(),
+                                     name: "Free shop",
+                                     desc: "All items in the next shop are free."))]
         case .jokerForPillars(let pillars):
             // ONE row for the whole trade: every Pillar named on the left,
             // the star on the right — N rows would read as N Jokers.
             let names = pillars.map { c.label($0) }.joined(separator: " + ")
             guard let first = pillars.first else { return [] }
             let firstDef = c.holdingDef(first)
-            return [.init(old: .init(tag: "YOURS",
+            return [.init(old: .init(tag: "GIVE",
                                      art: ItemArt.forSlot(kind: "pillar", id: first.id,
                                                           card: nil, deckId: c.deckId),
                                      name: pillars.count == 1 ? (firstDef?.label ?? first.id)
                                                               : "All \(pillars.count) Pillars",
                                      desc: names),
-                          new: .init(tag: "HIS",
+                          new: .init(tag: "GET",
                                      art: CardArt.image(CardArt.Face(label: "★", suit: "★", kind: .joker),
                                                         scale: .half),
                                      name: "★ Joker",
-                                     desc: "Always a correct call, whichever way you guess."))]
+                                     desc: "Always a correct call"))]
         default:
             return []   // cards, coins and routes — nothing equipped changes hands
         }
@@ -314,10 +316,10 @@ enum OldJokerCopy {
             out.append(.init(label: "PICK IT YOURSELF", detail: "\(cost) coins",
                              role: c.coins >= cost ? .gold : .plain, choice: .payToChoose))
         case .marker(let coins, _):
-            out.append(.init(label: "TAKE THE MARKER", detail: "+\(coins) now · owed later",
+            out.append(.init(label: "TAKE THE MARKER", detail: "+\(coins) coins now",
                              role: .gold, choice: .accept))
         case .blindSwap:
-            out.append(.init(label: "DON'T LOOK", detail: nil, role: .cta, choice: .accept))
+            out.append(.init(label: "ACCEPT", detail: nil, role: .cta, choice: .accept))
         case .twoDoors:
             out.append(.init(label: "LEFT DOOR", detail: nil, role: .plain, choice: .left))
             out.append(.init(label: "RIGHT DOOR", detail: nil, role: .plain, choice: .right))
@@ -334,8 +336,8 @@ enum OldJokerCopy {
             // No decline: this is a collection, not a conversation.
             out.append(.init(label: "PAY UP", detail: nil, role: .danger, choice: .accept))
             return out
-        case .freeShop(let taken, let price):
-            out.append(.init(label: "HAND IT OVER", detail: "\(c.label(taken)) · worth \(price)",
+        case .freeShop(let taken, _):
+            out.append(.init(label: "HAND IT OVER", detail: "Give \(c.label(taken))",
                              role: .cta, choice: .accept))
         case .purgeReset(let from, let to, let cost):
             out.append(.init(label: cost > 0 ? "HALVE IT · \(cost)" : "HALVE IT",
@@ -361,9 +363,9 @@ enum OldJokerCopy {
             // No sub-line (v6.52): the offer text already warns about the curse.
             out.append(.init(label: "COPY A CARD", detail: nil,
                              role: .cta, choice: .accept))
-        case .jokerForPillars(let pillars):
-            out.append(.init(label: "TAKE THE STAR",
-                             detail: "\(pillars.count) Pillar\(pillars.count == 1 ? "" : "s") come\(pillars.count == 1 ? "s" : "") down",
+        case .jokerForPillars:
+            out.append(.init(label: "TAKE THE JOKER",
+                             detail: "Lose your pillars",
                              role: .cta, choice: .accept))
         }
         out.append(.init(label: "WALK AWAY", detail: nil, role: .plain, choice: .decline))

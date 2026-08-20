@@ -1142,6 +1142,10 @@ public final class PhaseOverlayView: UIView {
                         presenter: MysteryCast.Presenter? = nil,
                         deckId: String = "pink",
                         mapPeek: Bool = false,
+                        /// The Old Joker's purge reveal (v6.62): one caption row
+                        /// per AFFLICTED CARD ("7♦ · Leech · …") instead of one
+                        /// per unique curse.
+                        curseRowsPerCard: Bool = false,
                         onPeekChanged: ((Bool) -> Void)? = nil,
                         onDeck: (() -> Void)? = nil,
                         onContinue: @escaping () -> Void) -> PhaseOverlayView {
@@ -1212,14 +1216,9 @@ public final class PhaseOverlayView: UIView {
             // the text. Static content sized up front — the panel never moves.
             if case .cursed(let pairs) = well {
                 v.wireCurseCells(in: art)
-                var seen = Set<String>()
-                for def in pairs.flatMap({ $0.curses }) where seen.insert(def.id).inserted {
-                    let cap = NSMutableAttributedString()
-                    cap.append(CRTKit.attributed(def.label.uppercased() + " — ",
-                                                 size: 14, color: CRT.suitRed, display: true))
-                    cap.append(CRTKit.attributed(
-                        def.description.replacingOccurrences(of: "Cursed. ", with: ""),
-                        size: 14, color: CRT.cardFace))
+                // One caption builder, two groupings: per unique curse (the
+                // Two's reveal) or per afflicted card (the Joker's purge).
+                func addCaption(_ cap: NSAttributedString) {
                     let label = UILabel()
                     label.attributedText = cap
                     label.textAlignment = .center
@@ -1231,13 +1230,58 @@ public final class PhaseOverlayView: UIView {
                     panel.addSubview(label)
                     py += capH + 4
                 }
+                if curseRowsPerCard {
+                    for pair in pairs {
+                        for def in pair.curses {
+                            let cap = NSMutableAttributedString()
+                            cap.append(CRTKit.attributed(CurseCardCell.cardName(pair.card) + " · ",
+                                                         size: 14, color: CRT.gold, display: true))
+                            cap.append(CRTKit.attributed(def.label + " · ",
+                                                         size: 14, color: CRT.suitRed, display: true))
+                            cap.append(CRTKit.attributed(
+                                def.description.replacingOccurrences(of: "Cursed. ", with: ""),
+                                size: 14, color: CRT.cardFace))
+                            addCaption(cap)
+                        }
+                    }
+                } else {
+                    var seen = Set<String>()
+                    for def in pairs.flatMap({ $0.curses }) where seen.insert(def.id).inserted {
+                        let cap = NSMutableAttributedString()
+                        cap.append(CRTKit.attributed(def.label.uppercased() + " — ",
+                                                     size: 14, color: CRT.suitRed, display: true))
+                        cap.append(CRTKit.attributed(
+                            def.description.replacingOccurrences(of: "Cursed. ", with: ""),
+                            size: 14, color: CRT.cardFace))
+                        addCaption(cap)
+                    }
+                }
                 py += 8
             }
         }
 
         // 16pt, brighter (router batch): "Leech torn off your 7♥" was the
-        // smallest line on the panel while being the entire news.
-        let sub = CRTKit.label(outcome.desc, size: 16, color: CRT.cardFace.withAlphaComponent(0.9))
+        // smallest line on the panel while being the entire news. Skipped
+        // when the outcome has nothing to add (the coin reveals — the well's
+        // signed figure already says it, v6.64).
+        // THE QUEEN'S IMPRINT (v6.64): under the granted sticker's chip the
+        // caption is its NAME (display type) over its registry description —
+        // never a hand-written "A X sticker to place on a card".
+        let subText: NSAttributedString?
+        if outcome.key == "stickerPack", let sid = outcome.stickerId,
+           let def = GameData.shared.stickerTypes.get(sid) {
+            let t = NSMutableAttributedString()
+            t.append(CRTKit.attributed(def.label, size: 16, color: CRT.cardFace, display: true))
+            t.append(CRTKit.attributed("\n\(def.description)", size: 14,
+                                       color: CRT.cardFace.withAlphaComponent(0.9)))
+            subText = t
+        } else {
+            subText = outcome.desc.isEmpty ? nil
+                : CRTKit.attributed(outcome.desc, size: 16, color: CRT.cardFace.withAlphaComponent(0.9))
+        }
+        if let subText {
+        let sub = UILabel()
+        sub.attributedText = subText
         sub.textAlignment = .center
         sub.numberOfLines = 0
         sub.lineBreakMode = .byWordWrapping
@@ -1248,6 +1292,7 @@ public final class PhaseOverlayView: UIView {
         sub.frame = CGRect(x: 18, y: py, width: panelW - 36, height: subH)
         panel.addSubview(sub)
         py += subH + 14
+        }
 
         let go = PixelButtonView("CONTINUE", role: .cta, fontSize: 16)
         go.playsClick = false         // it owns the louder CTA confirm instead
@@ -1321,13 +1366,15 @@ enum OutcomeWell {
     /// beside it, so what left is seen and not just named.
     case cards([CardSpec], torn: [ItemDef])
     /// The cards that LEFT the deck (the Old Joker's cut/purge results) —
-    /// drawn TORN, never intact (v6.56): a card that "never existed" can't
-    /// keep posing for its portrait. The art is the v6.53 blank-pickup
-    /// treatment (`ItemArt.removal`, the torn Purge card).
+    /// drawn TORN, never intact (v6.56): a purged card can't keep posing for
+    /// its portrait. The art is the v6.53 blank-pickup treatment
+    /// (`ItemArt.removal`, the torn Purge card).
     case purged([CardSpec])
-    /// Cursed cards (v6.55): each afflicted card drawn WITH its curse chip(s)
-    /// riding the top-right corner exactly as on the board. Cells answer tap
-    /// AND hold with the curse's registry help (wired by the mystery reveal).
+    /// Cursed cards (v6.55): each afflicted card drawn with ALL its sticker
+    /// chips riding the top-right corner exactly as on the board (v6.65 —
+    /// the new curse no longer hides the card's paid stickers). Cells answer
+    /// tap AND hold with the curse's registry help (wired by the mystery
+    /// reveal). `curses` is the AFFLICTING set only: it drives the captions.
     case cursed([(card: CardSpec, curses: [ItemDef])])
     /// One sticker chip (granted or inflicted).
     case sticker(ItemDef)
@@ -1346,11 +1393,11 @@ enum OutcomeWell {
         if outcome.key == "ambush" {
             return .ambush(piles: outcome.ambushPiles ?? 4, deckId: deckId)
         }
-        // A curse application shows the afflicted CARDS, each wearing its new
-        // chip (v6.55) — the chip alone ("a Leech exists somewhere") never
-        // landed which card was marked. The Just a Two outcome arrives with
-        // the card resolved by the caller; the Old Joker's "His marks" reveal
-        // already carries every marked card.
+        // A curse application shows the afflicted CARDS, each wearing all its
+        // sticker chips (v6.55/v6.65) — the chip alone ("a Leech exists
+        // somewhere") never landed which card was marked. The Just a Two
+        // outcome arrives with the card resolved by the caller; the Old
+        // Joker's "His marks" reveal already carries every marked card.
         if outcome.key == "cursedSticker", !outcome.cards.isEmpty {
             let pairs: [(card: CardSpec, curses: [ItemDef])] = outcome.cards.compactMap { c in
                 let curses = c.stickers
@@ -1498,10 +1545,13 @@ enum OutcomeWell {
 }
 
 /// One afflicted card in the curse reveal's well (v6.55): the card face with
-/// its curse chip(s) riding the top-right corner — the board's badge idiom
-/// (fanning leftward, −11° + idx·8° lean), same as the deal screen and the
-/// deck inspector. Tap OR hold answers with the curse's registry help; the
-/// owning PhaseOverlayView drives the help panel via the two closures.
+/// EVERY sticker it wears riding the top-right corner — the board's badge
+/// idiom (fanning leftward, −11° + idx·8° lean), same as the deal screen and
+/// the deck inspector. (v6.65: the cell used to draw only the new curse, so a
+/// card carrying paid stickers showed up oddly bare; curses render their own
+/// corruption art via `ItemArt.sticker`, plain stickers their normal chips.)
+/// `curses` still drives the captions and the help panel. Cells answer tap
+/// AND hold with the curse's registry help (wired by the mystery reveal).
 private final class CurseCardCell: UIView {
     let card: CardSpec
     let curses: [ItemDef]
@@ -1519,7 +1569,8 @@ private final class CurseCardCell: UIView {
         iv.frame = cardFrame
         addSubview(iv)
         let stk: CGFloat = 30
-        for (s, def) in curses.prefix(GameData.shared.items.maxStickersPerCard).enumerated() {
+        let worn = card.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
+        for (s, def) in worn.prefix(GameData.shared.items.maxStickersPerCard).enumerated() {
             let chip = UIImageView(image: ItemArt.sticker(def, size: stk))
             chip.contentMode = .scaleAspectFit
             chip.layer.magnificationFilter = .nearest

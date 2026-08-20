@@ -55,7 +55,7 @@ enum MysteryCast {
         case "freeRefresh":
             return "Make them set the shelf again. Tell them the Queen is paying."
         case "freeRedeal":
-            return "Take the hand back once, on me. Everyone deserves a second dealing."
+            return "Take the hand back once, on me."
         case "shieldCharge":
             return "A shield. I'd have kept mine up, if I'd known which day to."
         case "coinDouble":
@@ -83,15 +83,22 @@ enum MysteryCast {
         case "itemTheft":
             return "You'll do without. Twos always do."
         case "priceDouble":
-            return "I had a word with the shop. For once the prices aren't MY problem."
+            return "I had a word with the shop. For once the prices aren't my problem."
         case "shieldDrain":
             return "A shield. Must be nice. Was nice."
         case "mammaLie":
-            return "You believed that? A two doesn't know ANYBODY."
+            return "You believed that? A two doesn't know anybody."
         case "twoGame":
             return "One card. One call. Twos always know."
         default:
             return "Don't look at me like that. The world started it."
         }
+    }
+
+    /// Its reaction to the call, win or lose — the Two's Game aftermath's
+    /// spoken line (v6.65). The generic `twoLine` can't know how the call
+    /// went, so the game flow asks here directly.
+    static func twoGameResultLine(won: Bool) -> String {
+        won ? "Hmm. Right." : "Ha! Wrong"
     }
 }

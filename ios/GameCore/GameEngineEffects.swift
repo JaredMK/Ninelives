@@ -542,9 +542,6 @@ extension GameEngine {
             return PillarPayout(bonus: 0, lines: [])
         }
         func colIdxs(_ c: Int) -> [Int] { (0..<pileColumns.count).filter { pileColumns[$0] == c } }
-        func allAliveInCol(_ c: Int) -> Bool {
-            let a = colIdxs(c); return !a.isEmpty && a.allSatisfy { board.isActive($0) }
-        }
         let pillarsOnBoard = pillars.compactMap { $0 }.count
 
         for col in 0..<cols.count {
@@ -589,11 +586,12 @@ extension GameEngine {
                 }
 
             case "greedy":
-                // +value only if this column fully survived AND it's the SOLE
-                // Pillar on the board (a second Pillar anywhere voids it).
-                if pillarsOnBoard == 1 && allAliveInCol(col) {
+                // +value if it's the SOLE Pillar on the board (a second
+                // Pillar anywhere — even another Greedy — voids it). No
+                // survival condition.
+                if pillarsOnBoard == 1 {
                     bonus += t.value
-                    lines.append(PayoutLine(label: t.label, detail: "sole Pillar, column survived", amount: t.value, col: col))
+                    lines.append(PayoutLine(label: t.label, detail: "only Pillar on the board", amount: t.value, col: col))
                 }
 
             case "highestHeart":
@@ -611,10 +609,11 @@ extension GameEngine {
                 }
 
             case "insurance":
-                // +value if the WHOLE board has exactly one survivor and it's here.
-                if board.aliveCount() == 1 && colIdxs(col).contains(where: { board.isActive($0) }) {
+                // +value if the WHOLE board has exactly one surviving pile
+                // (any column — no longer requires the survivor to be here).
+                if board.aliveCount() == 1 {
                     bonus += t.value
-                    lines.append(PayoutLine(label: t.label, detail: "sole survivor in this column", amount: t.value, col: col))
+                    lines.append(PayoutLine(label: t.label, detail: "only one pile alive", amount: t.value, col: col))
                 }
 
             case "excavator":

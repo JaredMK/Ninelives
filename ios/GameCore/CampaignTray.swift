@@ -68,10 +68,12 @@ extension CampaignState {
         return true
     }
 
-    /// Remove ONE random sticker instance from a card (the stickerStrip
-    /// mystery outcome). Randomness defaults to the ACTION stream (SEED1 —
-    /// a refresh can't fish for a different sticker). Returns the removed
-    /// type id, or nil when the card carries none.
+    /// Remove ONE random sticker instance from a card. Serves the Two's
+    /// stickerTheft (its caller loops until the card is bare); the Queen's
+    /// Cleanse picker uses stripAllStickersFrom instead (v6.64). Randomness
+    /// defaults to the ACTION stream (SEED1 — a refresh can't fish for a
+    /// different sticker). Returns the removed type id, or nil when the card
+    /// carries none.
     @discardableResult
     public func removeRandomStickerFrom(_ cardId: Int, rng: RNG? = nil) -> String? {
         let r = rng ?? actRng()
@@ -81,6 +83,22 @@ extension CampaignState {
         let typeId = baseDeck[ci].stickers[at].type
         baseDeck[ci].stickers.remove(at: at)
         return typeId
+    }
+
+    /// THE QUEEN'S CLEANSE (v6.64): strip EVERY sticker from the chosen card —
+    /// it used to remove ONE random sticker while the reveal said "strip the
+    /// stickers", so the card now comes back bare. No randomness, so nothing
+    /// to seed. Returns the removed type ids (the debug log names them), or
+    /// [] when the card carries none.
+    @discardableResult
+    public func stripAllStickersFrom(_ cardId: Int) -> [String] {
+        guard let ci = baseDeck.firstIndex(where: { $0.id == cardId }),
+              !baseDeck[ci].stickers.isEmpty else { return [] }
+        let removed = baseDeck[ci].stickers.map { $0.type }
+        baseDeck[ci].stickers.removeAll()
+        let names = removed.map { data.stickerTypes.get($0)?.label ?? $0 }
+        DebugEventLog.shared.add("mystery: Cleanse stripped \(names.joined(separator: " + ")) from card \(cardId)")
+        return removed
     }
 
     /// Duplicate sticker: deep-copy a persistent card into the pack tray with
@@ -130,7 +148,7 @@ extension CampaignState {
         return removed
     }
 
-    /// Durable value change (Cast's setValue): write the new rank onto the
+    /// Durable value change (Rank Setter's setValue): write the new rank onto the
     /// persistent card so it survives every redeal this run.
     @discardableResult
     public func randomizeCard(_ id: Int, to value: Int) -> Bool {

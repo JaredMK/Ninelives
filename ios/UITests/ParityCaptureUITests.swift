@@ -261,12 +261,12 @@ final class ParityCaptureUITests: XCTestCase {
             let hasPlacement = kinds.values.contains("pillar") || kinds.values.contains("base")
             missing = !(packCaptured && hasPlacement && kinds.values.contains("card"))
             guard missing else { break }
-            // The header REFRESH pill is a PixelButtonView — tap its measured
-            // center, then CONFIRM on the prompt bar ("Refresh the shelf for
-            // ◉N?" → REFRESH; PromptBar action labels are UPPERCASED).
+            // The header RESTOCK pill is a PixelButtonView — tap its measured
+            // center, then CONFIRM on the prompt bar ("Restock the shelf for
+            // ◉N?" → RESTOCK; PromptBar action labels are UPPERCASED).
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.763, dy: 0.250)).tap()
             sleep(1)
-            let confirm = app.buttons["REFRESH"].firstMatch
+            let confirm = app.buttons["RESTOCK"].firstMatch
             let confirmFound = confirm.waitForExistence(timeout: 2)
             NSLog("[STORE] reroll %d: prompt confirm found=%d", rerolls + 1, confirmFound ? 1 : 0)
             if confirmFound { confirm.tap() }
@@ -381,8 +381,8 @@ final class ParityCaptureUITests: XCTestCase {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.763, dy: 0.250)).tap()
         sleep(1)
         NSLog("[DUMP] after pill tap buttons: %@", app.buttons.allElementsBoundByIndex.map { $0.label }.joined(separator: " | "))
-        let confirm = app.buttons["REFRESH"].firstMatch
-        NSLog("[DUMP] REFRESH exists=%d", confirm.exists ? 1 : 0)
+        let confirm = app.buttons["RESTOCK"].firstMatch
+        NSLog("[DUMP] RESTOCK exists=%d", confirm.exists ? 1 : 0)
         if confirm.exists { confirm.tap() }
         sleep(2)
         NSLog("[DUMP] after reroll buttons: %@", app.buttons.allElementsBoundByIndex.map { $0.label }.joined(separator: " | "))
@@ -428,10 +428,10 @@ final class ParityCaptureUITests: XCTestCase {
                 closeDetail(app)
             }
             guard !wanted.isEmpty else { break }
-            // Reroll for the missing classes (REFRESH pill + prompt confirm).
+            // Reroll for the missing classes (RESTOCK pill + prompt confirm).
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.763, dy: 0.250)).tap()
             sleep(1)
-            let confirm = app.buttons["REFRESH"].firstMatch
+            let confirm = app.buttons["RESTOCK"].firstMatch
             if confirm.waitForExistence(timeout: 2) { confirm.tap() }
             sleep(1)
             kinds = scanShelf(app)

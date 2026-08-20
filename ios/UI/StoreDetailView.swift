@@ -257,7 +257,8 @@ final class StoreDetailView: UIView {
             captionLabel.attributedText = nil   // the name prints ONCE, below the tier
             tierLabel.attributedText = tierText(d.tier)
             nameLabel.attributedText = CRTKit.attributed(d.label, size: 14, color: CRT.cardFace, display: true)
-            // Same-Power descriptions carry "Trigger: …\nEffect: …" — pre-line.
+            // Same-Power descriptions are plain single-line effect text (v6.65
+            // dropped the "Trigger: …\nEffect: …" preamble).
             // The REVEAL reads at label size (16): it is the one moment the
             // description IS the content, not fine print (v6.52).
             descLabel.attributedText = CRTKit.attributed(campaign.itemDescription(d), size: isReveal ? 16 : 14,

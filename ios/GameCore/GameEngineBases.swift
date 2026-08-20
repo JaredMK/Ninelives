@@ -264,7 +264,9 @@ extension GameEngine {
             // card here gets the = mark on that pile for the next draw; no
             // match says nothing at all (and the silence is the answer).
             guard let next = deck.peek(1).first else { break }
-            if let match = colAlivePiles(col).first(where: {
+            // v6.62: board-WIDE — the mark lands on the first matching top
+            // anywhere on the board, not just this column.
+            if let match = allAlivePiles().first(where: {
                 guard let t = board.top($0) else { return false }
                 // A ★ on either side IS a same (always safe) — v6.52: a joker
                 // hint never shows an arrow, only the = mark.
