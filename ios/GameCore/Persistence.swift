@@ -460,6 +460,43 @@ public final class ZenUnlocks {
     public func reset() { store.remove(forKey: Self.key) }
 }
 
+// MARK: - Save migrations
+
+/// One-time, stamped rewrites of stored blobs — run at boot BEFORE anything
+/// reads the store.
+public enum SaveMigrations {
+    /// v6.67 CHARACTER RENAME: deck ids "smith" → "garden", "lammy" → "rocko".
+    /// Rewrites every known blob that carries deck ids — deck wins (keys like
+    /// "smith" / "smith.legendary"), lifetime stats (deckTierBest keys), the
+    /// campaign checkpoint ("deckId":"smith"), and the deck pref — so unlocks,
+    /// records and an in-flight climb all survive the rename. The tokens only
+    /// ever appear QUOTED as whole JSON keys/values or key prefixes (no item
+    /// id, stat name or card field contains either — checked at v6.67), so a
+    /// quoted-token replace is exact. Stamped, so it runs once.
+    public static let deckIdStamp = "ninelives.migr.deckids.v1"
+
+    public static func migrateDeckIds(_ store: KeyValueStore) {
+        guard store.string(forKey: deckIdStamp) == nil else { return }
+        store.set("1", forKey: deckIdStamp)
+        let renames = [("smith", "garden"), ("lammy", "rocko")]
+        for key in [DeckUnlocks.key, Stats.key, SaveStore.key] {
+            guard var blob = store.string(forKey: key) else { continue }
+            for (old, new) in renames {
+                blob = blob.replacingOccurrences(of: "\"\(old)\"", with: "\"\(new)\"")
+                blob = blob.replacingOccurrences(of: "\"\(old).", with: "\"\(new).")
+            }
+            store.set(blob, forKey: key)
+        }
+        // The remembered deck-select choice, if one is stored as a bare pref.
+        for name in ["deck", "lastDeck"] {
+            if let v = store.string(forKey: "ninelives.pref.\(name)"),
+               let mapped = ["smith": "garden", "lammy": "rocko"][v] {
+                store.set(mapped, forKey: "ninelives.pref.\(name)")
+            }
+        }
+    }
+}
+
 // MARK: - SaveStore
 
 /// `ninelives.save.v1` — the campaign checkpoint, plus the `ninelives.pref.*`

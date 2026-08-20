@@ -246,14 +246,20 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(c.totalCoinsEarned, 5, "only earnCoins feeds the lifetime tally")
     }
 
-    func testMrSmithPaysDoubleForEverything() {
-        let smith = CampaignState(); smith.setDeck("smith")
+    /// v6.67: no deck carries a price multiplier today (Mr. Garden shops at
+    /// Pinky prices), but the mechanism must keep honoring whatever the data
+    /// declares — every deck's shelf price is its Pinky price × its own mult.
+    func testPriceMultiplierFlowsFromTheDeckRules() {
         let pink = CampaignState(); pink.setDeck("pink")
-        XCTAssertEqual(smith.rules().priceMult, 2)
-        for id in data.pillarTypes.ids {
-            XCTAssertEqual(smith.priceOfPillar(id), (pink.priceOfPillar(id) * 2).rounded(), "pillar \(id)")
+        for deck in GameMeta.deckOrder {
+            let c = CampaignState(); c.setDeck(deck)
+            let mult = c.rules().priceMult
+            for id in data.pillarTypes.ids.prefix(6) {
+                XCTAssertEqual(c.priceOfPillar(id), (pink.priceOfPillar(id) * mult).rounded(),
+                               "\(deck) pillar \(id)")
+            }
+            XCTAssertEqual(c.removalPrice(), (pink.removalPrice() * mult).rounded(),
+                           "\(deck): the multiplier covers Removal too")
         }
-        XCTAssertEqual(smith.removalPrice(), (pink.removalPrice() * 2).rounded(),
-                       "the price multiplier covers Removal too")
     }
 }

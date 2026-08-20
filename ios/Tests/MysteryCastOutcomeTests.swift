@@ -129,12 +129,12 @@ final class MysteryCastOutcomeTests: XCTestCase {
                       "her keepsake wears 2–3 stickers (got \(card.stickers.count))")
     }
 
-    func testGiftCardForLammyComesClean() {
-        let c = campaign(deck: "lammy")
+    func testGiftCardForRockoComesClean() {
+        let c = campaign(deck: "rocko")
         guard c.rules().noStickers else { return }   // only meaningful for the no-sticker deck
         let o = c.applyMysteryEvent("giftCard", nodeId: 8)
         XCTAssertEqual(o?.key, "giftCard")
-        XCTAssertEqual(c.getPackTray().last?.stickers.count, 0, "Lammy's keepsake takes no stickers")
+        XCTAssertEqual(c.getPackTray().last?.stickers.count, 0, "Rocko's keepsake takes no stickers")
     }
 
     func testFreeRefreshCompsTheNextShopsFirstRefreshOnly() {

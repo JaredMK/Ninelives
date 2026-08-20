@@ -14,8 +14,29 @@ public struct DeckRules: Sendable, Equatable {
     /// Stickers unusable: store sticker slots grey out, card packs mint no
     /// stickered cards, and no effect can sticker a card.
     public let noStickers: Bool
-    /// 3 random Pillars + 3 random Bases fill the six column slots at run start.
+    /// 3 random Pillars + 3 random Bases fill the six column slots at run
+    /// start — and a random Same-Power rides along (v6.67, Rocko).
     public let preEquip: Bool
+    /// EVERY card carries a random sticker (v6.67, Mr. Garden): the whole
+    /// draft pool at run start and every card minted later — so store cards,
+    /// packs and map pickups all SHOW their sticker before they're taken.
+    public let stickerEverything: Bool
+    /// Pillars and Bases don't exist for this deck (v6.67, Mr. Garden): they
+    /// can't be equipped and the store never offers them (Same-Powers stay).
+    public let noPillarsBases: Bool
+    /// Fixed-rank start deck (v6.67, Slyrex): rank value → count. Empty means
+    /// the standard one-of-each-rank start. Cards beyond a rank's four suits
+    /// are minted as duplicates.
+    public let startRanks: [Int: Int]
+
+    public init(altSuits: Bool, priceMult: Double, startStickers: Bool, noStickers: Bool,
+                preEquip: Bool, stickerEverything: Bool = false, noPillarsBases: Bool = false,
+                startRanks: [Int: Int] = [:]) {
+        self.altSuits = altSuits; self.priceMult = priceMult
+        self.startStickers = startStickers; self.noStickers = noStickers
+        self.preEquip = preEquip; self.stickerEverything = stickerEverything
+        self.noPillarsBases = noPillarsBases; self.startRanks = startRanks
+    }
 }
 
 /// index.html-sourced constants that are neither items.js nor difficulty.js.
@@ -25,8 +46,9 @@ public struct GameMeta: Sendable {
     public let deckRules: [String: DeckRules]
     /// `deckRulesFor(id)` — unknown ids fall back to Pinky.
     public func rules(_ id: String) -> DeckRules { deckRules[id] ?? deckRules["pink"]! }
-    /// Deck ids in their canonical unlock-chain order.
-    public static let deckOrder = ["pink", "mamma", "smith", "lammy"]
+    /// Deck ids in their canonical unlock-chain order (v6.67: Slyrex joins
+    /// after Mamma; Mr. Smith is Mr. Garden now, Lammy is Rocko, Rocko last).
+    public static let deckOrder = ["pink", "mamma", "slyrex", "garden", "rocko"]
 }
 
 /// The loaded + validated data layer: the three data files plus the registries
@@ -84,12 +106,19 @@ public final class GameData: @unchecked Sendable {
         var rules: [String: DeckRules] = [:]
         for (id, v) in metaRoot["deckRules"]?.asObject ?? [:] {
             guard let o = v.asObject else { continue }
+            var startRanks: [Int: Int] = [:]
+            for (r, n) in o["startRanks"]?.asObject ?? [:] {
+                if let rv = Int(r), let nv = n.asNumber { startRanks[rv] = Int(nv) }
+            }
             rules[id] = DeckRules(
                 altSuits: o["altSuits"]?.asBool ?? false,
                 priceMult: o["priceMult"]?.asNumber ?? 1,
                 startStickers: o["startStickers"]?.asBool ?? false,
                 noStickers: o["noStickers"]?.asBool ?? false,
-                preEquip: o["preEquip"]?.asBool ?? false)
+                preEquip: o["preEquip"]?.asBool ?? false,
+                stickerEverything: o["stickerEverything"]?.asBool ?? false,
+                noPillarsBases: o["noPillarsBases"]?.asBool ?? false,
+                startRanks: startRanks)
         }
         guard rules["pink"] != nil else {
             throw DataValidationError(file: "meta.json", problems: ["[meta.json] deckRules.pink: missing (the baseline deck)"])

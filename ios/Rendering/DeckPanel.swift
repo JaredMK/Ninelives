@@ -314,6 +314,18 @@ public final class DeckPanel: SKNode {
         lastRemaining = deckRemaining
 
         deckRect = CGRect(x: charX - 4, y: -size.height + pad, width: deckW + 4, height: size.height - pad * 2)
+
+        // A tap-pinned readout SURVIVES the repaint with the fresh counts —
+        // the numbers stay true as cards leave the deck. (The bar geometry
+        // above is rebuilt first; a pinned rank whose column vanished — the
+        // ★ column when showJoker flips off — collapses instead of lying.)
+        if isInspectPinned {
+            if barFrames.contains(where: { $0.value == pinnedValue }) {
+                drawReadout(value: pinnedValue, label: pinnedLabel)
+            } else {
+                isInspectPinned = false
+            }
+        }
     }
 
     // MARK: - Drag-scrub odds readout (the web's deckStrip scrubber)
@@ -333,11 +345,46 @@ public final class DeckPanel: SKNode {
         return (best.value, best.label)
     }
 
+    /// TAP-INSPECT (batch 17): a discrete TAP on a bar PINS the same odds
+    /// readout the drag-scrub draws — it stays up after the finger lifts, a
+    /// tap on another bar moves it, and any tap AWAY from the histogram
+    /// collapses it (the touch router calls `collapseInspect`). The pin
+    /// survives sync repaints with FRESH counts (see the end of `sync`), so a
+    /// pinned rank keeps telling the truth as cards leave the deck.
+    public private(set) var isInspectPinned = false
+    private var pinnedValue = 0
+    private var pinnedLabel = ""
+
+    /// Pin the odds readout on a tapped bar (same chip the scrub draws:
+    /// rank headline + "↑N higher · =N same · ↓N lower [· ★N safe]").
+    public func showInspect(value: Int, label: String) {
+        isInspectPinned = true
+        pinnedValue = value
+        pinnedLabel = label
+        drawReadout(value: value, label: label)
+    }
+
+    /// Collapse a pinned readout — the touch router calls this for any tap
+    /// that lands OUTSIDE the histogram. No-op when nothing is pinned.
+    public func collapseInspect() {
+        guard isInspectPinned else { return }
+        isInspectPinned = false
+        scrubLayer.removeAllChildren()
+    }
+
     /// Show the odds line for a scrubbed rank: "R · ↑N higher · =N same · ↓N
     /// lower" (jokers append "· ★N safe" — safe on any call, so they sit
     /// outside the split, matching the web's ★ column note). The touched bar
-    /// gets the web's `.ds-active` gold frame.
+    /// gets the web's `.ds-active` gold frame. A live drag readout is
+    /// TRANSIENT — it replaces (unpins) any tap-pinned readout, so a drag
+    /// never leaves the sticky chip behind on finger-up.
     public func showScrub(value: Int, label: String) {
+        isInspectPinned = false
+        drawReadout(value: value, label: label)
+    }
+
+    /// The one readout renderer, shared by the drag-scrub and the tap-pin.
+    private func drawReadout(value: Int, label: String) {
         scrubLayer.removeAllChildren()
         var above = 0, same = 0, below = 0
         for (v, n) in lastCounts where v != 0 {
@@ -420,7 +467,10 @@ public final class DeckPanel: SKNode {
         }
     }
 
-    public func hideScrub() { scrubLayer.removeAllChildren() }
+    public func hideScrub() {
+        isInspectPinned = false
+        scrubLayer.removeAllChildren()
+    }
 
     /// The scrub fallback for a finger that has WANDERED off the band mid-drag:
     /// the horizontal position still picks the rank (clamped into the
@@ -595,7 +645,7 @@ public final class DeckCharNode: SKNode {
     /// EACH CHARACTER MOVES LIKE ITSELF. They shared one hop, so four
     /// distinct sprites read as one animation with different hats. The
     /// choreography below is per deck AND per reaction — a win is a different
-    /// motion from a loss, and Pinky's win is different from Lammy's.
+    /// motion from a loss, and Pinky's win is different from Rocko's.
     ///
     /// All of it is compositor-only (move/rotate/scale on the existing
     /// sprite), repeats forever, and is torn down by `react`'s revert.
@@ -637,8 +687,8 @@ public final class DeckCharNode: SKNode {
                 .group([.moveBy(x: -8, y: 0, duration: 0.34), .rotate(toAngle: 0.12, duration: 0.34)]),
                 .group([.moveBy(x: 4, y: -2, duration: 0.26), .rotate(toAngle: 0, duration: 0.26)]),
             ])
-        case "smith":
-            // MR. SMITH does not dance. He straightens, gives one crisp bow,
+        case "garden":
+            // MR. GARDEN does not dance. He straightens, gives one crisp bow,
             // and returns to attention.
             return .sequence([
                 .wait(forDuration: 0.35),
@@ -646,14 +696,24 @@ public final class DeckCharNode: SKNode {
                 .group([.moveBy(x: 0, y: 4, duration: 0.18), .scaleY(to: 1.0, duration: 0.18)]),
                 .wait(forDuration: 0.45),
             ])
-        case "lammy":
-            // LAMMY wobbles — a woolly, off-balance shimmy that never quite
+        case "rocko":
+            // ROCKO wobbles — a woolly, off-balance shimmy that never quite
             // settles.
             return .sequence([
                 .rotate(toAngle: 0.16, duration: 0.18),
                 .rotate(toAngle: -0.16, duration: 0.22),
                 .group([.moveBy(x: 0, y: 4, duration: 0.12), .rotate(toAngle: 0.05, duration: 0.12)]),
                 .group([.moveBy(x: 0, y: -4, duration: 0.12), .rotate(toAngle: 0, duration: 0.12)]),
+            ])
+        case "slyrex":
+            // SLYREX stomps — two heavy alternating footfalls, all mass and
+            // no grace, ending square like something that just ate.
+            return .sequence([
+                .group([.moveBy(x: -3, y: 5, duration: 0.12), .rotate(toAngle: -0.08, duration: 0.12)]),
+                .group([.moveBy(x: 0, y: -5, duration: 0.10), .rotate(toAngle: 0, duration: 0.10)]),
+                .group([.moveBy(x: 6, y: 5, duration: 0.12), .rotate(toAngle: 0.08, duration: 0.12)]),
+                .group([.moveBy(x: -3, y: -5, duration: 0.10), .rotate(toAngle: 0, duration: 0.10)]),
+                .wait(forDuration: 0.10),
             ])
         default:
             return .sequence([
@@ -680,18 +740,27 @@ public final class DeckCharNode: SKNode {
                 .group([.moveBy(x: 0, y: -3, duration: 0.45), .scaleY(to: 0.94, duration: 0.45)]),
                 .group([.moveBy(x: 0, y: 3, duration: 0.55), .scaleY(to: 1.0, duration: 0.55)]),
             ])
-        case "smith":
-            // MR. SMITH is merely disappointed. A single slow head-tilt.
+        case "garden":
+            // MR. GARDEN is merely disappointed. A single slow head-tilt.
             return .sequence([
                 .rotate(toAngle: -0.07, duration: 0.5),
                 .wait(forDuration: 0.3),
                 .rotate(toAngle: 0, duration: 0.5),
             ])
-        case "lammy":
-            // LAMMY droops, ears and all, then bobs weakly back.
+        case "rocko":
+            // ROCKO droops, ears and all, then bobs weakly back.
             return .sequence([
                 .group([.moveBy(x: 0, y: -5, duration: 0.6), .rotate(toAngle: 0.12, duration: 0.6)]),
                 .group([.moveBy(x: 0, y: 5, duration: 0.7), .rotate(toAngle: 0, duration: 0.7)]),
+            ])
+        case "slyrex":
+            // SLYREX stamps once — a frustrated little foot-thump — then
+            // sags and huffs back up.
+            return .sequence([
+                .group([.moveBy(x: 0, y: 3, duration: 0.10), .rotate(toAngle: -0.06, duration: 0.10)]),
+                .group([.moveBy(x: 0, y: -3, duration: 0.08), .rotate(toAngle: 0, duration: 0.08)]),
+                .group([.moveBy(x: 0, y: -2, duration: 0.35), .scaleY(to: 0.95, duration: 0.35)]),
+                .group([.moveBy(x: 0, y: 2, duration: 0.45), .scaleY(to: 1.0, duration: 0.45)]),
             ])
         default:
             return .sequence([
@@ -703,14 +772,23 @@ public final class DeckCharNode: SKNode {
 }
 
 /// §6 Sprites — 16×16 base grid, 1px ink outline, palette colors + dither mixes
-/// only. The four deck characters drawn procedurally on that grid and baked:
-/// Pinky (cat ears, red⊕cream "pink"), Mamma (bow, red⊕gold rose), Mr. Smith
-/// (top hat + monocle, steel felt), Lammy (droopy wool ears, slate fleece).
-/// Tier accessories overlay the same sheet: Master's gold belt, Legendary's
-/// gold crown.
+/// only. The five deck characters drawn procedurally on that grid and baked:
+/// Pinky (cat ears, red⊕cream "pink"), Mamma (bow, red⊕gold rose), Mr. Garden
+/// (top hat + monocle, steel felt), Rocko (droopy wool ears, black/brown/white
+/// coat, one brown eye + one blue eye), Slyrex (crest-spiked teal dinosaur,
+/// corner fangs and a stub tail). Tier accessories overlay the same sheet:
+/// Master's gold belt, Legendary's gold crown.
 public enum DeckCharacter {
 
     public enum Mood: String { case idle, looking, happy, glad, sad, celebrate, win, blink }
+
+    /// Rocko's coat brown — gold pulled toward ink with the palette's own
+    /// `blended` mixer (§1: tempered hues, never a colour outside the
+    /// locked palette's reach).
+    static let rockoBrown = CRT.gold.blended(with: CRT.ink, amount: 0.45)
+    /// Rocko's odd eye. The CRT palette carries no blue at all, so this is
+    /// the one local constant, declared in the CRT.swift style.
+    static let rockoBlue = UIColor(hex: 0x3f7fd9)
 
     private struct Key: Hashable {
         let deckId: String; let mood: Mood; let scale: Int
@@ -721,11 +799,12 @@ public enum DeckCharacter {
     /// Body dithers per deck (§1 optical mixes).
     private static func body(_ deckId: String) -> (UIColor, UIColor) {
         switch deckId {
-        case "pink":  return (CRT.suitRed, CRT.cardFace)   // pink
-        case "mamma": return (CRT.suitRed, CRT.gold)       // warm rose
-        case "smith": return (CRT.feltMid, CRT.cardFace)   // steel
-        case "lammy": return (CRT.cardFace, CRT.feltMid)   // slate fleece
-        default:      return (CRT.suitRed, CRT.cardFace)
+        case "pink":   return (CRT.suitRed, CRT.cardFace)   // pink
+        case "mamma":  return (CRT.suitRed, CRT.gold)       // warm rose
+        case "garden": return (CRT.feltMid, CRT.cardFace)   // steel
+        case "rocko":  return (CRT.cardFace, CRT.ink)       // salt-and-pepper coat
+        case "slyrex": return (CRT.phosphor, CRT.feltMid)   // teal-green hide
+        default:       return (CRT.suitRed, CRT.cardFace)
         }
     }
 
@@ -783,15 +862,33 @@ public enum DeckCharacter {
             }
             // Per-character silhouette features.
             switch deckId {
-            case "smith":
+            case "garden":
                 // Top hat: brim + crown in ink.
                 for x in 3...12 { px(x, 2, CRT.ink) }
                 for x in 5...10 { px(x, 1, CRT.ink); px(x, 0, CRT.ink) }
-            case "lammy":
-                // Droopy wool ears + fleece lumps along the crown.
+            case "rocko":
+                // Droopy black wool ears + fleece lumps along the crown —
+                // white and brown alternating, the piebald coat up top.
                 px(3, 4, CRT.ink); px(2, 5, CRT.ink); px(2, 6, CRT.ink)
                 px(12, 4, CRT.ink); px(13, 5, CRT.ink); px(13, 6, CRT.ink)
-                px(5, 2, CRT.cardFace); px(7, 2, CRT.cardFace); px(9, 2, CRT.cardFace); px(11, 2, CRT.cardFace)
+                px(5, 2, CRT.cardFace); px(7, 2, rockoBrown); px(9, 2, CRT.cardFace); px(11, 2, rockoBrown)
+                // Coat patches on the face: brown over the left brow, brown
+                // at the right temple, white on the chin — kept clear of the
+                // eye rows (5…8, cols 5…11) and the mood mouths.
+                px(4, 4, rockoBrown); px(5, 4, rockoBrown); px(4, 5, rockoBrown); px(4, 6, rockoBrown)
+                px(10, 4, rockoBrown); px(11, 4, rockoBrown)
+                px(4, 9, CRT.cardFace); px(4, 10, CRT.cardFace); px(5, 10, CRT.cardFace)
+            case "slyrex":
+                // T-rex read: jagged crest spikes on the crown, a stub tail
+                // low on the left, and two tiny arms at the jawline.
+                px(4, 2, CRT.ink); px(7, 2, CRT.ink); px(10, 2, CRT.ink)
+                px(2, 10, CRT.ink); px(1, 11, CRT.ink)
+                px(2, 9, CRT.ink); px(13, 9, CRT.ink)
+                // Nostrils on the snout, just above the mouth row (clear of
+                // pupil rows 5…7 and the sad tear at (11,8)), and two cream
+                // corner fangs either side of where the mood mouths draw.
+                px(6, 8, CRT.ink); px(9, 8, CRT.ink)
+                px(5, 10, CRT.cardFace); px(11, 10, CRT.cardFace)
             case "mamma":
                 // Cat ears + the bow at the top-right corner.
                 px(4, 2, CRT.ink); px(5, 2, CRT.ink); px(10, 2, CRT.ink); px(11, 2, CRT.ink)
@@ -821,11 +918,21 @@ public enum DeckCharacter {
             default:
                 px(6 + ex, eyeY, CRT.ink); px(10 + ex, eyeY, CRT.ink)
             }
-            // Mr. Smith's monocle: a gold ring around the right eye.
-            if deckId == "smith", mood != .blink {
+            // Mr. Garden's monocle: a gold ring around the right eye.
+            if deckId == "garden", mood != .blink {
                 px(9, 5, CRT.gold); px(11, 5, CRT.gold)
                 px(9, 7, CRT.gold); px(11, 7, CRT.gold)
                 px(11, 8, CRT.gold)   // the chain drop
+            }
+            // Rocko's heterochromia: brown left eye, blue right eye, laid
+            // over the ink pupils wherever the gaze is open. Blinks and the
+            // ^^/flat happy arcs stay ink — the odd eyes read on the stare.
+            if deckId == "rocko" {
+                switch mood {
+                case .blink, .happy, .win, .celebrate, .glad: break
+                default:
+                    px(6 + ex, eyeY, rockoBrown); px(10 + ex, eyeY, rockoBlue)
+                }
             }
             switch mood {
             case .sad:
@@ -845,7 +952,7 @@ public enum DeckCharacter {
                 for x in 4...11 { px(x, 12, CRT.gold) }
                 px(7, 12, CRT.ink); px(8, 12, CRT.ink)   // the buckle
             } else if tier == "legendary" {
-                let top = deckId == "smith" ? 0 : 1
+                let top = deckId == "garden" ? 0 : 1
                 for x in 5...10 { px(x, top + 1, CRT.gold) }
                 px(5, top, CRT.gold); px(7, top, CRT.gold); px(10, top, CRT.gold)
             }

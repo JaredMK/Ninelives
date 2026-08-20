@@ -200,7 +200,7 @@ public struct RunConfig {
     public var samePowerVariant: String?
     /// The rank-variant pillars' locked ranks, by pillar id.
     public var pillarRankVariants: [String: Int] = [:]
-    /// Lammy: stickers unusable — no effect may sticker a card.
+    /// Rocko: stickers unusable — no effect may sticker a card.
     public var noStickers = false
     /// This deal is an AMBUSH. The engine is otherwise blind to it (an ambush
     /// is a flow-level shape), but a Base can now gate on it.

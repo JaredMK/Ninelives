@@ -29,6 +29,13 @@ public final class DealViewController: UIViewController {
     private var dragMoved = false
     /// The histogram drag-scrub (odds readout) is active.
     private var scrubbing = false
+    /// The deck panel node — it owns the histogram and the TAP-PINNED odds
+    /// readout (batch 17). DealScene keeps its panel private, so the
+    /// tap-inspect routing finds the node among the scene's children instead
+    /// of widening the scene's API.
+    private var deckPanelNode: DeckPanel? {
+        scene?.children.first { $0 is DeckPanel } as? DeckPanel
+    }
     private var pressedButton: PixelButton?
     private var holdShown = false
     /// The shared bottom prompt bar (offers, base confirms) over the SKView.
@@ -539,6 +546,22 @@ public final class DealViewController: UIViewController {
                 }
             }
             finishTargetPick(nil)
+            return
+        }
+
+        // HISTOGRAM TAP-INSPECT (batch 17): a discrete TAP on a rank bar pins
+        // the drag-scrub's odds chip (rank · ↑higher · =same · ↓lower) and it
+        // STAYS after the finger lifts. A tap on a different bar moves it;
+        // the next tap anywhere ELSE collapses it and is consumed — the same
+        // idiom as the tap-for-help gate above. The hold-and-drag scrub is
+        // untouched: a real drag never reaches this recognizer, and the pan
+        // handler's showScrub/hideScrub unpin on their own.
+        if let r = scene.histogramRank(at: p) {
+            deckPanelNode?.showInspect(value: r.value, label: r.label)
+            return
+        }
+        if let panel = deckPanelNode, panel.isInspectPinned {
+            panel.collapseInspect()
             return
         }
 

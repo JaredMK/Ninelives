@@ -138,13 +138,13 @@ final class ProgressionTests: XCTestCase {
     func testDeckUnlockRetroactiveDownwardCompletion() {
         let store = MemoryStore()
         let du = DeckUnlocks(store: store)
-        du.recordWin(deckId: "lammy", tier: "legendary")
+        du.recordWin(deckId: "rocko", tier: "legendary")
         var s = StatsRecord()
-        s.deckTierWins = ["smith.master": true]
+        s.deckTierWins = ["garden.master": true]
         du.grantRetroactive(s)
-        XCTAssertTrue(du.wonWithTier("lammy", "master"), "legendary implies master")
-        XCTAssertTrue(du.wonWith("lammy"), "master implies the base key")
-        XCTAssertTrue(du.wonWith("smith"), "a win in the Stats log re-grants its key")
+        XCTAssertTrue(du.wonWithTier("rocko", "master"), "legendary implies master")
+        XCTAssertTrue(du.wonWith("rocko"), "master implies the base key")
+        XCTAssertTrue(du.wonWith("garden"), "a win in the Stats log re-grants its key")
     }
 
     func testLegacyPinkyCreditOnAnEmptyStore() {
@@ -317,10 +317,17 @@ final class ProgressionTests: XCTestCase {
         XCTAssertTrue(pink.altSuits); XCTAssertEqual(pink.priceMult, 1)
         XCTAssertFalse(pink.startStickers); XCTAssertFalse(pink.noStickers); XCTAssertFalse(pink.preEquip)
         XCTAssertFalse(data.meta.rules("mamma").altSuits, "Mamma is the suit-staged deck")
-        XCTAssertEqual(data.meta.rules("smith").priceMult, 2)
-        XCTAssertTrue(data.meta.rules("smith").startStickers)
-        XCTAssertTrue(data.meta.rules("lammy").noStickers)
-        XCTAssertTrue(data.meta.rules("lammy").preEquip)
+        // v6.67 roster: Mr. Garden plays as Pinky but every card is stickered
+        // and Pillars/Bases don't exist for him; Rocko keeps the old Lammy
+        // rules; Slyrex is Pinky with the fixed-rank start.
+        let garden = data.meta.rules("garden")
+        XCTAssertEqual(garden.priceMult, 1, "Garden shops at Pinky prices")
+        XCTAssertTrue(garden.stickerEverything); XCTAssertTrue(garden.noPillarsBases)
+        XCTAssertFalse(garden.startStickers, "stickerEverything covers the start")
+        XCTAssertTrue(data.meta.rules("rocko").noStickers)
+        XCTAssertTrue(data.meta.rules("rocko").preEquip)
+        XCTAssertEqual(data.meta.rules("slyrex").startRanks, [2: 6, 14: 6, 8: 1])
+        XCTAssertTrue(data.meta.rules("slyrex").altSuits)
         // An unknown deck falls back to Pinky.
         XCTAssertEqual(data.meta.rules("nope"), pink)
     }
@@ -359,10 +366,10 @@ final class ProgressionTests: XCTestCase {
     /// The mixed start spreads suits EVENLY — 13 over 4 is 4/3/3/3, never a
     /// lopsided 6/3/2/2 the way a per-rank coin flip could produce.
     func testTheMixedStartSpreadsSuitsEvenly() {
-        // Mr Smith is excluded on purpose: his start stickers roll suit-CHANGERS
+        // Mr. Garden is excluded on purpose: his coat rolls suit-CHANGERS
         // onto the dealt cards, so his final hand is deliberately uneven. The
         // rule under test is how the hand is DEALT.
-        for deck in ["pink", "lammy"] {
+        for deck in ["pink", "rocko"] {
             for seed: UInt32 in [1, 555, 4242, 99999] {
                 let c = CampaignState()
                 c.setDeck(deck); c.setSeedOverride(seed); c.reset()
@@ -397,7 +404,7 @@ final class ProgressionTests: XCTestCase {
     }
 
     func testAltDecksStartWithOneOfEachRankAtRandomSuits() {
-        for deck in ["pink", "smith", "lammy"] {
+        for deck in ["pink", "garden", "rocko"] {
             let c = CampaignState()
             c.setDeck(deck); c.setSeedOverride(555); c.reset()
             let start = c.getRunDeck()
@@ -408,17 +415,17 @@ final class ProgressionTests: XCTestCase {
         }
     }
 
-    func testMrSmithStartsEveryCardStickered() {
+    func testMrGardenStartsEveryCardStickered() {
         let c = CampaignState()
-        c.setDeck("smith"); c.setSeedOverride(909); c.reset()
+        c.setDeck("garden"); c.setSeedOverride(909); c.reset()
         for card in c.getRunDeck() {
-            XCTAssertFalse(card.stickers.isEmpty, "Smith's card \(card.id) should carry a rolled sticker")
+            XCTAssertFalse(card.stickers.isEmpty, "Garden's card \(card.id) should carry a rolled sticker")
         }
     }
 
-    func testLammyPreEquipsThreePillarsAndThreeBases() {
+    func testRockoPreEquipsThreePillarsThreeBasesAndAPower() {
         let c = CampaignState()
-        c.setDeck("lammy"); c.setSeedOverride(31415); c.reset()
+        c.setDeck("rocko"); c.setSeedOverride(31415); c.reset()
         XCTAssertEqual(c.columnPillars.compactMap { $0 }.count, CampaignLayout.columnSlots)
         XCTAssertEqual(c.columnBases.compactMap { $0 }.count, CampaignLayout.columnSlots)
         XCTAssertEqual(Set(c.columnPillars.compactMap { $0 }).count, CampaignLayout.columnSlots, "distinct Pillars")
@@ -429,11 +436,17 @@ final class ProgressionTests: XCTestCase {
             XCTAssertNotEqual(effect, "randomSticker")
             XCTAssertNotEqual(effect, "stickerHarvest")
         }
+        // v6.67: the loadout includes a random Same-Power, and the same seed
+        // rolls the same one.
+        XCTAssertNotNil(c.equippedSamePower, "Rocko starts with a Same-Power equipped")
+        let c2 = CampaignState()
+        c2.setDeck("rocko"); c2.setSeedOverride(31415); c2.reset()
+        XCTAssertEqual(c2.equippedSamePower, c.equippedSamePower, "seeded, not drifting")
     }
 
-    func testLammyCannotBuyOrApplyStickers() {
+    func testRockoCannotBuyOrApplyStickers() {
         let c = CampaignState()
-        c.setDeck("lammy"); c.setSeedOverride(2718); c.reset()
+        c.setDeck("rocko"); c.setSeedOverride(2718); c.reset()
         c.addCoins(10_000)
         XCTAssertTrue(c.stickersLocked)
         XCTAssertFalse(c.buySticker(data.stickerTypes.ids[0]), "stickers are unusable")

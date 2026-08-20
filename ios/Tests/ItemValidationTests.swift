@@ -256,12 +256,15 @@ final class ItemValidationTests: IVCase {
     }
 
     func testTier2ModifiedPricePaths() {
-        // Mr. Smith's deck multiplier flows through every stage.
+        // A deck price multiplier flows through every stage (v6.67: no deck
+        // carries one today — Garden shops at Pinky prices — so the mult
+        // branch idles until a future deck declares one; the ladder and
+        // discount paths below still run).
         let smith = CampaignState(store: MemoryStore())
-        smith.setDeck("smith"); smith.setTier("regular"); smith.setSeedOverride(3); smith.reset()
+        smith.setDeck("garden"); smith.setTier("regular"); smith.setSeedOverride(3); smith.reset()
         _ = smith.addCoins(2000)
         _ = smith.openStore()
-        let mult = data.meta.rules("smith").priceMult
+        let mult = data.meta.rules("garden").priceMult
         if mult != 1 {
             smith.storeOffer!.slots[0] = StoreSlot(kind: "pillar", id: "fibonacci")
             smith.storeOffer!.freeSlot = nil

@@ -180,10 +180,11 @@ public enum CardArt {
     /// red⊕cream checker; the others take their own two-palette mix.
     private static func backDither(_ deckId: String) -> (UIColor, UIColor) {
         switch deckId {
-        case "pink":  return (CRT.suitRed, CRT.cardFace)     // "pink"
-        case "smith": return (CRT.gold, CRT.feltDeep)        // "brass"
-        case "lammy": return (CRT.feltMid, CRT.feltDeep)     // felt texture
-        default:      return (CRT.feltMid, CRT.ink)
+        case "pink":   return (CRT.suitRed, CRT.cardFace)    // "pink"
+        case "garden": return (CRT.gold, CRT.feltDeep)       // "brass"
+        case "rocko":  return (CRT.ink, CRT.cardFace)        // piebald check
+        case "slyrex": return (CRT.phosphor, CRT.feltDeep)   // dino hide
+        default:       return (CRT.feltMid, CRT.ink)
         }
     }
 }

@@ -73,9 +73,34 @@ const tutorial = loadDataFile("tutorial.js", "NINELIVES_TUTORIAL");
    touching index.html. */
 const NATIVE_ONLY_UNLOCK_STATS = ["ambushesWon", "earlyLosses"];
 
+/* NATIVE DECK IDENTITY (v6.67) — the character overhaul renames Mr. Smith →
+   Mr. Garden and Lammy → Rocko, adds Slyrex, and re-cuts the rules per deck.
+   The web build keeps its own legacy roster, so the remap happens HERE at the
+   crossing (the NATIVE_ONLY_* pattern), never in index.html. Rule changes vs
+   the lifted web rules:
+   - garden (was smith): "as Pinky, except every card carries a random
+     sticker" — priceMult back to 1 (the 2× shop was Smith's identity, not
+     Garden's), stickerEverything on, and NO Pillars/Bases (can't equip them,
+     stores never offer them).
+   - rocko (was lammy): unchanged rules (noStickers + preEquip), and preEquip
+     now also grants a random Same-Power (CampaignState reads the same flag).
+   - slyrex (new): as Pinky, with a fixed-rank start: six 2s, six Aces, one 8
+     (startRanks, rank value → count; A = 14). */
+function nativeDeckRules(lifted) {
+  const out = {
+    pink: lifted.pink,
+    mamma: lifted.mamma,
+    slyrex: { ...lifted.pink, startRanks: { 2: 6, 14: 6, 8: 1 } },
+    garden: { ...lifted.smith, priceMult: 1, startStickers: false,
+              stickerEverything: true, noPillarsBases: true },
+    rocko: lifted.lammy,
+  };
+  return out;
+}
+
 const meta = {
   itemUnlockStats: [...liftFromIndex("ITEM_UNLOCK_STATS"), ...NATIVE_ONLY_UNLOCK_STATS],
-  deckRules: liftFromIndex("DECK_RULES"),
+  deckRules: nativeDeckRules(liftFromIndex("DECK_RULES")),
 };
 
 /* JSON has no NaN/Infinity — JSON.stringify silently turns them into null, which

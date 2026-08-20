@@ -42,6 +42,10 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("starts") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
+            // v6.67: the iOS roster diverged from the web's (smith/lammy are
+            // garden/rocko with NEW rules; slyrex is iOS-only), so web-pinned
+            // fixtures only bind the decks both builds still share.
+            guard GameData.shared.meta.deckRules[deck] != nil else { continue }
             let tier = f["tier"]?.asString ?? "regular"
             let label = "start seed=\(seed) deck=\(deck) tier=\(tier)"
             let c = campaign(deck: deck, tier: tier, seed: seed)
@@ -59,7 +63,7 @@ final class CampaignFixtureTests: XCTestCase {
             XCTAssertEqual(c.columnBases, f["columnBases"]?.asArray?.map { $0.asString } ?? [],
                            "\(label): columnBases")
 
-            // The start cards — including Mr. Smith's rolled stickers and the
+            // The start cards — including the
             // alt decks' one-of-each-rank random suits.
             let wantCards = f["startCards"]?.asArray ?? []
             let gotCards = c.getRunDeck()
@@ -117,6 +121,7 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("stores") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
+            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let label = "store seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
             if let first = c.legalNextNodes().first { c.moveToNode(first.id) }
@@ -225,6 +230,7 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("packs") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
+            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let packId = f["packId"]?.asString ?? ""
             let label = "pack \(packId) seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
@@ -276,6 +282,7 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("storeCards") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
+            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let label = "storeCard seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
             let c2 = campaign(deck: deck, tier: "regular", seed: seed)
@@ -294,9 +301,9 @@ final class CampaignFixtureTests: XCTestCase {
                 // The card slot's own odds table bounds the sticker count…
                 XCTAssertLessThanOrEqual(got.stickers.count, maxStickers,
                                          "\(label)[\(i)]: more stickers than the table allows")
-                // …and Lammy's no-sticker rule still holds at the mint.
+                // …and the no-sticker rule still holds at the mint.
                 if c.rules().noStickers {
-                    XCTAssertEqual(got.stickers.count, 0, "\(label)[\(i)]: Lammy mints take no stickers")
+                    XCTAssertEqual(got.stickers.count, 0, "\(label)[\(i)]: no-sticker mints take no stickers")
                 }
                 if got.stickers.count > 0 { stickeredMints += 1 }
                 // PRICING: base + stickerStep per sticker; Jokers keep their
@@ -318,6 +325,7 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("roundTrips") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
+            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let label = "roundTrip seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "master", seed: seed)
             if let first = c.legalNextNodes().first { c.moveToNode(first.id) }

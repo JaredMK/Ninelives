@@ -95,6 +95,57 @@ enum PixelGlyph {
 
     static let suits: [String: [String]] = ["♠": spade, "♥": heart, "♦": diamond, "♣": club]
 
+    // ---- The menu icon strip (v6.67) ---------------------------------------
+    // Settings · How to Play · Stats · Rankings as 8×8 marks.
+
+    /// SETTINGS — a gear: toothed ring, hollow hub.
+    static let gear = [
+        "X..XX..X",
+        ".XXXXXX.",
+        ".XX..XX.",
+        "XX....XX",
+        "XX....XX",
+        ".XX..XX.",
+        ".XXXXXX.",
+        "X..XX..X",
+    ]
+
+    /// HOW TO PLAY — the question mark.
+    static let question = [
+        ".XXXXX..",
+        "XX...XX.",
+        ".....XX.",
+        "....XX..",
+        "...XX...",
+        "...XX...",
+        "........",
+        "...XX...",
+    ]
+
+    /// STATS — three rising bars.
+    static let bars = [
+        "......XX",
+        "......XX",
+        "...XX.XX",
+        "...XX.XX",
+        "XX.XX.XX",
+        "XX.XX.XX",
+        "XX.XX.XX",
+        "XX.XX.XX",
+    ]
+
+    /// RANKINGS — the trophy cup.
+    static let trophy = [
+        "XXXXXXXX",
+        "X.XXXX.X",
+        "X.XXXX.X",
+        "XX.XX.XX",
+        "..XXXX..",
+        "...XX...",
+        "...XX...",
+        "..XXXX..",
+    ]
+
     /// A suit mark sized to sit INSIDE text rendered at `size` — integer
     /// pixel scale (grid stays square), no baked shadow (an inline glyph
     /// casts none). Red suits always paint suit-red; black suits take the

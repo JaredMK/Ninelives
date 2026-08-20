@@ -307,19 +307,25 @@ extension CampaignState {
         // ANYTHING he could plausibly be carrying — Pillars, Bases and
         // Stickers alike, minus whatever is already on the board.
         var pool: [(OldJoker.Holding, Int)] = []
-        for d in data.items.pillars where itemUnlocks.isUnlocked(d)
-                && !isEquipped(kind: "pillar", id: d.id) {
-            let h = OldJoker.Holding(kind: .pillar, id: d.id)
-            pool.append((h, jokerRefundValue(h)))
+        // MR. GARDEN (v6.67): Pillars and Bases don't exist for this deck —
+        // the coat carries stickers only. (Rocko's noStickers mirror below.)
+        if !rules().noPillarsBases {
+            for d in data.items.pillars where itemUnlocks.isUnlocked(d)
+                    && !isEquipped(kind: "pillar", id: d.id) {
+                let h = OldJoker.Holding(kind: .pillar, id: d.id)
+                pool.append((h, jokerRefundValue(h)))
+            }
+            for d in data.items.bases where itemUnlocks.isUnlocked(d)
+                    && !isEquipped(kind: "base", id: d.id) {
+                let h = OldJoker.Holding(kind: .base, id: d.id)
+                pool.append((h, jokerRefundValue(h)))
+            }
         }
-        for d in data.items.bases where itemUnlocks.isUnlocked(d)
-                && !isEquipped(kind: "base", id: d.id) {
-            let h = OldJoker.Holding(kind: .base, id: d.id)
-            pool.append((h, jokerRefundValue(h)))
-        }
-        for d in data.items.stickers where !d.cursed && itemUnlocks.isUnlocked(d) {
-            let h = OldJoker.Holding(kind: .sticker, id: d.id)
-            pool.append((h, jokerRefundValue(h)))
+        if !rules().noStickers {
+            for d in data.items.stickers where !d.cursed && itemUnlocks.isUnlocked(d) {
+                let h = OldJoker.Holding(kind: .sticker, id: d.id)
+                pool.append((h, jokerRefundValue(h)))
+            }
         }
         guard !pool.isEmpty else { return [] }
 

@@ -30,14 +30,19 @@ public final class GameFlowController: UIViewController {
         let sub: String
         let unlockNote: String?
     }
+    /// v6.67 roster: Slyrex joins after Mamma; Mr. Smith is Mr. Garden now
+    /// (stickers on everything, no Pillars or Bases), Lammy is Rocko, and
+    /// Rocko closes the chain. Old saves migrate ids in SaveMigrations.
     static let decks: [DeckInfo] = [
         DeckInfo(id: "pink", name: "Pinky", requires: nil, sub: "Get Pinky home", unlockNote: nil),
         DeckInfo(id: "mamma", name: "Mamma", requires: "pink", sub: "Mamma sets off",
                  unlockNote: "Win a climb with Pinky to unlock"),
-        DeckInfo(id: "smith", name: "Mr. Smith", requires: "mamma", sub: "Everything costs more",
+        DeckInfo(id: "slyrex", name: "Slyrex", requires: "mamma", sub: "Six 2s, six Aces, one 8",
                  unlockNote: "Win a climb with Mamma to unlock"),
-        DeckInfo(id: "lammy", name: "Lammy", requires: "smith", sub: "Stickers don't stick",
-                 unlockNote: "Win a climb with Mr. Smith to unlock"),
+        DeckInfo(id: "garden", name: "Mr. Garden", requires: "slyrex", sub: "Every card comes stickered",
+                 unlockNote: "Win a climb with Slyrex to unlock"),
+        DeckInfo(id: "rocko", name: "Rocko", requires: "garden", sub: "Stickers don't stick",
+                 unlockNote: "Win a climb with Mr. Garden to unlock"),
     ]
 
     // Deal-session state (persisted in the save blob).

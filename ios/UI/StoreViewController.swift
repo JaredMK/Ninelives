@@ -39,6 +39,9 @@ public final class StoreViewController: UIViewController {
     private var detail: StoreDetailView?
     private var keyPanel: UIView?
     private var holdHelp = PixelPanelView()
+    /// One check per visit for the first-ever-shop legend auto-open (task 13);
+    /// the PERSISTENT gate is the `storeHelpSeen` pref.
+    private var didCheckAutoHelp = false
 
     /// A mystery "store" detour keys the offer to the mystery node.
     public var offerNodeId: Int?
@@ -183,6 +186,17 @@ public final class StoreViewController: UIViewController {
         tissue.frame = b
         prompt.frame = b
         detail?.frame = b
+        // FIRST-EVER shop: the "?" legend opens itself once, pref-stamped even
+        // if closed instantly (the map-key idiom, MapViewController). A gift
+        // shelf is the joker's coat, not a store — it never counts. After the
+        // stamp, only the "?" button opens it.
+        if !didCheckAutoHelp {
+            didCheckAutoHelp = true
+            if !campaign.isGiftShelf, campaign.saveStore.pref("storeHelpSeen") != "1" {
+                campaign.saveStore.setPref("storeHelpSeen", "1")
+                toggleKey()
+            }
+        }
     }
 
     private func setMessage(_ s: String) {
@@ -195,8 +209,12 @@ public final class StoreViewController: UIViewController {
         shell.sync(campaign: campaign)
         let bal = NSMutableAttributedString(
             string: "\(campaign.getCoins()) ", attributes: [.font: CRT.Font.of(26), .foregroundColor: CRT.gold])
+        // The coin mark is GOLD like every other coin readout in the game —
+        // only the "to spend" tail stays muted (it was all grey before).
         bal.append(NSAttributedString(
-            string: "◉ to spend", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
+            string: "◉", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.gold]))
+        bal.append(NSAttributedString(
+            string: " to spend", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
         balanceLabel.attributedText = campaign.isGiftShelf
             ? CRTKit.attributed("everything here is free", size: 16, color: CRT.muted)
             : bal
@@ -793,7 +811,7 @@ public final class StoreViewController: UIViewController {
             return
         }
         // Never open a picker with nothing to pick. A sticker no card can take
-        // (Lammy's no-stickers rule, a suit the deck no longer holds, +1 Rank
+        // (Rocko's no-stickers rule, a suit the deck no longer holds, +1 Rank
         // with every card at Ace) used to show an all-greyed grid with no
         // explanation — the "I picked a sticker and couldn't apply it" case.
         // It stays in the inventory and the shelf keeps offering it.
@@ -890,38 +908,58 @@ public final class StoreViewController: UIViewController {
     // MARK: - Store key legend
 
     private func toggleKey() {
-        if let k = keyPanel { k.removeFromSuperview(); keyPanel = nil; return }
+        if keyPanel != nil { closeKey(); return }
         let data = GameData.shared
         let panel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
-        var rows: [(UIImage, String, String)] = []
-        if let d = data.items.stickers.first { rows.append((ItemArt.sticker(d, size: 40), "Sticker", "Sticks to one card, fires on landings")) }
-        if let d = data.items.pillars.first { rows.append((ItemArt.pillar(d, width: 34, height: 44), "Pillar", "Watches one column from above")) }
-        if let d = data.items.bases.first { rows.append((ItemArt.base(d, width: 44, height: 30), "Base", "Charges under a column; tap to fire")) }
-        if let d = data.items.packs.first { rows.append((ItemArt.pack(d, deckId: campaign.deckId, width: 34, height: 44), "Pack", "Buy, reveal, keep a pick")) }
-        if let d = data.items.samePowers.first { rows.append((ItemArt.samePower(d, width: 40, height: 40), "Same-Power", "Fires on every correct Same")) }
+        // The legend copy is FIXED, one line per kind (item batch 12) — the
+        // icons still come from the registry, the words never do.
+        var rows: [(UIImage, String)] = []
+        if let d = data.items.stickers.first {
+            rows.append((ItemArt.sticker(d, size: 40),
+                         "Sticker: Sticks to one card. Fires when the card lands."))
+        }
+        if let d = data.items.pillars.first {
+            rows.append((ItemArt.pillar(d, width: 34, height: 44),
+                         "Pillar: Sits on a column. Always on."))
+        }
+        if let d = data.items.bases.first {
+            rows.append((ItemArt.base(d, width: 44, height: 30),
+                         "Base: Sits on a column. Tap to use."))
+        }
+        if let d = data.items.samePowers.first {
+            rows.append((ItemArt.samePower(d, width: 40, height: 40),
+                         "Same-Power: Fires when you call Same correctly."))
+        }
         rows.append((ItemArt.removal(width: 34, height: 44),
-                     data.items.store.removal.label, "Thin your deck. Always in stock"))
+                     "Purge: Remove a card from the deck."))
+        let panelW: CGFloat = min(view.bounds.width - 24, 340)
+        let textW = panelW - 66 - 12
         var y: CGFloat = 12
-        for (img, name, sub) in rows {
+        for (img, line) in rows {
             let iv = UIImageView(image: img)
             iv.contentMode = .scaleAspectFit
             iv.layer.magnificationFilter = .nearest
             iv.frame = CGRect(x: 12, y: y, width: 44, height: 44)
             panel.addSubview(iv)
-            let nameL = CRTKit.label(name, size: 16, color: CRT.cardFace)
-            nameL.frame = CGRect(x: 66, y: y + 4, width: 220, height: 18)
-            panel.addSubview(nameL)
-            let subL = CRTKit.label(sub, size: 14, color: CRT.muted)
-            subL.frame = CGRect(x: 66, y: y + 22, width: 224, height: 16)
-            panel.addSubview(subL)
-            y += 50
+            let l = CRTKit.label(line, size: 14, color: CRT.cardFace)
+            l.numberOfLines = 0
+            let h = ceil(l.sizeThatFits(CGSize(width: textW, height: 200)).height)
+            let rowH = max(44, h)
+            l.frame = CGRect(x: 66, y: y + (rowH - h) / 2, width: textW, height: h)
+            panel.addSubview(l)
+            y += rowH + 6
         }
-        panel.frame = CGRect(x: (view.bounds.width - 310) / 2,
+        panel.frame = CGRect(x: (view.bounds.width - panelW) / 2,
                              y: TopShellView.height(safeTop: view.safeAreaInsets.top) + 52,
-                             width: 310, height: y + 8)
-        view.insertSubview(panel, belowSubview: crt)
-        keyPanel = panel
-        panel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(closeKey)))
+                             width: panelW, height: y + 8)
+        // A clear full-screen catcher under the panel: a tap ANYWHERE — on the
+        // legend or away from it — collapses it, and the tap goes nowhere else.
+        let catcher = UIView(frame: view.bounds)
+        catcher.backgroundColor = .clear
+        catcher.addSubview(panel)
+        catcher.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(closeKey)))
+        view.insertSubview(catcher, belowSubview: crt)
+        keyPanel = catcher
     }
 
     @objc private func closeKey() {

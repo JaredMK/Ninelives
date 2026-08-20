@@ -139,6 +139,9 @@ public final class CampaignState {
     // MARK: - Init
 
     public init(data: GameData = .shared, map: RunMap? = nil, store: KeyValueStore = MemoryStore()) {
+        // One-time save migrations run BEFORE anything reads the store —
+        // v6.67: the smith/lammy → garden/rocko deck-id rename.
+        SaveMigrations.migrateDeckIds(store)
         self.data = data
         self.map = map ?? RunMap(data: data)
         self.stats = Stats(store: store)
@@ -154,7 +157,7 @@ public final class CampaignState {
     // MARK: - Deck rules
 
     public func rules() -> DeckRules { data.meta.rules(deckId) }
-    /// Shop price with the deck's multiplier applied (Mr. Smith pays 2×).
+    /// Shop price with the deck's multiplier applied (no deck carries one today).
     public func shopPrice(_ p: Double) -> Double { (p * rules().priceMult).rounded() }
     public var stickersLocked: Bool { rules().noStickers }
 
@@ -278,8 +281,10 @@ public final class CampaignState {
     @discardableResult
     func mintSuitCardId(_ suit: String, rank: Int?, rng: RNG) -> Int {
         let r = rank ?? (minRank + rng.index(maxRank - minRank + 1))
-        let card = CardSpec(id: nextCardId, suit: suit, originalRank: r, currentRank: r)
+        var card = CardSpec(id: nextCardId, suit: suit, originalRank: r, currentRank: r)
         nextCardId += 1
+        // MR. GARDEN (v6.67): every mint joins the run already stickered.
+        if rules().stickerEverything { gardenSticker(&card, rng: rng) }
         baseDeck.append(card)
         return card.id
     }
@@ -387,13 +392,13 @@ public final class CampaignState {
     /// be handed over anyway and then parked in an invisible inventory the
     /// player could never spend, so it was simply lost (v5.83).
     public func grantableStickersWithTarget() -> [ItemDef] {
-        guard !rules().noStickers else { return [] }   // Lammy takes no stickers at all
+        guard !rules().noStickers else { return [] }   // Rocko takes no stickers at all
         return grantableStickers().filter { stickerHasTarget($0.id) }
     }
 
     /// A freshly-minted NORMAL pack-odds card: a random suit from ALL FOUR
     /// (store cards/packs are deliberately UNGATED), then the shared sticker
-    /// distribution, suit-restricted per sticker. Lammy mints none.
+    /// distribution, suit-restricted per sticker. Rocko mints none.
     /// `stickerOdds` overrides the pack table (the store's single-card slot
     /// rolls its own, cheaper distribution).
     public func genNormalCard(_ rng: RNG, stickerOdds: [[Double]]? = nil) -> CardSpec {
@@ -412,7 +417,25 @@ public final class CampaignState {
             guard let sid = StoreRoll.rollIds(pool, 1, rng, tierWeights: data.items.store.tierWeights).first else { continue }
             applyStickerToCard(&card, sid, rng: rng, suits: suits)
         }
+        // MR. GARDEN (v6.67): a minted card never leaves bare — when the odds
+        // rolled zero stickers, his coat supplies one.
+        if rules().stickerEverything, card.stickers.isEmpty { gardenSticker(&card, rng: rng) }
         return card
+    }
+
+    /// MR. GARDEN's coat (v6.67): one random ELIGIBLE sticker onto `card`.
+    /// Curses never roll here (grantableStickers excludes them); rank
+    /// stickers only where they can actually move the rank — the same
+    /// eligibility rule the startStickers hand uses.
+    func gardenSticker(_ card: inout CardSpec, rng: RNG) {
+        guard !card.joker, !card.blank, card.stickers.isEmpty else { return }
+        let elig = grantableStickers().filter { t in
+            guard CardRules.stickerEligible(card, t.id, data: data) else { return false }
+            guard t.kind == "rank" else { return true }
+            return t.num("rankDelta", 0) > 0 ? card.currentRank < maxRank : card.currentRank > minRank
+        }
+        guard !elig.isEmpty else { return }
+        applyStickerToCard(&card, elig[rng.index(elig.count)].id, rng: rng)
     }
 
     /// A freshly-minted persistent JOKER card (store packs / store card slot).
@@ -755,7 +778,32 @@ public final class CampaignState {
         runSeed = entered ?? RNG.generateSeed()
         savedGenVersion = Self.runGenVersion   // fresh seed → current generator
         let startRng = rrng(.s("start"))
-        if rules().altSuits {
+        if !rules().startRanks.isEmpty {
+            // FIXED-RANK START (v6.67, Slyrex: six 2s, six Aces, one 8). Each
+            // rank takes its four existing suit cards first (seeded order),
+            // then MINTS duplicates for the remainder, suits cycled so no suit
+            // starves. Everything else — draft pool, packs, stages — is
+            // Pinky's game untouched.
+            ownedIds = []
+            let suits = DeckManager.suits.map(\.symbol)
+            for (rank, count) in rules().startRanks.sorted(by: { $0.key < $1.key }) {
+                var pool = baseDeck.filter { !$0.joker && !$0.blank && $0.originalRank == rank }
+                var i = pool.count - 1
+                while i > 0 {                  // seeded Fisher-Yates
+                    let j = startRng.index(i + 1)
+                    pool.swapAt(i, j)
+                    i -= 1
+                }
+                for k in 0..<count {
+                    if k < pool.count {
+                        ownedIds.append(pool[k].id)
+                    } else {
+                        ownedIds.append(mintSuitCardId(suits[(k - pool.count) % suits.count],
+                                                       rank: rank, rng: startRng))
+                    }
+                }
+            }
+        } else if rules().altSuits {
             // One card of EACH RANK, suits spread EVENLY: 13 ranks over 4 suits
             // is 4/3/3/3, so the hand always shows every suit instead of
             // whatever a per-rank coin flip happened to produce. Both the suit
@@ -786,6 +834,13 @@ public final class CampaignState {
         // entry deck size counts them.
         let startJokers = data.difficulty.startJokers(deckId: deckId, tierId: difficultyTier)
         for _ in 0..<startJokers { ownedIds.append(mintJokerId()) }
+        // MR. GARDEN (v6.67): the ENTIRE draft pool wears a random sticker
+        // from the start — so every store shelf, pack and map node shows the
+        // card's sticker before it's taken, and every card picked up carries
+        // one. Applied BEFORE the map generates so node previews are dressed.
+        if rules().stickerEverything {
+            for i in baseDeck.indices { gardenSticker(&baseDeck[i], rng: startRng) }
+        }
         genRunMap()
         if rules().startStickers {
             // One random sticker per starting card, drawn ONLY from the stickers
@@ -822,6 +877,9 @@ public final class CampaignState {
             columnBases = roll3(data.baseTypes.all()
                 .filter { itemUnlocks.isUnlocked($0) && $0.effect != "randomSticker" && $0.effect != "stickerHarvest" }
                 .map(\.id))
+            // ROCKO (v6.67): the full loadout includes a random Same-Power.
+            let powers = data.samePowerTypes.all().filter(itemUnlocks.isUnlocked).map(\.id)
+            if !powers.isEmpty { equippedSamePower = powers[startRng.index(powers.count)] }
         }
     }
 
@@ -1435,6 +1493,7 @@ public final class CampaignState {
     }
     @discardableResult
     public func placePillar(_ typeId: String, col: Int) -> Bool {
+        guard !rules().noPillarsBases else { return false }   // Mr. Garden (v6.67)
         guard col >= 0, col < columnPillars.count, (pillarInventory[typeId] ?? 0) > 0 else { return false }
         pillarInventory[typeId]! -= 1
         if pillarInventory[typeId] == 0 { pillarInventory[typeId] = nil }
@@ -1473,6 +1532,7 @@ public final class CampaignState {
     }
     @discardableResult
     public func placeBase(_ typeId: String, col: Int) -> Bool {
+        guard !rules().noPillarsBases else { return false }   // Mr. Garden (v6.67)
         guard col >= 0, col < columnBases.count, (baseInventory[typeId] ?? 0) > 0 else { return false }
         baseInventory[typeId]! -= 1
         if baseInventory[typeId] == 0 { baseInventory[typeId] = nil }
@@ -1550,6 +1610,21 @@ public final class CampaignState {
     /// `node` stamps the offer's owner (defaults to the current position) so
     /// the store screen can tell a resume of THIS visit from a different shop.
     @discardableResult
+    /// v6.67 DECK-RULE SHELF EXCLUSIONS — fed into the store roll's
+    /// isEquipped hook (an "equipped" item never shelves, and an EMPTY class
+    /// pool renormalizes the class weights over the rest): Mr. Garden shelves
+    /// no Pillars or Bases; Rocko (noStickers) shelves no stickers and no
+    /// sticker packs — his store offers only what he can actually use
+    /// (pre-v6.67 they rolled in greyed-out; now they never appear).
+    func storeSlotExcluded(kind: String, id: String) -> Bool {
+        if rules().noPillarsBases, kind == "pillar" || kind == "base" { return true }
+        if rules().noStickers {
+            if kind == "sticker" { return true }
+            if kind == "pack", data.packTypes.get(id)?.kind == "sticker" { return true }
+        }
+        return false
+    }
+
     public func openStore(rng: RNG? = nil, node: Int? = nil) -> StoreOffer {
         // The visit's offer keys to the NODE — the store node's id, or a mystery
         // node's id for a detour — so a store's contents depend on the seed +
@@ -1559,7 +1634,9 @@ public final class CampaignState {
         storeOffer = StoreRoll.freshOffer(r, data: data, removalOn: removalSlotEnabled,
                                           isUnlocked: itemUnlocks.isUnlocked,
                                           isEquipped: { [weak self] kind, id in
-                                              self?.isEquipped(kind: kind, id: id) ?? false
+                                              guard let self else { return false }
+                                              if self.storeSlotExcluded(kind: kind, id: id) { return true }
+                                              return self.isEquipped(kind: kind, id: id)
                                           },
                                           tierWeights: effectiveTierWeights(),
                                           genCard: { [weak self] rr in self?.genStoreCard(rr) })
@@ -1665,7 +1742,9 @@ public final class CampaignState {
         offer.slots = StoreRoll.rollUnifiedSlots(rng, count: rolled, data: data,
                                                  isUnlocked: itemUnlocks.isUnlocked,
                                                  isEquipped: { [weak self] kind, id in
-                                                     self?.isEquipped(kind: kind, id: id) ?? false
+                                                     guard let self else { return false }
+                                                     if self.storeSlotExcluded(kind: kind, id: id) { return true }
+                                                     return self.isEquipped(kind: kind, id: id)
                                                  },
                                                  tierWeights: effectiveTierWeights(),
                                                  genCard: { [weak self] rr in self?.genStoreCard(rr) })
@@ -1768,7 +1847,7 @@ public final class CampaignState {
     /// same number the shelf and the detail sheet display.
     @discardableResult
     public func buyOfferedSticker(_ i: Int) -> Bool {
-        guard !rules().noStickers else { return false }   // Lammy: stickers unusable
+        guard !rules().noStickers else { return false }   // Rocko: stickers unusable
         guard var offer = storeOffer, let slot = offer.slots[safe: i] ?? nil,
               slot.kind == "sticker",
               buySticker(slot.id, priceOverride: priceOfMixed(i)) else { return false }
@@ -1798,7 +1877,7 @@ public final class CampaignState {
     public func buyMixedSlot(_ i: Int, mysteryRng: RNG? = nil) -> BuyResult {
         guard var offer = storeOffer, let s = offer.slots[safe: i] ?? nil else { return BuyResult(ok: false) }
         if s.kind == "sticker" { return BuyResult(ok: false) }   // stickers buy via buyOfferedSticker
-        // Lammy: sticker packs still roll into the shelf but can't be bought.
+        // Rocko: sticker packs still roll into the shelf but can't be bought.
         if rules().noStickers, s.kind == "pack", data.packTypes.get(s.id)?.kind == "sticker" {
             return BuyResult(ok: false)
         }

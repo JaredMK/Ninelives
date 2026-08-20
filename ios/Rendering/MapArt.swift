@@ -150,13 +150,15 @@ public enum MapArt {
     // MARK: - Pack stack
 
     /// Per-deck back dithers: pink = red⊕cream, mamma = red⊕gold,
-    /// smith = gold⊕deep-felt, lammy = ink⊕cream (§1 optical mixes).
+    /// garden = gold⊕deep-felt, rocko = ink⊕cream (the black-and-white
+    /// coat), slyrex = phosphor⊕deep-felt (§1 optical mixes).
     static func packDither(_ deckId: String) -> (UIColor, UIColor) {
         switch deckId {
-        case "mamma": return (CRT.suitRed, CRT.gold)
-        case "smith": return (CRT.gold, CRT.feltDeep)
-        case "lammy": return (CRT.ink, CRT.cardFace)
-        default:      return (CRT.suitRed, CRT.cardFace)
+        case "mamma":  return (CRT.suitRed, CRT.gold)
+        case "garden": return (CRT.gold, CRT.feltDeep)
+        case "rocko":  return (CRT.ink, CRT.cardFace)
+        case "slyrex": return (CRT.phosphor, CRT.feltDeep)
+        default:       return (CRT.suitRed, CRT.cardFace)
         }
     }
 

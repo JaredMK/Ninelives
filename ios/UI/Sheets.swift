@@ -666,7 +666,11 @@ final class StatsSheetView: SheetView {
         build()
     }
 
-    private func statTile(value: String, pct: String?, label: String, width: CGFloat) -> UIView {
+    /// `wrapLabel` lets a long caption (the per-deck HIGH SCORE tiles) break
+    /// onto a second 14pt line instead of truncating — the type floor is
+    /// hard, so the CONTAINER gives room, never the font.
+    private func statTile(value: String, pct: String?, label: String, width: CGFloat,
+                          wrapLabel: Bool = false) -> UIView {
         let v = PixelPanelView(face: CRT.feltMid, border: CRT.ink, shadowOffsetPx: 0)
         v.frame = CGRect(x: 0, y: 0, width: width, height: 60)
         let num = NSMutableAttributedString(
@@ -682,11 +686,16 @@ final class StatsSheetView: SheetView {
         nl.layer.shadowRadius = 5
         nl.layer.shadowOpacity = 0.5
         nl.layer.shadowOffset = .zero
-        nl.frame = CGRect(x: 4, y: 10, width: width - 8, height: 20)
+        nl.frame = CGRect(x: 4, y: wrapLabel ? 5 : 10, width: width - 8, height: 20)
         v.addSubview(nl)
         let ll = CRTKit.label(label.uppercased(), size: 14, color: CRT.muted)
         ll.textAlignment = .center
-        ll.frame = CGRect(x: 2, y: 34, width: width - 4, height: 15)
+        if wrapLabel {
+            ll.numberOfLines = 2
+            ll.frame = CGRect(x: 2, y: 26, width: width - 4, height: 32)
+        } else {
+            ll.frame = CGRect(x: 2, y: 34, width: width - 4, height: 15)
+        }
         v.addSubview(ll)
         return v
     }
@@ -703,23 +712,37 @@ final class StatsSheetView: SheetView {
 
         let s = campaign.stats.get()
         func pct(_ a: Int, _ b: Int) -> String { b > 0 ? "\(Int((Double(a) / Double(b) * 100).rounded()))%" : "0%" }
-        let tiles: [(String, String?, String)] = [
-            // The one best score leads — endless continues the climb's total
-            // (v6.47), so there is exactly one record to show.
-            ("\(s.bestCampaignScore)", nil, "High score (all decks)"),
-            ("\(s.gamesPlayed)", nil, "Climbs played"),
-            ("\(s.campaignsWon)", pct(s.campaignsWon, s.gamesPlayed), "Climbs won"),
-            ("\(s.lifetimeCardsDrawn)", nil, "Cards drawn"),
-            ("\(s.lifetimeCorrectGuesses)", pct(s.lifetimeCorrectGuesses, s.lifetimeGuesses), "Correct draws"),
-            ("\(s.lifetimeDopamine)", nil, "Lifetime coins"),
+        // Per-deck-and-tier high scores LEAD the grid (v6.68) — the same
+        // "<deckId>.<tierId>" store the deck-select HIGH SCORE readout reads.
+        // Only combos with a recorded score get a tile (a wall of zeros helps
+        // nobody), except Pinky's pair, which always shows — it's the pair
+        // every player has from climb one. Deck-major, tier-minor, roster
+        // order: each deck's Jokers tile leads its Straight tile.
+        var tiles: [(String, String?, String, Bool)] = []
+        for deckId in GameMeta.deckOrder {
+            let deckName = GameFlowController.decks.first { $0.id == deckId }?.name ?? deckId
+            for tierId in DifficultyData.tierIds {
+                guard let best = s.deckTierBest["\(deckId).\(tierId)"] ?? (deckId == "pink" ? 0 : nil)
+                else { continue }
+                let tierName = GameData.shared.difficulty.tier(tierId).label
+                tiles.append(("\(best)", nil, "High Score (\(tierName) – \(deckName))", true))
+            }
+        }
+        tiles += [
+            ("\(s.bestCampaignScore)", nil, "High score (all decks)", false),
+            ("\(s.gamesPlayed)", nil, "Climbs played", false),
+            ("\(s.campaignsWon)", pct(s.campaignsWon, s.gamesPlayed), "Climbs won", false),
+            ("\(s.lifetimeCardsDrawn)", nil, "Cards drawn", false),
+            ("\(s.lifetimeCorrectGuesses)", pct(s.lifetimeCorrectGuesses, s.lifetimeGuesses), "Correct draws", false),
+            ("\(s.lifetimeDopamine)", nil, "Lifetime coins", false),
             // bestCoinsInClimb, NOT bestCampaignDopamine: the latter only ever
             // recorded on a WON climb, so dying with a fat purse counted for
             // nothing and the tile looked broken.
-            ("\(s.bestCoinsInClimb)", nil, "Most coins in a climb"),
+            ("\(s.bestCoinsInClimb)", nil, "Most coins in a climb", false),
         ]
         let tw = (w - 10) / 2
         for (i, t) in tiles.enumerated() {
-            let tile = statTile(value: t.0, pct: t.1, label: t.2, width: tw)
+            let tile = statTile(value: t.0, pct: t.1, label: t.2, width: tw, wrapLabel: t.3)
             tile.frame.origin = CGPoint(x: CGFloat(i % 2) * (tw + 10), y: y + CGFloat(i / 2) * 68)
             scroll.addSubview(tile)
         }

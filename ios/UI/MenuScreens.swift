@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.66"
-    static let note = "ios: every suit on screen is the game's own pixel mark — no borrowed glyphs, from the shelf to the badges to the tallies."
+    static let version = "v6.67"
+    static let note = "ios: Slyrex joins the table, Rocko gets his coat, Mr. Garden stickers everything, and the front door slims to three rows."
     static let line = "build \(version) · \(note)"
 }
 
@@ -205,9 +205,11 @@ class MenuScreenBase: UIViewController {
 
 final class MainMenuViewController: MenuScreenBase {
     private let canContinue: Bool
-    /// RANKINGS, the corner doorway to the Game Center scoreboard — the
-    /// nav-btn family (plain text, top-right, just below the safe area).
-    private let rankingsButton = PixelButtonView("RANKINGS", role: .plain, fontSize: 14)
+    /// THE ICON STRIP (v6.67): Settings · How to Play · Stats · Rankings as
+    /// pixel-glyph buttons pinned along the screen bottom — the front door's
+    /// rows are just CLIMB / ZEN / COLLECTION now. On `view`, not `content`:
+    /// a fixed strip outside the centred menu column.
+    private var iconStrip: [PixelButtonView] = []
 
     init(flow: GameFlowController, canContinue: Bool) {
         self.canContinue = canContinue
@@ -221,14 +223,51 @@ final class MainMenuViewController: MenuScreenBase {
         scroll.isScrollEnabled = false
         scroll.alwaysBounceVertical = false
         build()
-        // On `view`, not `content` — a corner control, outside the centred
-        // menu column. Opens Apple's sheet on the live board (the boards ride
-        // Leaderboards.enabledBoards; widen there as more go live in ASC).
-        rankingsButton.onTap = { [weak self] in
-            guard let self, let board = Leaderboards.enabledBoards.sorted().first else { return }
-            self.flow.gameCenter.presentLeaderboard(board, from: self.flow)
+        buildIconStrip()
+    }
+
+    /// One square pixel-glyph button per doorway, in a fixed order. Icons are
+    /// the game's own 8×8 marks (styleguide §3b: never a system glyph).
+    private func buildIconStrip() {
+        func iconButton(_ rows: [String], label: String, onTap: @escaping () -> Void) -> PixelButtonView {
+            let b = PixelButtonView("", role: .plain, fontSize: 14)
+            b.accessibilityLabel = label
+            let icon = UIImageView(image: PixelGlyph.image(rows, color: CRT.cardFace, scale: 3))
+            icon.contentMode = .center
+            icon.layer.magnificationFilter = .nearest
+            icon.isUserInteractionEnabled = false
+            icon.frame = CGRect(x: 0, y: 0, width: 56, height: 48)
+            b.addSubview(icon)
+            b.onTap = onTap
+            view.addSubview(b)
+            return b
         }
-        view.addSubview(rankingsButton)
+        iconStrip = [
+            iconButton(PixelGlyph.gear, label: "SETTINGS") { [weak self] in
+                guard let self else { return }
+                self.flow.setScreen(SettingsViewController(flow: self.flow))
+            },
+            iconButton(PixelGlyph.question, label: "HOW TO PLAY") { [weak self] in
+                guard let self else { return }
+                // v6.67: the door launches the TUTORIAL (the old manual code
+                // stays in showManual(), unused but kept deliberately).
+                self.flow.prompt.show("Would you like to play the Zen tutorial?", actions: [
+                    .init("Cancel", role: .plain) { self.flow.prompt.hide() },
+                    .init("Play", role: .cta) {
+                        self.flow.prompt.hide()
+                        self.flow.tutorialReplayArmed = true
+                        self.flow.startZen(diff: "easy")
+                    },
+                ]) { self.flow.prompt.hide() }
+            },
+            iconButton(PixelGlyph.bars, label: "STATS") { [weak self] in
+                self?.flow.showStats()
+            },
+            iconButton(PixelGlyph.trophy, label: "RANKINGS") { [weak self] in
+                guard let self, let board = Leaderboards.enabledBoards.sorted().first else { return }
+                self.flow.gameCenter.presentLeaderboard(board, from: self.flow)
+            },
+        ]
     }
 
     // MARK: - Title sequence
@@ -264,7 +303,7 @@ final class MainMenuViewController: MenuScreenBase {
         let staged = CGAffineTransform(translationX: 0, y: 40).scaledBy(x: 1.14, y: 1.14)
         for v in header { v.alpha = 0; v.transform = staged }
         for v in introRest { v.alpha = 0 }
-        rankingsButton.alpha = 0        // arrives with the buttons, not the title
+        for b in iconStrip { b.alpha = 0 }   // arrives with the buttons, not the title
 
         // One piece at a time: tagline, then the = mark, then the wordmark.
         flickerOn(introTagline, at: 0.20)
@@ -298,7 +337,7 @@ final class MainMenuViewController: MenuScreenBase {
             }
             UIView.animate(withDuration: 0.34, delay: 0.34, options: [.curveEaseOut]) {
                 for v in self.introRest { v.alpha = 1 }
-                self.rankingsButton.alpha = 1
+                for b in self.iconStrip { b.alpha = 1 }
             }
         }
     }
@@ -363,9 +402,14 @@ final class MainMenuViewController: MenuScreenBase {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // Mirror of the corner ← (web .nav-btn): just below the safe area.
-        rankingsButton.frame = CGRect(x: view.bounds.width - 118, y: view.safeAreaInsets.top + 4,
-                                      width: 110, height: 40)
+        // The icon strip: centred row of squares just above the home bar.
+        let side: CGFloat = 56, gap: CGFloat = 18
+        let total = CGFloat(iconStrip.count) * side + CGFloat(max(0, iconStrip.count - 1)) * gap
+        let x0 = (view.bounds.width - total) / 2
+        let y = view.bounds.height - view.safeAreaInsets.bottom - side - 10
+        for (i, b) in iconStrip.enumerated() {
+            b.frame = CGRect(x: x0 + CGFloat(i) * (side + gap), y: y, width: side, height: 48)
+        }
         writeSplashFrameIfAsked()
         runIntroIfNeeded()
     }
@@ -413,17 +457,23 @@ final class MainMenuViewController: MenuScreenBase {
         defer { introRest = Array(content.subviews.dropFirst(headerCount)) }
         addGap(22)
 
+        // THE FRONT DOOR (v6.67): exactly three rows — CLIMB, ZEN, COLLECTION.
+        // Settings / How to Play / Stats / Rankings live in the icon strip
+        // pinned along the screen bottom (built once in viewDidLoad).
         let campaignOpen = flow.campaignUnlocked()
-        if canContinue {
-            addButton("CONTINUE", role: .cta) { [weak self] in self?.resumeSave() }
-        }
         if campaignOpen {
-            addButton(canContinue ? "NEW CLIMB" : "CLIMB",
-                      role: canContinue ? .plain : .cta) { [weak self] in
+            addButton("CLIMB", role: .cta) { [weak self] in
                 guard let self else { return }
                 if self.canContinue {
-                    self.flow.prompt.show("Start a NEW climb?", help: "The saved climb is lost.", actions: [
-                        .init("Cancel", role: .plain) { self.flow.prompt.hide() },
+                    // One row serves both: resume the save, or burn it for a
+                    // fresh climb — the choice rides the prompt bar.
+                    self.flow.prompt.show("Continue your saved climb?",
+                                          help: "NEW CLIMB starts over. The saved climb is lost.",
+                                          actions: [
+                        .init("Continue", role: .cta) {
+                            self.flow.prompt.hide()
+                            self.resumeSave()
+                        },
                         .init("New climb", role: .danger) {
                             self.flow.prompt.hide()
                             self.flow.clearSave()
@@ -436,18 +486,12 @@ final class MainMenuViewController: MenuScreenBase {
             }
         }
         // ZEN is a standard menu row, first open included — the phosphor CTA
-        // role is reserved for CONTINUE/CLIMB (styleguide: phosphor is "CTAs,
+        // role is reserved for CLIMB (styleguide: phosphor is "CTAs,
         // highlights, score", and the front door's one CTA is the climb).
         addButton("ZEN", role: .plain) { [weak self] in
             self?.flow.showZenSelect()
         }
-        addButton("HOW TO PLAY") { [weak self] in self?.showManual() }
         addButton("COLLECTION") { [weak self] in self?.flow.showCollection() }
-        // STATS lives inside SETTINGS now — one fewer row on the front door.
-        addButton("SETTINGS") { [weak self] in
-            guard let self else { return }
-            self.flow.setScreen(SettingsViewController(flow: self.flow))
-        }
         // Debug has no menu row: the 🐞 button in the bottom-right corner is
         // the single entry point once 7 footer taps unlock access.
         addGap(20)
@@ -490,6 +534,9 @@ final class MainMenuViewController: MenuScreenBase {
         flow.resumeFromMenu()
     }
 
+    /// The old HOW TO PLAY instruction sheet. UNWIRED in v6.67 (the front-door
+    /// icon launches the Zen tutorial instead) but kept deliberately — it may
+    /// come back.
     private func showManual() {
         flow.showManualSheet()
     }
@@ -512,9 +559,12 @@ final class SettingsViewController: MenuScreenBase {
 
     private func build() {
         resetLayout()
-        // Same centred header block and internal rhythm as the main menu.
+        // The header block at the MAIN MENU's exact sizes and rhythm (v6.67,
+        // batch item 9): tagline 14 → gap 26 → 64pt logo → gap 22 → wordmark
+        // at 28pt in 36pt rows — the two screens used to disagree (24pt lines,
+        // 46/39/27 gaps) and the mark visibly jumped between them.
         addText("HIGHER OR LOWER?", size: 14, color: CRT.cardFace)
-        addGap(46)
+        addGap(26)
         let logo = UIImageView(image: MapArt.menuLogo(width: 64))
         logo.layer.magnificationFilter = .nearest
         logo.contentMode = .scaleAspectFit
@@ -522,24 +572,23 @@ final class SettingsViewController: MenuScreenBase {
         logo.frame = CGRect(x: (view.bounds.width - 64) / 2, y: 0, width: 64, height: 40)
         holder.addSubview(logo)
         addView(holder, height: 46)
-        addGap(39)
-        let line1 = CRTKit.label("Shoulda said", size: 24, color: CRT.cardFace, display: true)
+        addGap(22)
+        let line1 = CRTKit.label("Shoulda said", size: 28, color: CRT.cardFace, display: true)
         line1.textAlignment = .center
-        line1.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 30)
+        line1.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 36)
         let w1 = UIView(); w1.addSubview(line1)
-        addView(w1, height: 30)
-        let line2 = CRTKit.label("same", size: 24, color: CRT.phosphor, display: true, glow: true)
+        addView(w1, height: 36)
+        let line2 = CRTKit.label("same", size: 28, color: CRT.phosphor, display: true, glow: true)
         line2.textAlignment = .center
-        line2.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 30)
+        line2.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 36)
         let w2 = UIView(); w2.addSubview(line2)
-        addView(w2, height: 30)
-        addGap(27)
+        addView(w2, height: 36)
+        addGap(22)
         addButton("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")") { [weak self] in
             Sound.shared.enabled.toggle()
             self?.build()
         }
-        // Lifetime stats moved off the main menu and under SETTINGS.
-        addButton("STATS") { [weak self] in self?.flow.showStats() }
+        // (STATS left Settings in v6.67 — it has its own front-door icon now.)
         addButton("RESET PROGRESS", role: .danger) { [weak self] in
             self?.confirmReset()
         }
@@ -801,7 +850,9 @@ final class DeckSelectViewController: MenuScreenBase {
         }
         self.seedSuppressFocus = measuring
 
-        addGap(6)
+        // Below the corner ← row (v6.67, batch item 15): the title used to
+        // sit at the button's height and read as one crowded line with it.
+        addGap(50)
         addTitle("CHOOSE YOUR DECK", size: 16)
         seam(0.16)
 
@@ -1234,7 +1285,10 @@ final class CollectionViewController: MenuScreenBase {
         tileHelp.removeAll()
         addGap(6)
         addTitle("COLLECTION", size: 16)
-        addGap(2)
+        // The first class head ("Stickers") used to start right under the
+        // title — at x14 it sat straight across the corner ← button (v6.67,
+        // batch item 14). Clear the 40pt nav row before the left-aligned rows.
+        addGap(26)
         let unlocks = flow.campaign.itemUnlocks
         let bought = flow.campaign.stats.get().itemsBought
         for (title, defs, kind) in CollectionViewController.groups() {

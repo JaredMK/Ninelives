@@ -14,8 +14,13 @@ public enum LeaderboardID {
     /// immutable in App Store Connect, so these tokens deliberately do NOT
     /// track the player-facing labels (which have already been renamed once —
     /// "Normal" → "Jokers"). A future relabel changes nothing here.
+    /// v6.67 roster: smith → garden, lammy → rocko, slyrex new. The old
+    /// "sss.smith.*"/"sss.lammy.*" identifiers were never created in App
+    /// Store Connect, so the renamed decks take FRESH tokens (no orphaned
+    /// boards; pinky's live board is untouched).
     public static let deckTokens = ["pink": "pinky", "mamma": "mamma",
-                                    "smith": "smith", "lammy": "lammy"]
+                                    "slyrex": "slyrex", "garden": "garden",
+                                    "rocko": "rocko"]
     public static let tierTokens = ["regular": "jokers", "legendary": "straight"]
 
     /// "sss.<deck>.<tier>", e.g. "sss.pinky.straight". ONE board per

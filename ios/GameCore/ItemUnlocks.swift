@@ -3,7 +3,7 @@ import Foundation
 /// The item-unlock drip (`ninelives.itemunlocks.v1`).
 ///
 /// An items.js `unlock: { type, stat, count }` keeps an item out of EVERY roll
-/// pool (store classes, sticker grants, sticker packs, Lammy's pre-equip) until
+/// pool (store classes, sticker grants, sticker packs, Rocko's pre-equip) until
 /// the LIFETIME counter `stat` reaches `count`. Absent = a starting item.
 public final class ItemUnlocks {
     public static let key = "ninelives.itemunlocks.v1"

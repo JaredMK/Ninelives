@@ -330,7 +330,7 @@ public final class GameEngine {
     @discardableResult
     func projectStickerOntoCard(_ card: LiveCard?, _ typeId: String) -> Bool {
         guard let card, let t = stickerTypes.get(typeId) else { return false }
-        if runConfig.noStickers { return false }                              // Lammy
+        if runConfig.noStickers { return false }                              // Rocko
         guard CardRules.stickerEligible(card, typeId, data: data) else { return false }
         card.stickers.append(StickerRecord(type: typeId))
         func setRank(_ v: Int) {

@@ -50,14 +50,28 @@
       "noStickers": false,
       "preEquip": false
     },
-    "smith": {
+    "slyrex": {
       "altSuits": true,
-      "priceMult": 2,
-      "startStickers": true,
+      "priceMult": 1,
+      "startStickers": false,
       "noStickers": false,
-      "preEquip": false
+      "preEquip": false,
+      "startRanks": {
+        "2": 6,
+        "8": 1,
+        "14": 6
+      }
     },
-    "lammy": {
+    "garden": {
+      "altSuits": true,
+      "priceMult": 1,
+      "startStickers": false,
+      "noStickers": false,
+      "preEquip": false,
+      "stickerEverything": true,
+      "noPillarsBases": true
+    },
+    "rocko": {
       "altSuits": true,
       "priceMult": 1,
       "startStickers": false,

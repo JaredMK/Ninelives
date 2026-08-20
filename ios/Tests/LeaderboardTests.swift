@@ -32,11 +32,13 @@ final class LeaderboardTests: XCTestCase {
         XCTAssertNil(LeaderboardID.identifier(deck: "nope", tier: "regular"),
                      "an unknown deck must never produce a guessed board id")
         XCTAssertNil(LeaderboardID.identifier(deck: "pink", tier: "master"))
-        // The full scheme: 4 decks × 2 tiers, all distinct, none carrying the
-        // retired .campaign/.endless mode segment.
+        // The full scheme: 5 decks × 2 tiers (v6.67 roster: slyrex joined,
+        // smith/lammy retired for garden/rocko — their boards never existed
+        // in ASC, so the fresh tokens orphan nothing), all distinct, none
+        // carrying the retired .campaign/.endless mode segment.
         let all = LeaderboardID.allIdentifiers
-        XCTAssertEqual(all.count, 8)
-        XCTAssertEqual(Set(all).count, 8)
+        XCTAssertEqual(all.count, 10)
+        XCTAssertEqual(Set(all).count, 10)
         for id in all {
             XCTAssertTrue(id.hasPrefix("sss."), id)
             XCTAssertEqual(id.split(separator: ".").count, 3, "\(id): one board per deck+tier")
