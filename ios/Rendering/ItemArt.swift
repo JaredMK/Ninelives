@@ -1973,6 +1973,113 @@ public enum ItemArt {
             "............",
             "............",
             "............"],
+        // ---- v6.68 sweep: every pillar gets its OWN emblem (these seven had
+        // been falling to the label's first LETTER in the system font). ----
+        // Last Licks: +3 coins if NO pile in the column survived (a headstone
+        // with a cross cut out, standing on the ground line — the column's
+        // grave pays out).
+        "lastLicks": [
+            "............",
+            "...XXXXXX...",
+            "..XXXXXXXX..",
+            "..XXX..XXX..",
+            "..XX....XX..",
+            "..XXX..XXX..",
+            "..XXX..XXX..",
+            "..XXX..XXX..",
+            "..XXXXXXXX..",
+            "..XXXXXXXX..",
+            "XXXXXXXXXXXX",
+            "............"],
+        // Fourth Seat: the column starts with 1 extra pile — another chair
+        // pulled up to the table.
+        "fourthSeat": [
+            "............",
+            "..XX........",
+            "..XX........",
+            "..XX........",
+            "..XXXXXXXX..",
+            "..XXXXXXXX..",
+            "..XX....XX..",
+            "..XX....XX..",
+            "..XX....XX..",
+            "..XX....XX..",
+            "............",
+            "............"],
+        // Bulk Rate: the Purge ladder climbs slower (a price tag with its
+        // string hole, and a down arrow — the price comes DOWN).
+        "bulkRate": [
+            "............",
+            ".XXXXXXXX...",
+            ".X......XX..",
+            ".X.XX....XX.",
+            ".X.XX.....X.",
+            ".X........X.",
+            ".XXXXXXXXXX.",
+            ".....XX.....",
+            ".....XX.....",
+            "...XXXXXX...",
+            "....XXXX....",
+            ".....XX....."],
+        // Freebie: one store item costs 0 (a ribboned gift box, bow on top).
+        "freebie": [
+            "............",
+            "..XX....XX..",
+            "....XXXX....",
+            ".XXXXXXXXXX.",
+            ".X...XX...X.",
+            ".XXXXXXXXXX.",
+            ".X...XX...X.",
+            ".X...XX...X.",
+            ".X...XX...X.",
+            ".XXXXXXXXXX.",
+            "............",
+            "............"],
+        // Rare Hunter: rares roll twice as often (a scope ring closed on a
+        // phosphor gem — phosphor IS the rare-tier colour).
+        "rareHunter": [
+            "............",
+            ".....XX.....",
+            "...XX..XX...",
+            "..X......X..",
+            "..X..PP..X..",
+            ".X..PPPP..X.",
+            ".X..PPPP..X.",
+            "..X..PP..X..",
+            "..X......X..",
+            "...XX..XX...",
+            ".....XX.....",
+            "............"],
+        // Bouncer: 30% to turn Just a Two away (the Two's own corner pips,
+        // cream, with the house's bar slashed between them — not tonight).
+        "twoWard": [
+            "............",
+            ".XX.........",
+            ".XXX....CC..",
+            "..XXX...CC..",
+            "...XXX......",
+            "....XXX.....",
+            ".....XXX....",
+            "......XXX...",
+            "..CC...XXX..",
+            "..CC....XXX.",
+            ".........XX.",
+            "............"],
+        // Flypaper: landings can pick up a random sticker (the hanging sticky
+        // strip, two chips already stuck to it).
+        "flypaper": [
+            "............",
+            "....XXXX....",
+            ".....XX.....",
+            ".....XX.....",
+            "...CCXX.....",
+            "...CCXX.....",
+            ".....XX.....",
+            ".....XXCC...",
+            ".....XXCC...",
+            ".....XX.....",
+            "....XXXX....",
+            "............"],
     ]
 
     /// The bases' own 12×12 symbols (same "X" = accent convention).
@@ -2212,6 +2319,83 @@ public enum ItemArt {
             "....PPP.....",
             "....PP......",
             "............"],
+        // ---- v6.68 sweep: every base gets its OWN symbol (these five had
+        // been falling to the label's first LETTER in the system font). ----
+        // Last Resort: bury the whole deck, win the deal, blow up the
+        // neighbours (the TNT bundle, fuse lit — red spark).
+        "lastResort": [
+            "............",
+            ".......R....",
+            "......RR....",
+            "......X.....",
+            ".....X......",
+            ".XX.XX.XX...",
+            ".XX.XX.XX...",
+            ".XXXXXXXX...",
+            ".XX.XX.XX...",
+            ".XX.XX.XX...",
+            "............",
+            "............"],
+        // Empty Purse: spend EVERY coin for one peek (the pouch tipped
+        // upside-down, gold coins tumbling out of it).
+        "emptyPurse": [
+            "............",
+            "...XXXXXX...",
+            "..X......X..",
+            "..X......X..",
+            "...X....X...",
+            "....X..X....",
+            "....XXXX....",
+            "............",
+            ".....GG.....",
+            "...GG.......",
+            "......GG....",
+            "............"],
+        // Same Tell: the = mark appears on a same-rank top card (a card face
+        // wearing the game's own = mark).
+        "sameTell": [
+            "............",
+            "...XXXXXXX..",
+            "...X.....X..",
+            "...X.XXX.X..",
+            "...X.....X..",
+            "...X.XXX.X..",
+            "...X.....X..",
+            "...X.....X..",
+            "...XXXXXXX..",
+            "............",
+            "............",
+            "............"],
+        // Club Oracle: tell markers on every ♣ top (the club pip over the
+        // family eye — Spade Peeker's composition, club edition).
+        "clubOracle": [
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            ".XXXXXXXX...",
+            ".XX.XX.XX...",
+            "....XX......",
+            "...XXXX.....",
+            "............",
+            "..XXXXXX....",
+            "..X.PP.X....",
+            "..XXXXXX....",
+            "............"],
+        // Escape Hatch: only in an ambush — clear the deal instantly (the
+        // open doorway, an arrow bursting OUT through its wall).
+        "ambushOut": [
+            "............",
+            ".XXXXXXX....",
+            ".X.....X....",
+            ".X.....X....",
+            ".X......X...",
+            ".X..XXXXXXX.",
+            ".X..XXXXXXX.",
+            ".X......X...",
+            ".X.....X....",
+            ".X.....X....",
+            ".XXXXXXX....",
+            "............"],
     ]
 
     /// 8×8 marks composited onto the Same-Power diamond's centre (in ink over
@@ -2272,6 +2456,34 @@ public enum ItemArt {
             ".KK..KK.",
             "KK....KK",
             "........"],
+        // ---- v6.68 sweep: the last three powers still wore the generic "=".
+        "linkTell": [    // Second Sight — higher/lower tells (both chevrons)
+            "...KK...",
+            "..KKKK..",
+            ".KK..KK.",
+            "........",
+            ".KK..KK.",
+            "..KKKK..",
+            "...KK...",
+            "........"],
+        "linkSticker": [ // Sticker Spray — chip sprayed onto every column top
+            "........",
+            ".KKK....",
+            "KKKKK.K.",
+            "KKKKK...",
+            "KKKKK.K.",
+            ".KKK....",
+            "......K.",
+            "........"],
+        "linkPurge": [   // Long Odds — 25% to purge a deck card (the target)
+            "..KKKK..",
+            ".K....K.",
+            "K..KK..K",
+            "K.KKKK.K",
+            "K.KKKK.K",
+            "K..KK..K",
+            ".K....K.",
+            "..KKKK.."],
     ]
 
     /// The mystery Same-Power's centre mark: a "?" in place of any power's own
@@ -2579,7 +2791,8 @@ public enum ItemArt {
     private static func baseSymbolColor(_ def: ItemDef) -> UIColor {
         switch def.id {
         case "clubDig", "stickerHarvest": return CRT.phosphor      // dig/bury
-        case "kamikaze", "demolish", "heartDemolish": return CRT.suitRed  // destroy
+        case "kamikaze", "demolish", "heartDemolish",
+             "lastResort": return CRT.suitRed                       // destroy
         case "tax": return CRT.gold                                 // coins
         default: return CRT.cardFace                                // peek + util
         }

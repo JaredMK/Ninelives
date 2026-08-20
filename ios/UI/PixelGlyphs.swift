@@ -49,13 +49,19 @@ enum PixelGlyph {
     // presentation where a U+FE0F rode along) in the middle of pixel type.
     // These are the game's own suit marks, drawn on the same 8×8 grid.
 
+    // v6.68 SPADE vs CLUB LEGIBILITY: at 8px (scale 1 — inline beside 14–16pt
+    // text, half-scale cards) the old spade and club were near-twins: both a
+    // lobed mass with side notches over a stem. Redrawn as opposites —
+    // SPADE: ONE pointed leaf. Sharp 2px point, smooth widen to the full-width
+    // base, a gentle tuck, then the stem. NO side-lobe notches anywhere: the
+    // solid silhouette IS the spade.
     static let spade = [
         "...XX...",
         "..XXXX..",
         ".XXXXXX.",
         "XXXXXXXX",
         "XXXXXXXX",
-        "XX.XX.XX",
+        ".XXXXXX.",
         "...XX...",
         "..XXXX..",
     ]
@@ -82,11 +88,16 @@ enum PixelGlyph {
         "...XX...",
     ]
 
+    // CLUB: THREE separated round lobes. A flat-topped 4px top lobe (vs the
+    // spade's 2px point), a 2px neck, then the two side lobes with a visible
+    // notch on BOTH sides of each (rows 3/5), fused only through the centre
+    // row, then the stem. The dark gaps are the club's signature — the one
+    // thing the spade never has.
     static let club = [
+        "..XXXX..",
+        "..XXXX..",
         "...XX...",
-        "..XXXX..",
-        "..XXXX..",
-        "XXXXXXXX",
+        "XX.XX.XX",
         "XXXXXXXX",
         "XX.XX.XX",
         "...XX...",

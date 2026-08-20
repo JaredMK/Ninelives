@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.67"
-    static let note = "ios: Slyrex joins the table, Rocko gets his coat, Mr. Garden stickers everything, and the front door slims to three rows."
+    static let version = "v6.68"
+    static let note = "ios: every deck is a deck again — five faces, five dances, real pips, honest icons, and Settings rises as a sheet."
     static let line = "build \(version) · \(note)"
 }
 
@@ -244,8 +244,8 @@ final class MainMenuViewController: MenuScreenBase {
         }
         iconStrip = [
             iconButton(PixelGlyph.gear, label: "SETTINGS") { [weak self] in
-                guard let self else { return }
-                self.flow.setScreen(SettingsViewController(flow: self.flow))
+                // A sheet over the menu (v6.68) — never a separate page.
+                self?.flow.showSettings()
             },
             iconButton(PixelGlyph.question, label: "HOW TO PLAY") { [weak self] in
                 guard let self else { return }
@@ -545,6 +545,9 @@ final class MainMenuViewController: MenuScreenBase {
 // MARK: - Settings
 
 /// SOUND + RESET live under SETTINGS (the web tucks them off the main menu).
+/// UNWIRED in v6.68 (batch 2.3): Settings opens as SettingsSheetView now —
+/// this full-page screen is kept deliberately (it may come back) but nothing
+/// navigates here.
 final class SettingsViewController: MenuScreenBase {
     /// Left-edge swipe = the ← control.
     override var backGestureAction: (() -> Void)? { { [weak self] in self?.flow.showMenu() } }
@@ -1025,7 +1028,18 @@ final class DeckSelectViewController: MenuScreenBase {
 
     @objc private func tapAnywhere(_ g: UITapGestureRecognizer) {
         guard let field = seedField, field.isFirstResponder else { return }
-        if !field.bounds.contains(g.location(in: field)) { view.endEditing(true) }
+        guard !field.bounds.contains(g.location(in: field)) else { return }
+        // THE FIRST TAP ACTS (v6.68, batch 5.5): tapping START with the
+        // keyboard up used to only dismiss it — the keyboard-lift relayout
+        // slid the button out from under the finger before its touch-up could
+        // land. Hit-test the tap ourselves and fire the button along with the
+        // dismissal, so one tap starts the run.
+        let hitStart = startButton.map {
+            $0.isEnabled && $0.superview != nil
+                && $0.frame.contains(g.location(in: $0.superview!))
+        } ?? false
+        view.endEditing(true)
+        if hitStart { startClimb() }
     }
 
     @objc private func keyboardWillShow(_ n: Notification) {

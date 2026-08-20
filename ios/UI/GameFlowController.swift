@@ -552,6 +552,38 @@ public final class GameFlowController: UIViewController {
     }
 
     /// Lifetime stats ride a bottom sheet over whatever's showing (web parity).
+    /// SETTINGS as a sheet over whatever's showing (v6.68, batch 2.3) — the
+    /// separate Settings page is retired; the menu wordmark stays visible
+    /// behind it, which is also what keeps it consistent with the menu's.
+    func showSettings() {
+        let sheet = SettingsSheetView()
+        sheet.onResetProgress = { [weak self, weak sheet] in
+            guard let self else { return }
+            self.view.insertSubview(self.prompt, belowSubview: self.crt)
+            // The web's destructive idiom: two chained confirms, then wipe.
+            self.prompt.show("Reset ALL progress?",
+                             help: "Campaign, decks, unlocks, stats and the tutorial are wiped. Only the sound setting survives.",
+                             actions: [
+                .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+                .init("Reset", role: .cta) { [weak self] in
+                    guard let self else { return }
+                    self.prompt.show("Really erase everything?",
+                                     help: "The campaign, decks, unlocks, stats and tutorial all reset. This can't be undone.",
+                                     actions: [
+                        .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+                        .init("Erase everything", role: .cta) { [weak self] in
+                            guard let self else { return }
+                            self.prompt.hide()
+                            sheet?.dismiss()
+                            self.resetAllProgress()
+                        },
+                    ]) { [weak self] in self?.prompt.hide() }
+                },
+            ]) { [weak self] in self?.prompt.hide() }
+        }
+        sheet.present(in: view, below: crt)
+    }
+
     func showStats() {
         let sheet = StatsSheetView(campaign: campaign)
         // Game Center: the entry point ALWAYS shows (Apple's sheet handles

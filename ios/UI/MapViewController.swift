@@ -71,8 +71,16 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private var scrollLock: CGFloat = 0
     private var traveling = false
     private var layoutX: [Int: CGFloat] = [:]   // buildMapLayout cache
-    /// One egg phrase per deal: session salt + deals completed.
-    private static let eggSalt = Int.random(in: 0..<max(1, GameData.shared.tutorial.mapHints.count))
+    /// HINT ROTATION (v6.68): the egg line re-rolls on every reveal instead of
+    /// freezing on one line per app session (the old `static let eggSalt`
+    /// never changed while the app stayed alive, so one hint stuck for days).
+    /// `lastShownHintIndex` is static so "never the same hint twice in a row"
+    /// survives the per-run map rebuild.
+    private static var lastShownHintIndex: Int?
+    /// The hint currently loaded into the egg label.
+    private var eggHintIndex = -1
+    /// True once the current rubber-band peek has fully shown the egg.
+    private var eggShownThisPeek = false
     /// Debug: long-press any node to jump straight to it.
     public var debugJumpEnabled = false
 
@@ -195,14 +203,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         track.frame = CGRect(x: x, y: 0, width: MapViewController.mapW, height: height)
         scroll.contentSize = CGSize(width: view.bounds.width, height: height)
         bgView.frame = CGRect(x: 0, y: -480, width: view.bounds.width, height: height + 960)
-        // 92% of the width (web `.map-egg`), height measured so long lines wrap
-        // instead of truncating. It sits BELOW contentSize and is revealed by
-        // the rubber band, so growing it needs no contentSize change.
-        let eggW = (view.bounds.width * 0.92).rounded(.down)
-        let eggH = max(22, ceil(eggLabel.sizeThatFits(CGSize(width: eggW,
-                                                            height: .greatestFiniteMagnitude)).height))
-        eggLabel.frame = CGRect(x: ((view.bounds.width - eggW) / 2).rounded(),
-                                y: height + 16, width: eggW, height: eggH)
+        frameEggLabel()
         // One-stage-at-a-time: the minimum offset is the lock line, and the
         // native rubber band operates AT it (fog shows above during the pull).
         // Bottom: a generous gap below the home row — the avatar must start
@@ -211,6 +212,33 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         scroll.contentInset = UIEdgeInsets(top: -scrollLock, left: 0,
                                            bottom: max(view.safeAreaInsets.bottom, 20) + 84,
                                            right: 0)
+    }
+
+    /// 92% of the width (web `.map-egg`), height measured so long lines wrap
+    /// instead of truncating. It sits BELOW contentSize and is revealed by
+    /// the rubber band, so growing it needs no contentSize change.
+    private func frameEggLabel() {
+        guard let map = campaign.runMap else { return }
+        let height = MapViewController.mapHeight(rows: map.totalRows)
+        let eggW = (view.bounds.width * 0.92).rounded(.down)
+        let eggH = max(22, ceil(eggLabel.sizeThatFits(CGSize(width: eggW,
+                                                             height: .greatestFiniteMagnitude)).height))
+        eggLabel.frame = CGRect(x: ((view.bounds.width - eggW) / 2).rounded(),
+                                y: height + 16, width: eggW, height: eggH)
+    }
+
+    /// Load the next egg hint: random, but never the one the player last
+    /// actually SAW (fully faded in) — so consecutive peeks always differ.
+    private func rollEggHint() {
+        let hints = GameData.shared.tutorial.mapHints
+        guard !hints.isEmpty else { eggLabel.text = ""; return }
+        var pool = Array(hints.indices)
+        if hints.count > 1, let last = MapViewController.lastShownHintIndex {
+            pool.removeAll { $0 == last }
+        }
+        eggHintIndex = pool.randomElement() ?? 0
+        eggLabel.text = hints[eggHintIndex]
+        frameEggLabel()
     }
 
     // MARK: - Layout math (ported verbatim)
@@ -414,9 +442,7 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         // ---- shell + egg + the store-return button ----
         storeButton.isHidden = campaign.currentNode()?.type != "store"
         shell.sync(campaign: campaign)
-        let hints = GameData.shared.tutorial.mapHints
-        eggLabel.text = hints.isEmpty ? "" : hints[
-            (MapViewController.eggSalt + campaign.runsCompleted) % hints.count]
+        rollEggHint()
 
         layoutContent()
         if scroll.contentOffset.y < scrollLock {
@@ -622,9 +648,20 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         eggLabel.alpha = min(1, max(0, over / 36))
         // UNLOCK2: finding the tip counts — but ONCE per climb, so the gate
         // rewards looking again on a new run rather than one long rubber-band.
-        if eggLabel.alpha >= 1, !tipCountedThisRun {
-            tipCountedThisRun = true
-            if !campaign.isExhibition() { campaign.stats.bump("pinkyTipsSeen") }
+        if eggLabel.alpha >= 1 {
+            // HINT ROTATION (v6.68): this hint is now SEEN — remember it so
+            // no roll ever repeats it back-to-back.
+            MapViewController.lastShownHintIndex = eggHintIndex
+            eggShownThisPeek = true
+            if !tipCountedThisRun {
+                tipCountedThisRun = true
+                if !campaign.isExhibition() { campaign.stats.bump("pinkyTipsSeen") }
+            }
+        } else if over <= 0, eggShownThisPeek {
+            // The peek ended (egg fully hidden again): load a fresh hint while
+            // nobody's looking, so the NEXT rubber-band shows a different one.
+            eggShownThisPeek = false
+            rollEggHint()
         }
     }
 
@@ -1133,7 +1170,10 @@ final class MapAvatarView: UIView {
         super.init(frame: CGRect(x: 0, y: 0, width: 44, height: 48))
         sprite.contentMode = .scaleAspectFit
         sprite.layer.magnificationFilter = .nearest
-        sprite.frame = CGRect(x: 6, y: 0, width: 32, height: 32)
+        // v6.68: 32→40pt (+25%) so the traveller reads at a glance. Grown
+        // UPWARD only — the foot line stays at y 32, so the bigger sprite
+        // covers no more of the node badge below than the old one did.
+        sprite.frame = CGRect(x: 2, y: -8, width: 40, height: 40)
         addSubview(sprite)
         badge.font = CRT.Font.of(16)
         badge.textColor = CRT.ink

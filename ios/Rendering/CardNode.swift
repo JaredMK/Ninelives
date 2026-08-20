@@ -134,17 +134,16 @@ public enum CardArt {
             UIGraphicsPushContext(cg)
             defer { UIGraphicsPopContext() }
 
-            // Corner pips — decoration at 100% only, 12px, 0.8 alpha.
-            if scale.showsPips, face.kind == .normal {
-                let pipAttrs: [NSAttributedString.Key: Any] = [
-                    .font: CRT.Font.of(14),
-                    .foregroundColor: inkColor.withAlphaComponent(0.8),
-                ]
-                let s = face.suit as NSString
-                s.draw(at: CGPoint(x: 4, y: 2), withAttributes: pipAttrs)
-                let pipSize = s.size(withAttributes: pipAttrs)
-                s.draw(at: CGPoint(x: box.width - pipSize.width - 4,
-                                   y: box.height - pipSize.height - 2), withAttributes: pipAttrs)
+            // Corner pips — decoration at 100% only, 0.8 alpha. v6.68: the
+            // game's own 8px pixel suit mark (PixelGlyph) — the text draw fell
+            // through to the SYSTEM font (neither game font carries U+2660–6),
+            // which is exactly where ♠ and ♣ blurred together.
+            if scale.showsPips, face.kind == .normal,
+               let pip = PixelGlyph.suitImage(face.suit, size: 14, color: inkColor) {
+                pip.draw(at: CGPoint(x: 4, y: 4), blendMode: .normal, alpha: 0.8)
+                pip.draw(at: CGPoint(x: box.width - pip.size.width - 4,
+                                     y: box.height - pip.size.height - 4),
+                         blendMode: .normal, alpha: 0.8)
             }
 
             // THE NUMERAL — oversized, centred, bold. line-height 0.8 in the CSS,
@@ -154,20 +153,39 @@ public enum CardArt {
             let rank = face.label as NSString
             let rankSz = rank.size(withAttributes: rankAttrs)
 
+            // The suit under the numeral — v6.68: a normal card's ♠♥♦♣ is the
+            // game's own pixel suit mark (PixelGlyph.suitImage — sized off
+            // Scale.suitSize, red suits self-tint suit-red, black suits take
+            // the card ink). The text path fell through to the system font,
+            // where ♠/♣ blur together at card scale. JOKER's caption and the
+            // blank "?" stay text.
+            let suitMark: UIImage? = face.kind == .normal
+                ? PixelGlyph.suitImage(face.suit, size: scale.suitSize, color: inkColor)
+                : nil
+
             let suitText = face.kind == .joker ? "JOKER" : face.suit
             let suitFont = CRT.Font.of(face.kind == .joker ? scale.suitSize * 0.5 : scale.suitSize)
             let suitAttrs: [NSAttributedString.Key: Any] = [.font: suitFont, .foregroundColor: inkColor]
             let suit = suitText as NSString
-            let suitSz = face.kind == .blank ? .zero : suit.size(withAttributes: suitAttrs)
+            let suitSz: CGSize
+            if let mark = suitMark { suitSz = mark.size }
+            else if face.kind == .blank { suitSz = .zero }
+            else { suitSz = suit.size(withAttributes: suitAttrs) }
 
             // VT323 carries a lot of internal leading; 0.72 packs the block the
-            // way `line-height: 0.8` does in the web card.
-            let blockH = rankSz.height * 0.72 + suitSz.height
+            // way `line-height: 0.8` does in the web card. The pixel mark is
+            // leading-free, so it buys a small explicit gap to sit where the
+            // text glyph's built-in leading used to put it — the rank+suit
+            // block stays centred as one unit either way.
+            let suitGap: CGFloat = suitMark != nil ? (scale.suitSize * 0.15).rounded() : 0
+            let blockH = rankSz.height * 0.72 + suitGap + suitSz.height
             var y = (box.height - blockH) / 2
             rank.draw(at: CGPoint(x: (box.width - rankSz.width) / 2, y: y - rankSz.height * 0.14),
                       withAttributes: rankAttrs)
-            y += rankSz.height * 0.72
-            if suitSz != .zero {
+            y += rankSz.height * 0.72 + suitGap
+            if let mark = suitMark {
+                mark.draw(at: CGPoint(x: ((box.width - suitSz.width) / 2).rounded(), y: y.rounded()))
+            } else if suitSz != .zero {
                 suit.draw(at: CGPoint(x: (box.width - suitSz.width) / 2, y: y), withAttributes: suitAttrs)
             }
         }

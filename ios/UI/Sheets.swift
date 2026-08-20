@@ -639,6 +639,49 @@ final class ManualSheetView: SheetView {
 /// Web `#statsSheet`: the CLIMBS stat-tile grid (big phosphor number over a
 /// muted label), the ZEN panel (scope filter · summary · twin histograms),
 /// and the full-width RESET STATS danger action.
+/// SETTINGS as a bottom sheet (v6.68, batch 2.3) — the separate Settings PAGE
+/// is retired; this rides the same SheetView chrome the stats sheet uses, so
+/// the menu (and its wordmark) stays visible behind it. Sound toggle + the
+/// double-confirmed full reset + the build line.
+final class SettingsSheetView: SheetView {
+    /// Wired by the flow: runs the double-confirm reset through the shared
+    /// prompt bar (the sheet itself never owns destructive flow).
+    var onResetProgress: (() -> Void)?
+
+    private let soundButton = PixelButtonView("", role: .plain, fontSize: 16)
+    private let resetButton = PixelButtonView("RESET PROGRESS", role: .danger, fontSize: 16)
+    private let foot = CRTKit.label(BuildStamp.line, size: 14, color: CRT.muted)
+
+    init() {
+        super.init(title: "Settings")
+        setBodyHeight(210)
+        soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
+        soundButton.onTap = { [weak self] in
+            Sound.shared.enabled.toggle()
+            self?.soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
+        }
+        resetButton.onTap = { [weak self] in self?.onResetProgress?() }
+        foot.textAlignment = .center
+        foot.numberOfLines = 2
+        foot.alpha = 0.6
+        body.addSubview(soundButton)
+        body.addSubview(resetButton)
+        body.addSubview(foot)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let w = body.bounds.width - 28
+        guard w > 0 else { return }
+        soundButton.frame = CGRect(x: 14, y: 8, width: w, height: 48)
+        resetButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
+        foot.frame = CGRect(x: 14, y: 126, width: w, height: 34)
+    }
+}
+
 final class StatsSheetView: SheetView {
     private let campaign: CampaignState
     private let scroll = UIScrollView()
@@ -728,8 +771,9 @@ final class StatsSheetView: SheetView {
                 tiles.append(("\(best)", nil, "High Score (\(tierName) – \(deckName))", true))
             }
         }
+        // (v6.68, batch 5.3: the "High score (all decks)" aggregate is GONE —
+        // the per-deck-and-tier rows above carry the records now.)
         tiles += [
-            ("\(s.bestCampaignScore)", nil, "High score (all decks)", false),
             ("\(s.gamesPlayed)", nil, "Climbs played", false),
             ("\(s.campaignsWon)", pct(s.campaignsWon, s.gamesPlayed), "Climbs won", false),
             ("\(s.lifetimeCardsDrawn)", nil, "Cards drawn", false),

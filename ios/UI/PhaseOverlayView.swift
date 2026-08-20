@@ -13,7 +13,7 @@ public final class PhaseOverlayView: UIView {
     private var y: CGFloat = 0
     /// Autopilot marker: this overlay is the victory screen.
     var victoryTag = false
-    /// The inset win/lose bezel (nil = no frame — mystery / zen / unlock pops).
+    /// The inset win/lose bezel (nil = no frame — mystery / unlock pops).
     private let bezel = UIView()
     /// Hold-to-peek (deal-cleared only): fade the whole overlay while a finger
     /// rests anywhere on it, restore on release — the web's `.overlay.peek`.
@@ -845,9 +845,16 @@ public final class PhaseOverlayView: UIView {
                        outcomeCount: Int? = nil, unlockLabel: String? = nil,
                        onAgain: @escaping () -> Void,
                        onMenu: @escaping () -> Void) -> PhaseOverlayView {
-        let v = PhaseOverlayView()
+        // SIZED TO THE CAMPAIGN END SCREENS (v6.68): this used to be a
+        // miniature — no bezel, 17pt title, 14pt values in a 260pt tile row —
+        // next to gameOver's framed 20pt header, 52pt hero number and 18pt
+        // tiles at 320. Every metric below is REUSED from gameOver /
+        // dealCleared above; nothing new is invented.
+        let v = PhaseOverlayView(frame: won ? .win : .lose)
+        v.addGap(6)
         if won {
-            v.addTitle("DECK CLEARED", color: CRT.phosphor)
+            // dealCleared's title metric (22), the win bezel to match.
+            v.addTitle("DECK CLEARED", size: 22)
         } else {
             // The web's onZenEnd loss header: the same "Shoulda said <word>"
             // treatment as the campaign death screen (gameOverTitleHtml).
@@ -865,18 +872,27 @@ public final class PhaseOverlayView: UIView {
         if let unlockLabel {
             v.addProgress("\(unlockLabel) unlocked!", spacingAfter: 10)
         }
-        // The per-game tiles: THIS game only — cards guessed, accuracy, and
-        // the outcome-specific count (piles standing on a win, cards left in
-        // the deck on a loss). Correct/wrong counts came off in v6.35: the
-        // accuracy percentage already tells that story in one number.
+        // THE ACCURACY IS THE SCREEN — zen has no score, so its one big
+        // number gets gameOver's exact hero treatment (14pt eyebrow, 52pt
+        // glowing figure). Correct/wrong counts came off in v6.35: the
+        // percentage already tells that story in one number.
         let pct = flips > 0 ? Int((Double(correct) / Double(flips) * 100).rounded()) : 0
+        v.addGap(4)
+        v.addCentered(PhaseOverlayView.tracked("ACCURACY", size: 14, color: CRT.muted,
+                                               display: true, kern: 3), spacingAfter: 2)
+        v.addCentered(PhaseOverlayView.tracked("\(pct)%", size: 52, color: CRT.phosphor,
+                                               display: true, kern: 0, glow: true),
+                      spacingAfter: 8)
+        // The secondary numbers, at gameOver's tile metrics (18pt values,
+        // 64pt tiles, the default 320pt row): cards guessed and the
+        // outcome-specific count (piles standing on a win, cards left in the
+        // deck on a loss).
         v.addTileRow([
-            StatTileView(value: tileValue("\(flips)", size: 14), name: "Guessed"),
-            StatTileView(value: tileValue("\(pct)%", size: 14), name: "Accuracy"),
-            StatTileView(value: tileValue(outcomeCount.map { "\($0)" } ?? "—", size: 14),
+            StatTileView(value: tileValue("\(flips)", size: 18), name: "Guessed"),
+            StatTileView(value: tileValue(outcomeCount.map { "\($0)" } ?? "—", size: 18),
                          name: won ? "Piles remaining" : "Remaining"),
-        ], height: 64, gap: 6, width: 260)
-        v.addGap(6)
+        ], height: 64)
+        v.addGap(10)
         v.addButton("PLAY AGAIN", role: .cta) { onAgain() }
         v.addButton("MENU", role: .plain) { onMenu() }
         return v

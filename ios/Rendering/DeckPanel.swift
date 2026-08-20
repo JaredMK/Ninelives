@@ -496,6 +496,10 @@ public final class DeckPanel: SKNode {
 public final class DeckCharNode: SKNode {
 
     private let sprite = SKSpriteNode()
+    /// Idle "breathing" runs on this wrapper, never on the sprite itself —
+    /// `dance`/`smallEmote` own the sprite's transform (and `react`'s revert
+    /// resets it), so the ambient loop and the reactions can never fight.
+    private let breath = SKNode()
     private var deckId = "pink"
     private var tier = "regular"
     /// The resting mood pushed by the controller (idle-family or sad-family).
@@ -509,8 +513,10 @@ public final class DeckCharNode: SKNode {
     public override init() {
         super.init()
         sprite.anchorPoint = CGPoint(x: 0, y: 1)
-        addChild(sprite)
+        breath.addChild(sprite)
+        addChild(breath)
         startBlink()
+        startIdle()
     }
 
     @available(*, unavailable)
@@ -521,6 +527,7 @@ public final class DeckCharNode: SKNode {
         deckId = id
         tier = t
         refresh()
+        startIdle()
     }
 
     /// The slow mood underneath (idle / sad from board state). Reactions and
@@ -641,6 +648,61 @@ public final class DeckCharNode: SKNode {
         }
     }
 
+    /// AMBIENT IDLE — each deck breathes in its own tempo, so the five stop
+    /// reading as one sprite with different hats even between reactions.
+    /// Runs on the `breath` wrapper (see its declaration) with the same idiom
+    /// as the blink loop: one repeatForever clock, move/rotate/scale only,
+    /// and every cycle nets to exactly zero displacement.
+    private func startIdle() {
+        breath.removeAction(forKey: "idle")
+        let cycle: SKAction
+        switch deckId {
+        case "mamma":
+            // MAMMA: a slow, contented sway — mostly hips, never hurried.
+            cycle = .sequence([
+                .group([.moveBy(x: 1, y: 0, duration: 1.5), .rotate(toAngle: -0.02, duration: 1.5)]),
+                .group([.moveBy(x: -2, y: 0, duration: 3.0), .rotate(toAngle: 0.02, duration: 3.0)]),
+                .group([.moveBy(x: 1, y: 0, duration: 1.5), .rotate(toAngle: 0, duration: 1.5)]),
+            ])
+        case "garden":
+            // MR. GARDEN: a dignified, near-imperceptible bob. Mostly stillness.
+            cycle = .sequence([
+                .wait(forDuration: 2.4),
+                .moveBy(x: 0, y: 1, duration: 1.1),
+                .moveBy(x: 0, y: -1, duration: 1.1),
+            ])
+        case "slyrex":
+            // SLYREX: quick eager double-bounce, then barely-contained stillness.
+            cycle = .sequence([
+                .wait(forDuration: 1.4),
+                .moveBy(x: 0, y: 2, duration: 0.09),
+                .moveBy(x: 0, y: -2, duration: 0.09),
+                .moveBy(x: 0, y: 2, duration: 0.09),
+                .moveBy(x: 0, y: -2, duration: 0.09),
+            ])
+        case "rocko":
+            // ROCKO: a sleepy slow breathe — the scale-down of the top-anchored
+            // sprite is paired with a 1px rise so the feet stay planted and the
+            // crown does the lifting — with an ear-flick every third breath.
+            let inhale = SKAction.group([.scaleY(to: 1.03, duration: 1.7),
+                                         .moveBy(x: 0, y: 1, duration: 1.7)])
+            let exhale = SKAction.group([.scaleY(to: 1.0, duration: 2.0),
+                                         .moveBy(x: 0, y: -1, duration: 2.0)])
+            let breathe = SKAction.sequence([inhale, exhale, .wait(forDuration: 0.5)])
+            let twitch = SKAction.sequence([.rotate(toAngle: 0.05, duration: 0.06),
+                                            .rotate(toAngle: 0, duration: 0.10)])
+            cycle = .sequence([breathe, breathe, twitch])
+        default:
+            // PINKY: a light, perky bob — quick up, quick down, brief rest.
+            cycle = .sequence([
+                .wait(forDuration: 1.6),
+                .moveBy(x: 0, y: 1, duration: 0.10),
+                .moveBy(x: 0, y: -1, duration: 0.10),
+            ])
+        }
+        breath.run(.repeatForever(cycle), withKey: "idle")
+    }
+
     /// The win dance: a bouncing sway while celebrating.
     /// EACH CHARACTER MOVES LIKE ITSELF. They shared one hop, so four
     /// distinct sprites read as one animation with different hats. The
@@ -655,18 +717,27 @@ public final class DeckCharNode: SKNode {
         sprite.run(.repeatForever(happy ? winMove() : lossMove()), withKey: "dance")
     }
 
-    /// A SMALL reaction: one beat, not a routine. Still per-character in
-    /// feel — a bob for good news, a dip for bad — but over in ~0.3s and
-    /// never repeating, so the win dance stays special.
+    /// A SMALL reaction: one beat, not a routine, and PER CHARACTER — Pinky's
+    /// pop is quick and high, Mamma's pleased lift is slow and shallow, Mr.
+    /// Garden permits himself a restrained nod, Slyrex overshoots with an
+    /// eager tilt, Rocko heaves a half-beat behind the news. Over in well
+    /// under half a second and never repeating, so the win dance stays
+    /// special.
     private func smallEmote(_ m: DeckCharacter.Mood) {
         let up = (m != .sad)
-        let dy: CGFloat = up ? 4 : -3
-        let tilt: CGFloat = up ? 0.06 : -0.05
+        let (dy, tilt, outDur, backDur): (CGFloat, CGFloat, TimeInterval, TimeInterval)
+        switch deckId {
+        case "mamma":  (dy, tilt, outDur, backDur) = up ? (3, 0.04, 0.16, 0.20) : (-3, -0.04, 0.20, 0.26)
+        case "garden": (dy, tilt, outDur, backDur) = up ? (2, 0.00, 0.12, 0.16) : (-2, -0.03, 0.18, 0.22)
+        case "slyrex": (dy, tilt, outDur, backDur) = up ? (5, 0.08, 0.08, 0.12) : (-4, -0.06, 0.08, 0.16)
+        case "rocko":  (dy, tilt, outDur, backDur) = up ? (3, 0.05, 0.16, 0.22) : (-4, -0.07, 0.22, 0.28)
+        default:       (dy, tilt, outDur, backDur) = up ? (5, 0.06, 0.08, 0.12) : (-3, -0.05, 0.10, 0.14)
+        }
         sprite.run(.sequence([
-            .group([.moveBy(x: 0, y: dy, duration: 0.10),
-                    .rotate(toAngle: tilt, duration: 0.10)]),
-            .group([.moveBy(x: 0, y: -dy, duration: 0.14),
-                    .rotate(toAngle: 0, duration: 0.14)]),
+            .group([.moveBy(x: 0, y: dy, duration: outDur),
+                    .rotate(toAngle: tilt, duration: outDur)]),
+            .group([.moveBy(x: 0, y: -dy, duration: backDur),
+                    .rotate(toAngle: 0, duration: backDur)]),
         ]), withKey: "dance")
     }
 
@@ -697,7 +768,7 @@ public final class DeckCharNode: SKNode {
                 .wait(forDuration: 0.45),
             ])
         case "rocko":
-            // ROCKO wobbles — a woolly, off-balance shimmy that never quite
+            // ROCKO wobbles — a loose, floppy-eared shimmy that never quite
             // settles.
             return .sequence([
                 .rotate(toAngle: 0.16, duration: 0.18),
@@ -772,12 +843,15 @@ public final class DeckCharNode: SKNode {
 }
 
 /// §6 Sprites — 16×16 base grid, 1px ink outline, palette colors + dither mixes
-/// only. The five deck characters drawn procedurally on that grid and baked:
-/// Pinky (cat ears, red⊕cream "pink"), Mamma (bow, red⊕gold rose), Mr. Garden
-/// (top hat + monocle, steel felt), Rocko (droopy wool ears, black/brown/white
-/// coat, one brown eye + one blue eye), Slyrex (crest-spiked teal dinosaur,
-/// corner fangs and a stub tail). Tier accessories overlay the same sheet:
-/// Master's gold belt, Legendary's gold crown.
+/// only. Every deck character is the SAME card-deck box — a tuck box with a
+/// lid seam, checkered dither body, its face on the box front, and little ink
+/// feet — drawn procedurally on that grid and baked. Identity rides ON the
+/// box, never changes the box: Pinky (cat ears, red⊕cream pink), Mamma (ears
+/// + bow, red⊕gold rose), Mr. Garden (top hat + monocle, steel), Rocko (droopy
+/// ears folded on the lid, piebald black/brown/white coat, one brown eye + one
+/// blue), Slyrex (a jagged crest ridge in place of the lid seam, teal hide,
+/// big shiny eyes, corner fangs). Tier accessories overlay the same sheet —
+/// one design per character per tier.
 public enum DeckCharacter {
 
     public enum Mood: String { case idle, looking, happy, glad, sad, celebrate, win, blink }
@@ -853,51 +927,69 @@ public enum DeckCharacter {
                 cg.setFillColor(color.cgColor)
                 cg.fill(CGRect(x: x * scale, y: y * scale, width: scale, height: scale))
             }
-            // Head block 10×9 at (3,3), 1px ink outline, dithered body fill.
-            for y in 3...11 {
+            // DECK-BOX SILHOUETTE — every character is the same card-deck
+            // box: a 10-wide tuck box (rows 2…12, cols 3…12) with a 1px ink
+            // outline, checkered dither fill, a lid-seam band, and little
+            // ink feet. The five decks differ only in what rides ON the box
+            // (ears, hat, bow, crest) — never in the box itself.
+            for y in 2...12 {
                 for x in 3...12 {
-                    let edge = (y == 3 || y == 11 || x == 3 || x == 12)
+                    let edge = (y == 2 || y == 12 || x == 3 || x == 12)
                     px(x, y, edge ? CRT.ink : ((x + y) % 2 == 0 ? a : b))
                 }
             }
-            // Per-character silhouette features.
+            // The tuck-lid seam. Slyrex's crest replaces it — his ridge IS
+            // the lid detail; everyone else keeps the band.
+            if deckId != "slyrex" {
+                for x in 4...11 { px(x, 4, CRT.ink) }
+            }
+            // Little feet under the box.
+            px(5, 13, CRT.ink); px(6, 13, CRT.ink)
+            px(9, 13, CRT.ink); px(10, 13, CRT.ink)
+            // Per-character identity, all of it worn ON the box top or laid
+            // over the box face — nothing bulges past Pinky's silhouette.
             switch deckId {
             case "garden":
-                // Top hat: brim + crown in ink.
+                // Top hat: brim along the box's top edge + crown above.
                 for x in 3...12 { px(x, 2, CRT.ink) }
                 for x in 5...10 { px(x, 1, CRT.ink); px(x, 0, CRT.ink) }
             case "rocko":
-                // Droopy black wool ears + fleece lumps along the crown —
-                // white and brown alternating, the piebald coat up top.
-                px(3, 4, CRT.ink); px(2, 5, CRT.ink); px(2, 6, CRT.ink)
-                px(12, 4, CRT.ink); px(13, 5, CRT.ink); px(13, 6, CRT.ink)
-                px(5, 2, CRT.cardFace); px(7, 2, rockoBrown); px(9, 2, CRT.cardFace); px(11, 2, rockoBrown)
-                // Coat patches on the face: brown over the left brow, brown
-                // at the right temple, white on the chin — kept clear of the
-                // eye rows (5…8, cols 5…11) and the mood mouths.
-                px(4, 4, rockoBrown); px(5, 4, rockoBrown); px(4, 5, rockoBrown); px(4, 6, rockoBrown)
-                px(10, 4, rockoBrown); px(11, 4, rockoBrown)
-                px(4, 9, CRT.cardFace); px(4, 10, CRT.cardFace); px(5, 10, CRT.cardFace)
+                // Droopy little ears folded flat against the box top — ink
+                // outboard, brown inboard — sliding outward when he's sad.
+                if mood == .sad {
+                    px(3, 1, CRT.ink); px(4, 1, rockoBrown)
+                    px(11, 1, rockoBrown); px(12, 1, CRT.ink)
+                } else {
+                    px(4, 1, CRT.ink); px(5, 1, rockoBrown)
+                    px(10, 1, rockoBrown); px(11, 1, CRT.ink)
+                }
+                // The piebald coat: solid brown patches on the lid strip and
+                // the left flank, one white chin patch — over the salt-and-
+                // pepper dither, clear of the eye rows/cols (5…8, 5…11) and
+                // every mood mouth.
+                px(4, 3, rockoBrown); px(5, 3, rockoBrown)
+                px(10, 3, rockoBrown); px(11, 3, rockoBrown)
+                px(4, 5, rockoBrown); px(4, 6, rockoBrown); px(4, 7, rockoBrown)
+                px(10, 10, CRT.cardFace); px(11, 10, CRT.cardFace)
             case "slyrex":
-                // T-rex read: jagged crest spikes on the crown, a stub tail
-                // low on the left, and two tiny arms at the jawline.
-                px(4, 2, CRT.ink); px(7, 2, CRT.ink); px(10, 2, CRT.ink)
-                px(2, 10, CRT.ink); px(1, 11, CRT.ink)
-                px(2, 9, CRT.ink); px(13, 9, CRT.ink)
-                // Nostrils on the snout, just above the mouth row (clear of
-                // pupil rows 5…7 and the sad tear at (11,8)), and two cream
-                // corner fangs either side of where the mood mouths draw.
+                // A tiny T-rex ON a deck of cards: a jagged ink crest riding
+                // the box's top edge, nostrils on the face, and two cream
+                // corner fangs flanking wherever the mood mouths draw.
+                px(4, 1, CRT.ink); px(6, 1, CRT.ink); px(8, 1, CRT.ink); px(10, 1, CRT.ink)
                 px(6, 8, CRT.ink); px(9, 8, CRT.ink)
                 px(5, 10, CRT.cardFace); px(11, 10, CRT.cardFace)
             case "mamma":
-                // Cat ears + the bow at the top-right corner.
-                px(4, 2, CRT.ink); px(5, 2, CRT.ink); px(10, 2, CRT.ink); px(11, 2, CRT.ink)
-                px(11, 1, CRT.suitRed); px(13, 1, CRT.suitRed)
-                px(12, 2, CRT.suitRed)
-                px(11, 2, CRT.suitRed); px(13, 2, CRT.suitRed)
+                // Cat ears on the box top + the bow at the top-right corner.
+                px(4, 1, CRT.ink); px(5, 1, CRT.ink); px(10, 1, CRT.ink); px(11, 1, CRT.ink)
+                px(11, 0, CRT.suitRed); px(13, 0, CRT.suitRed)
+                px(11, 1, CRT.suitRed); px(12, 1, CRT.suitRed); px(13, 1, CRT.suitRed)
             default:
-                // Pinky's cat ears.
-                px(4, 2, CRT.ink); px(5, 2, CRT.ink); px(10, 2, CRT.ink); px(11, 2, CRT.ink)
+                // Pinky's cat ears — splaying flat and wide when sad.
+                if mood == .sad {
+                    px(3, 1, CRT.ink); px(4, 1, CRT.ink); px(11, 1, CRT.ink); px(12, 1, CRT.ink)
+                } else {
+                    px(4, 1, CRT.ink); px(5, 1, CRT.ink); px(10, 1, CRT.ink); px(11, 1, CRT.ink)
+                }
             }
             // Eyes + mouth per mood. `gaze` shifts the pupils on the grid.
             let eyeY = (mood == .sad ? 7 : 6) + max(-1, min(1, gaze.dy == 0 ? 0 : -gaze.dy))
@@ -905,56 +997,127 @@ public enum DeckCharacter {
             switch mood {
             case .blink:
                 px(5, 6, CRT.ink); px(6, 6, CRT.ink); px(9, 6, CRT.ink); px(10, 6, CRT.ink)
-            case .looking:
-                px(6 + ex, eyeY, CRT.ink); px(10 + ex, eyeY, CRT.ink)
             case .happy, .win, .celebrate:
-                // ^ ^ happy eyes
-                px(5, 7, CRT.ink); px(6, 6, CRT.ink); px(7, 7, CRT.ink)
-                px(9, 7, CRT.ink); px(10, 6, CRT.ink); px(11, 7, CRT.ink)
+                if deckId == "rocko" {
+                    // ROCKO's good news: the odd eyes go WIDE — two-tall
+                    // brown and blue, no arcs.
+                    px(6, 5, rockoBrown); px(6, 6, rockoBrown)
+                    px(10, 5, rockoBlue); px(10, 6, rockoBlue)
+                } else {
+                    // ^ ^ happy eyes
+                    px(5, 7, CRT.ink); px(6, 6, CRT.ink); px(7, 7, CRT.ink)
+                    px(9, 7, CRT.ink); px(10, 6, CRT.ink); px(11, 7, CRT.ink)
+                }
             case .glad:
-                // A lighter squint — flat happy lines.
+                // A lighter squint — flat happy lines. Rocko's squint keeps
+                // a brown and a blue glint in it.
                 px(5, 6, CRT.ink); px(6, 6, CRT.ink)
                 px(9, 6, CRT.ink); px(10, 6, CRT.ink)
+                if deckId == "rocko" { px(6, 6, rockoBrown); px(10, 6, rockoBlue) }
             default:
-                px(6 + ex, eyeY, CRT.ink); px(10 + ex, eyeY, CRT.ink)
+                // Idle, looking, sad — the open stare, gaze-shifted.
+                if deckId == "rocko" {
+                    // Heterochromia: brown left, blue right — and heavy ink
+                    // lids over them when he's sad.
+                    px(6 + ex, eyeY, rockoBrown); px(10 + ex, eyeY, rockoBlue)
+                    if mood == .sad {
+                        px(5, 6, CRT.ink); px(6, 6, CRT.ink)
+                        px(10, 6, CRT.ink); px(11, 6, CRT.ink)
+                    }
+                } else {
+                    px(6 + ex, eyeY, CRT.ink); px(10 + ex, eyeY, CRT.ink)
+                    // SLYREX's eyes are BIG — a cream shine pixel rides atop
+                    // each pupil (two-tall, dropped when sad).
+                    if deckId == "slyrex", mood != .sad {
+                        px(6 + ex, eyeY - 1, CRT.cardFace); px(10 + ex, eyeY - 1, CRT.cardFace)
+                    }
+                }
             }
-            // Mr. Garden's monocle: a gold ring around the right eye.
+            // Mr. Garden's monocle: a gold ring around the right eye — and
+            // on good news the brow above it LIFTS, a gold line riding the
+            // lid seam.
             if deckId == "garden", mood != .blink {
                 px(9, 5, CRT.gold); px(11, 5, CRT.gold)
                 px(9, 7, CRT.gold); px(11, 7, CRT.gold)
                 px(11, 8, CRT.gold)   // the chain drop
-            }
-            // Rocko's heterochromia: brown left eye, blue right eye, laid
-            // over the ink pupils wherever the gaze is open. Blinks and the
-            // ^^/flat happy arcs stay ink — the odd eyes read on the stare.
-            if deckId == "rocko" {
-                switch mood {
-                case .blink, .happy, .win, .celebrate, .glad: break
-                default:
-                    px(6 + ex, eyeY, rockoBrown); px(10 + ex, eyeY, rockoBlue)
+                if mood == .happy || mood == .win || mood == .celebrate {
+                    px(9, 4, CRT.gold); px(10, 4, CRT.gold); px(11, 4, CRT.gold)
                 }
             }
             switch mood {
             case .sad:
                 px(7, 9, CRT.ink); px(8, 10, CRT.ink); px(9, 9, CRT.ink)
-                // One small tear.
-                px(11, 8, CRT.phosphor)
+                switch deckId {
+                case "garden":
+                    // No tears, ever — the monocle chain merely slips a link.
+                    px(11, 9, CRT.gold)
+                case "mamma":
+                    // Tears in both eyes.
+                    px(11, 8, CRT.phosphor); px(4, 8, CRT.phosphor)
+                default:
+                    // One small tear.
+                    px(11, 8, CRT.phosphor)
+                }
             case .happy, .win, .celebrate:
                 px(6, 9, CRT.ink); px(7, 10, CRT.ink); px(8, 10, CRT.ink)
                 px(9, 10, CRT.ink); px(10, 9, CRT.ink)
+                switch deckId {
+                case "pink":
+                    px(8, 11, CRT.suitRed)                            // tongue out
+                case "mamma":
+                    px(4, 8, CRT.suitRed); px(11, 8, CRT.suitRed)     // blush
+                case "slyrex":
+                    // The grin bares EXTRA fangs at the open mouth's corners.
+                    px(6, 10, CRT.cardFace); px(10, 10, CRT.cardFace)
+                default: break
+                }
             case .glad:
                 px(7, 9, CRT.ink); px(8, 10, CRT.ink); px(9, 9, CRT.ink)
             default:
                 px(7, 9, CRT.ink); px(8, 9, CRT.ink); px(9, 9, CRT.ink)
             }
-            // TIER ACCESSORIES: Master's gold belt, Legendary's gold crown.
+            // TIER ACCESSORIES — one design per character per tier, all on
+            // the same overlay rows (belt row 11 just inside the box bottom,
+            // crowns on rows 0–1 above it).
             if tier == "master" {
-                for x in 4...11 { px(x, 12, CRT.gold) }
-                px(7, 12, CRT.ink); px(8, 12, CRT.ink)   // the buckle
+                switch deckId {
+                case "slyrex":
+                    // A bone belt: bleached-white strap, twin ink ties.
+                    for x in 4...11 { px(x, 11, CRT.cardFace) }
+                    px(6, 11, CRT.ink); px(9, 11, CRT.ink)
+                case "rocko":
+                    // A leather collar with a little gold tag on the rim.
+                    for x in 4...11 { px(x, 11, rockoBrown) }
+                    px(8, 12, CRT.gold)
+                default:
+                    // The classic gold belt with an ink buckle — Pinky,
+                    // Mamma, and Garden's baked sheets carry the real art.
+                    for x in 4...11 { px(x, 11, CRT.gold) }
+                    px(7, 11, CRT.ink); px(8, 11, CRT.ink)
+                }
             } else if tier == "legendary" {
-                let top = deckId == "garden" ? 0 : 1
-                for x in 5...10 { px(x, top + 1, CRT.gold) }
-                px(5, top, CRT.gold); px(7, top, CRT.gold); px(10, top, CRT.gold)
+                switch deckId {
+                case "slyrex":
+                    // A jagged gold crest-crown echoing his ridge: gold tips
+                    // over each ink spike, gold filling the valleys between.
+                    px(4, 0, CRT.gold); px(6, 0, CRT.gold); px(8, 0, CRT.gold); px(10, 0, CRT.gold)
+                    px(5, 1, CRT.gold); px(7, 1, CRT.gold); px(9, 1, CRT.gold)
+                case "rocko":
+                    // A woolly gold laurel: two soft branches, open at the top.
+                    px(4, 0, CRT.gold); px(5, 0, CRT.gold); px(6, 0, CRT.gold)
+                    px(9, 0, CRT.gold); px(10, 0, CRT.gold); px(11, 0, CRT.gold)
+                case "garden":
+                    // A gold band on the top hat.
+                    for x in 5...10 { px(x, 1, CRT.gold) }
+                case "mamma":
+                    // A small tiara, seated to the left of the bow.
+                    px(5, 1, CRT.gold); px(6, 1, CRT.gold); px(7, 1, CRT.gold); px(8, 1, CRT.gold)
+                    px(5, 0, CRT.gold); px(7, 0, CRT.gold)
+                default:
+                    // Pinky's crown, seated between the ears.
+                    for x in 5...10 { px(x, 1, CRT.gold) }
+                    px(5, 0, CRT.gold); px(7, 0, CRT.gold); px(10, 0, CRT.gold)
+                }
             }
             // A win gets phosphor sparks — the only glow color.
             if mood == .win || mood == .celebrate { px(13, 2, CRT.phosphor); px(2, 4, CRT.phosphor) }
