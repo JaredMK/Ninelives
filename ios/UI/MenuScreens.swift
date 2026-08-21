@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.72"
-    static let note = "ios: one corner for every sticker, all four chips on the smallest card, greyed cards explain themselves, and the last stray suits fall in line."
+    static let version = "v6.73"
+    static let note = "ios: the assist points at one call by its edge, the map deals honest bare cards, and Slyrex finally has Mamma's eyes."
     static let line = "build \(version) · \(note)"
 }
 

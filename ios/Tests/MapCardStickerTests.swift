@@ -27,17 +27,23 @@ final class MapCardStickerTests: XCTestCase {
         return c
     }
 
-    /// Every face-up map card with a stable per-slot key: the +1 pickup
-    /// nodes' locked cards and the revealed +2 packs' committed pairs.
-    /// Jokers/Blanks (and the sentinel ids) carry no stickers by rule and
-    /// are excluded up front.
-    private func faceUpMapCards(_ c: CampaignState) -> [(key: String, card: CardSpec)] {
+    /// v6.73 SPLIT: MAP cards (+1 pickup nodes) carry NO stickers — that roll
+    /// was reverted; PACK CONTENTS (the revealed +2 committed pairs) keep the
+    /// 75/20/4/1 distribution. Jokers/Blanks (and the sentinel ids) carry no
+    /// stickers by rule and are excluded up front.
+    private func mapPickupCards(_ c: CampaignState) -> [(key: String, card: CardSpec)] {
         guard let m = c.runMap else { return [] }
         var out: [(String, CardSpec)] = []
         for n in m.nodes where n.type == "pickup" {
             guard let card = c.previewPickupCard(n), !card.joker, !card.blank else { continue }
             out.append(("n\(n.id)", card))
         }
+        return out
+    }
+
+    private func packPairCards(_ c: CampaignState) -> [(key: String, card: CardSpec)] {
+        guard let m = c.runMap else { return [] }
+        var out: [(String, CardSpec)] = []
         for n in m.nodes where n.type == "pack" && n.addOf == 2 {
             for (slot, id) in (c.commitPackCards(n) ?? []).enumerated() {
                 guard let card = c.findById(id), !card.joker, !card.blank else { continue }
@@ -47,14 +53,62 @@ final class MapCardStickerTests: XCTestCase {
         return out
     }
 
+    /// SEALED packs (+3/+4/+5) grant their contents at resolution — this is
+    /// where the 75/20/4/1 roll lives now (nothing on the map is dressed).
+    private func sealedPackGrants(_ c: CampaignState) -> [(key: String, card: CardSpec)] {
+        guard let m = c.runMap else { return [] }
+        var out: [(String, CardSpec)] = []
+        for n in m.nodes where n.type == "pack" && n.addOf > 2 {
+            for (i, card) in c.resolvePack(n).enumerated() where !card.joker && !card.blank {
+                out.append(("n\(n.id)g\(i)", card))
+            }
+        }
+        return out
+    }
+
+    /// Both kinds, for the deck-override checks (Garden's coat covers all).
+    private func faceUpMapCards(_ c: CampaignState) -> [(key: String, card: CardSpec)] {
+        mapPickupCards(c) + packPairCards(c)
+    }
+
+    // MARK: - v6.73 revert: MAP cards ride bare
+
+    func testMapPickupCardsCarryNoStickersOrCurses() {
+        for seed: UInt32 in [11, 4242, 987_654] {
+            let c = climb("pink", seed: seed)
+            let cards = faceUpMapCards(c)   // +1 faces AND revealed +2 pairs
+            XCTAssertFalse(cards.isEmpty, "seed \(seed): face-up map cards exist")
+            for (key, card) in cards {
+                XCTAssertTrue(card.stickers.isEmpty,
+                              "seed \(seed) \(key): a MAP card carries stickers (the v6.71 roll was reverted)")
+            }
+        }
+    }
+
+    /// …and the draft POOL stays clean at generation: the pre-v6.73 bug rolled
+    /// stickers onto unclaimed baseDeck cards while committing +2 pairs, so a
+    /// fresh Pinky climb opened with a stickered pool.
+    func testGenerationLeavesTheDraftPoolClean() {
+        for seed: UInt32 in [1, 555, 4242] {
+            let c = climb("pink", seed: seed)
+            for card in c.baseDeck {
+                XCTAssertTrue(card.stickers.isEmpty,
+                              "seed \(seed): pool card \(card.id) dressed at generation")
+            }
+        }
+    }
+
     // MARK: - The distribution (pink — no deck override in play)
 
     func testStickerCountDistributionAndCurseShare() {
         var counts = [0, 0, 0, 0]          // cards carrying 0/1/2/3 stickers
         var rolled = 0, cursed = 0
-        for i in 1...40 {
+        // v6.73: the distribution lives on PACK CONTENTS only — the pair
+        // population is smaller than the old pickups+pairs sweep, so more
+        // seeds keep the sample honest.
+        for i in 1...90 {
             let c = climb("pink", seed: UInt32(i * 7919 + 13))
-            for (_, card) in faceUpMapCards(c) {
+            for (_, card) in sealedPackGrants(c) {
                 counts[min(3, card.stickers.count)] += 1
                 rolled += card.stickers.count
                 cursed += card.stickers.filter {
@@ -63,7 +117,7 @@ final class MapCardStickerTests: XCTestCase {
             }
         }
         let total = counts.reduce(0, +)
-        XCTAssertGreaterThan(total, 300, "the seed sample yields a real population")
+        XCTAssertGreaterThan(total, 250, "the seed sample yields a real population")
         // 75 / 20 / 4 / 1 within ±5 points. (An eligibility miss can only
         // push a card DOWN a bucket and is rare — well inside the tolerance.)
         let expect = [0.75, 0.20, 0.04, 0.01]
@@ -73,9 +127,9 @@ final class MapCardStickerTests: XCTestCase {
         }
         // ~5% of rolled stickers are curses — very wide tolerance (the
         // population of rolled stickers is only a few hundred).
-        XCTAssertGreaterThan(rolled, 50, "stickers actually rolled")
+        XCTAssertGreaterThan(rolled, 40, "stickers actually rolled")
         XCTAssertGreaterThan(cursed, 0, "the curse branch is reachable")
-        XCTAssertEqual(Double(cursed) / Double(rolled), 0.05, accuracy: 0.045,
+        XCTAssertEqual(Double(cursed) / Double(rolled), 0.05, accuracy: 0.05,
                        "curse share: \(cursed) of \(rolled)")
     }
 
@@ -84,13 +138,13 @@ final class MapCardStickerTests: XCTestCase {
     func testSameSeedRollsTheSameStickers() {
         for seed: UInt32 in [123_456, 42, 20_260_820] {
             let sig: (CampaignState) -> [String] = { c in
-                self.faceUpMapCards(c).map { key, card in
+                self.sealedPackGrants(c).map { key, card in
                     "\(key):\(card.suit)\(card.currentRank):" + card.stickers.map(\.type).joined(separator: ",")
                 }
             }
             let a = sig(climb("pink", seed: seed))
             let b = sig(climb("pink", seed: seed))
-            XCTAssertFalse(a.isEmpty, "seed \(seed): face-up cards exist")
+            XCTAssertFalse(a.isEmpty, "seed \(seed): sealed packs exist")
             XCTAssertEqual(a, b, "seed \(seed): a reload shows the same stickers")
         }
     }

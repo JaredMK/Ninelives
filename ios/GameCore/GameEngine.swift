@@ -1080,33 +1080,46 @@ public final class GameEngine {
         return next.value > top.value ? .higher : (next.value < top.value ? .lower : .same)
     }
 
-    /// ODDS ASSIST (v6.71): the pile(s) whose BEST available call (higher /
-    /// lower / same) survives the next draw with the highest probability
-    /// against the REMAINING deck — exactly the information the histogram
-    /// already offers, folded per pile. DISPLAY ONLY: a pure read off
-    /// `remainingCounts()` (order-free), never touching the rng, the deck
-    /// order, or any state — identical seeds play identical runs with the
-    /// assist on or off. Rules mirrored from `guess(_:_:)`'s comparison:
-    /// a ★ TOP makes every call safe (p = 1), and a DRAWN ★ is never wrong,
-    /// so jokers left in the deck (value 0) count as a success for every
-    /// call. Deliberately histogram-blind to pillar/sticker modifiers
-    /// (Tie-Safe, Wild Aces) — the assist shows what counting shows, not
-    /// what the build engineers. Returns the argmax set (ties glow
-    /// together); empty when nothing is drawable.
-    public func assistPiles() -> [Int] {
+    /// ODDS ASSIST (v6.72): the SINGLE best (pile, call) recommendation —
+    /// the call whose survival probability against the REMAINING deck is
+    /// highest across every alive pile, exactly the information the
+    /// histogram already offers, folded per pile. DISPLAY ONLY: a pure read
+    /// off `remainingCounts()` (order-free), never touching the rng, the
+    /// deck order, or any state — identical seeds play identical runs with
+    /// the assist on or off. Rules mirrored from `guess(_:_:)`'s
+    /// comparison: a ★ TOP makes every call safe (p = 1, shown as SAME),
+    /// and a DRAWN ★ is never wrong, so jokers left in the deck (value 0)
+    /// count as a success for every call. Deliberately histogram-blind to
+    /// pillar/sticker modifiers (Tie-Safe, Wild Aces) — the assist shows
+    /// what counting shows, not what the build engineers.
+    ///
+    /// TIES break in a fixed, rng-free order so runs stay reproducible:
+    ///   (a) a SAME call beats a directional call at equal probability
+    ///       (SAME banks the charge — strictly better value per point);
+    ///   (b) then the pile with the SMALLEST `pileSize` (fewest cards at
+    ///       risk if the run sours);
+    ///   (c) then "any" is implemented as FIRST-BY-INDEX — piles ascend and
+    ///       calls enumerate higher → lower → same, and the incumbent wins
+    ///       remaining ties — deterministic, never rng.
+    /// Candidates are enumerated as (pile, call) PAIRS — a pile whose
+    /// higher and same tie each other still lets rule (a) prefer the SAME.
+    /// nil when nothing is drawable.
+    public func assistRecommendation() -> (pile: Int, call: Guess)? {
         guard let run, run.started, status == "playing", let deck, let board,
-              !deck.isEmpty else { return [] }
+              !deck.isEmpty else { return nil }
         let counts = deck.remainingCounts()
         let total = counts.values.reduce(0, +)
-        guard total > 0 else { return [] }
+        guard total > 0 else { return nil }
         let jokers = counts[0] ?? 0
-        var best = -1.0
-        var out: [Int] = []
+        var best: (p: Double, pile: Int, call: Guess, size: Int)?
         for i in 0..<board.size where board.isActive(i) {
             guard let top = board.top(i) else { continue }
-            let p: Double
+            let size = board.pileSize(i)
+            // This pile's (call, probability) candidates. A ★ top is a
+            // certainty on ANY call — surfaced as SAME (rule (a)'s pick).
+            let cands: [(call: Guess, p: Double)]
             if top.joker {
-                p = 1
+                cands = [(.same, 1)]
             } else {
                 var higher = 0, lower = 0, same = 0
                 for (v, n) in counts where v != 0 {
@@ -1114,12 +1127,26 @@ public final class GameEngine {
                     else if v < top.value { lower += n }
                     else { same += n }
                 }
-                p = Double(max(higher, lower, same) + jokers) / Double(total)
+                cands = [(.higher, Double(higher + jokers) / Double(total)),
+                         (.lower, Double(lower + jokers) / Double(total)),
+                         (.same, Double(same + jokers) / Double(total))]
             }
-            if p > best + 1e-9 { best = p; out = [i] }
-            else if abs(p - best) <= 1e-9 { out.append(i) }
+            for (call, p) in cands {
+                guard let b = best else { best = (p, i, call, size); continue }
+                if p > b.p + 1e-9 { best = (p, i, call, size); continue }
+                guard abs(p - b.p) <= 1e-9 else { continue }
+                // (a) SAME beats a directional call.
+                if (call == .same) != (b.call == .same) {
+                    if call == .same { best = (p, i, call, size) }
+                    continue
+                }
+                // (b) smaller pile wins.
+                if size < b.size { best = (p, i, call, size); continue }
+                // (c) remaining ties keep the incumbent — the lowest pile
+                // index / earliest call, since enumeration is ascending.
+            }
         }
-        return out
+        return best.map { (pile: $0.pile, call: $0.call) }
     }
 
     /// Debug logbook: append a standalone entry for a non-engine action.
@@ -1159,4 +1186,26 @@ public final class GameEngine {
         }
     }
     public var debug: Debug { Debug(e: self) }
+}
+
+/// ODDS ASSIST deal-out gate (v6.72): the assist glow must stay OFF while a
+/// deal-out cascade is still flying cards in — the board isn't live yet —
+/// and light up on the first refresh AFTER the cascade lands. The animation
+/// is UI-side (the engine can't see it), so the CONTROLLER owns the flag;
+/// this pure little state machine holds the decision where the unit bundle
+/// can reach it (tests see only GameCore). A fresh gate opens HELD — every
+/// deal opens with its cascade pending — and a reshuffle's re-deal re-arms
+/// it via `dealOutStarted()`; a mid-deal restore (no cascade) releases it
+/// straight away via `dealOutFinished()`.
+public struct OddsAssistGate {
+    /// True while a deal-out cascade is pending or in flight.
+    public private(set) var dealing = true
+    public init() {}
+    /// A deal-out (first deal or reshuffle re-deal) is queued/animating.
+    public mutating func dealOutStarted() { dealing = true }
+    /// The cascade's last card landed (or a mid-deal restore skipped it).
+    public mutating func dealOutFinished() { dealing = false }
+    /// THE decision: show the assist only when it's enabled AND the board
+    /// is live (no cascade in flight).
+    public func allows(_ enabled: Bool) -> Bool { enabled && !dealing }
 }

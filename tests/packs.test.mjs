@@ -116,13 +116,14 @@ export function run() {
     r.ok(allInPlay, "generated card ROLLED suits are always real suits (full-suit store, never stage-gated)");
     r.ok(allValidRank, "generated card ranks stay 2–A even after rank stickers");
     r.ok(allStickersReal, "generated card stickers are all real");
-    // New odds: 33% one / 11% two / 3% three / 1% four → ≈48% ≥1, ≈15% ≥2, ≈4% ≥3.
+    // v6.73 odds — ONE distribution for every pack: 20% one / 4% two / 1%
+    // three → ≈25% ≥1, ≈5% ≥2, ≈1% ≥3 (75% ride bare).
     // (A rank sticker that lands on an at-boundary card doesn't attach, so observed
     //  rates run a touch under nominal; bounds are kept generous for that.)
     const pAny = withAny / normal, pTwo = withTwo / normal, pThree = withThree / normal;
-    r.ok(pAny > 0.42 && pAny < 0.53, "≈48% of cards carry ≥1 sticker (got " + pAny.toFixed(3) + ")");
-    r.ok(pTwo > 0.10 && pTwo < 0.19, "≈15% of cards carry ≥2 stickers (got " + pTwo.toFixed(3) + ")");
-    r.ok(pThree > 0.015 && pThree < 0.065, "≈4% of cards carry ≥3 stickers (got " + pThree.toFixed(3) + ")");
+    r.ok(pAny > 0.20 && pAny < 0.30, "≈25% of cards carry ≥1 sticker (got " + pAny.toFixed(3) + ")");
+    r.ok(pTwo > 0.02 && pTwo < 0.09, "≈5% of cards carry ≥2 stickers (got " + pTwo.toFixed(3) + ")");
+    r.ok(pThree > 0.002 && pThree < 0.030, "≈1% of cards carry ≥3 stickers (got " + pThree.toFixed(3) + ")");
   }
 
   // --- Stage never gates STORE pack suits (map-only rule) ---------------

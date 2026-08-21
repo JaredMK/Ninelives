@@ -621,7 +621,11 @@ const NINELIVES_ITEMS = {
      card packs, the store's individual-card slot (genNormalCard) and
      Mr. Smith's map grants (+1 nodes / map packs).
   -------------------------------------------------------------------- */
-  packStickerOdds: [[0.01, 4], [0.04, 3], [0.15, 2], [0.48, 1]],
+  // v6.73: ONE pack distribution everywhere — 75% bare, 20% one sticker,
+  // 4% two, 1% three (checked in order: roll < cap → that many stickers).
+  // Sealed map packs roll the same shape in CampaignState.applyPackCardStickers,
+  // which also gives each rolled sticker a 5% chance of being a curse.
+  packStickerOdds: [[0.01, 3], [0.05, 2], [0.25, 1]],
 
   /* --------------------------------------------------------------------
      MYSTERY ("?") NODE EVENTS — arriving at a hidden map node rolls ONE of

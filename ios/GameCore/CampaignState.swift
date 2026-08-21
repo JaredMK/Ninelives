@@ -401,7 +401,11 @@ public final class CampaignState {
     /// distribution, suit-restricted per sticker. Rocko mints none.
     /// `stickerOdds` overrides the pack table (the store's single-card slot
     /// rolls its own, cheaper distribution).
-    public func genNormalCard(_ rng: RNG, stickerOdds: [[Double]]? = nil) -> CardSpec {
+    /// `curseChance`: each rolled sticker's chance of being a CURSE instead
+    /// (v6.73, pack cards — 0 everywhere else, so the store's card slot and
+    /// every other mint stay curse-free).
+    public func genNormalCard(_ rng: RNG, stickerOdds: [[Double]]? = nil,
+                              curseChance: Double = 0) -> CardSpec {
         let suits = allSuits
         let suit = suits[rng.index(suits.count)]
         let rank = minRank + rng.index(maxRank - minRank + 1)
@@ -414,6 +418,11 @@ public final class CampaignState {
         // for the next roll (the web hoists it out of the loop for exactly this).
         let pool = grantableStickers().filter { CardRules.stickerEligible(card, $0.id, data: data) }
         for _ in 0..<n {
+            if curseChance > 0, rng.next() < curseChance,
+               let t = data.stickerTypes.rollCurse(path: "pack", roll: rng.next()) {
+                applyStickerToCard(&card, t.id, rng: rng, suits: suits)
+                continue
+            }
             guard let sid = StoreRoll.rollIds(pool, 1, rng, tierWeights: data.items.store.tierWeights).first else { continue }
             applyStickerToCard(&card, sid, rng: rng, suits: suits)
         }
@@ -620,17 +629,18 @@ public final class CampaignState {
             let id: Int? = node.jokerNode ? Self.specialJoker : (forcedCardId(node) ?? draftIdForNode(node))
             guard let id else { return nil }
             nodeCards[node.id] = id
-            // The face-up card dresses the moment it locks (fresh lock only:
-            // a reload restores nodeCards + the stickered baseDeck, so the
-            // roll never re-runs and can never stack).
-            applyMapCardStickers(cardId: id, keys: [.s("mapsticker"), .n(node.id)])
+            // v6.73: MAP cards carry NO stickers or curses — the v6.71
+            // distribution roll here was reverted by request. PACK contents
+            // keep theirs (commitPackCards); Mr. Garden's coat still dresses
+            // every card everywhere (it lives on the baseDeck, not here).
         }
         return nodeCards[node.id]
     }
 
-    /// MAP CARD STICKERS (v6.68): every FACE-UP card on the map — a +1 pickup
-    /// node's locked card and each card of a revealed +2 pack's committed
-    /// pair — rolls stickers the moment it locks: 75% bare, 20% one sticker,
+    /// PACK CARD STICKERS (v6.73 — pack CONTENTS only). Nothing shown on the
+    /// map dresses: +1 pickup faces and revealed +2 pairs ride bare, so the
+    /// node always advertises exactly what it hands over. A SEALED pack's
+    /// cards roll as they are granted: 75% bare, 20% one sticker,
     /// 4% two, 1% three (cumulative 0.75/0.95/0.99); each rolled sticker has
     /// a 5% chance of being a CURSE (the shared weighted `rollCurse` pick,
     /// path "map") instead of a normal grantable sticker (the startStickers
@@ -642,7 +652,7 @@ public final class CampaignState {
     /// (stickerEverything) is skipped whole — his coat already dressed the
     /// entire draft pool and this must not stack on top. Jokers/Blanks
     /// (and the ±sentinels) never dress.
-    func applyMapCardStickers(cardId: Int, keys: [RunKey]) {
+    func applyPackCardStickers(cardId: Int, keys: [RunKey]) {
         guard !rules().noStickers, !rules().stickerEverything else { return }
         guard let i = index(of: cardId) else { return }   // sentinel ids skip
         guard !baseDeck[i].joker, !baseDeck[i].blank else { return }
@@ -760,10 +770,12 @@ public final class CampaignState {
             for slot in 0..<2 {
                 let id = packSlotIdFor(node, slot: slot)
                 packCards[node.id]!.append(id)
-                // Revealed pairs are face-up map cards too — same distribution,
-                // seeded per (runSeed, nodeId, slot). Fresh lock only (reload
-                // restores packCards, so no re-roll). See applyMapCardStickers.
-                applyMapCardStickers(cardId: id, keys: [.s("mapsticker"), .n(node.id), .n(slot)])
+                // v6.73: a revealed +2 pair is FACE-UP ON THE MAP — what the
+                // node advertises is what you get, and map cards carry no
+                // stickers. (The roll here also leaked into the draft pool at
+                // generation time, so a fresh Pinky climb opened with
+                // stickered pool cards.) Sealed pack CONTENTS still roll —
+                // see resolvePack.
             }
         }
         return packCards[node.id]
@@ -1083,10 +1095,15 @@ public final class CampaignState {
             granted = pair
         } else {
             let rng = rrng(.s("pack"), .n(node.id))
-            for _ in 0..<count {
+            for slot in 0..<count {
                 let suit = packSlotSuit(node, rng: rng)
                 let id = pickSuitDraftId(suit, rng: rng)
                 granted.append(id)
+                // SEALED PACK CONTENTS dress as they are GRANTED (v6.73) —
+                // never at map-lock time, so nothing the map displays is
+                // stickered and no unclaimed pool card is touched. Its own
+                // keyed substream keeps `rng` (the grant stream) undisturbed.
+                applyPackCardStickers(cardId: id, keys: [.s("packsticker"), .n(node.id), .n(slot)])
                 // Reserve IN THE LOOP (the web pushes ownedIds per slot) —
                 // without this the next slot's pickSuitDraftId re-rolls the
                 // same unowned card and a +N pack grants N identical cards.
@@ -1855,7 +1872,7 @@ public final class CampaignState {
                 return c
             }
         }
-        return genNormalCard(rng)
+        return genNormalCard(rng, curseChance: 0.05)
     }
 
     /// End the Old Joker's comp — the visit is over (or the shelf refreshed).

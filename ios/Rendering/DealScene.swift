@@ -592,10 +592,13 @@ public final class DealScene: SKScene {
         for (i, p) in piles.enumerated() { p.syncHint(i < dirs.count ? dirs[i] : nil) }
     }
 
-    /// ODDS ASSIST (v6.71): light the safest pile(s). Display only.
-    public func syncAssist(_ lit: [Int]) {
-        let set = Set(lit)
-        for (i, p) in piles.enumerated() { p.syncAssist(set.contains(i)) }
+    /// ODDS ASSIST (v6.72): light the single recommended (pile, call) —
+    /// the pile's TOP edge glows for HIGHER, BOTTOM for LOWER, BOTH SIDES
+    /// for SAME. nil clears every pile. Display only.
+    public func syncAssist(_ rec: (pile: Int, call: Guess)?) {
+        for (i, p) in piles.enumerated() {
+            p.syncAssist(i == rec?.pile ? rec?.call : nil)
+        }
     }
 
     /// The pile whose STICKER-BADGE corner contains the point — tap-for-help

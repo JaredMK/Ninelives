@@ -195,58 +195,85 @@ public final class PileNode: SKNode {
         syncStickerBadges(top)
     }
 
-    // MARK: - Odds Assist halo (v6.71)
+    // MARK: - Odds Assist edge glow (v6.71, edge-directional v6.72)
 
-    private var assistHalo: SKSpriteNode?
-    private var lastAssist = false
-    private static var assistHaloTexture: SKTexture?
+    private var assistGlows: [SKSpriteNode] = []
+    private var lastAssistCall: Guess?
+    private static var assistBarTexture: SKTexture?
 
-    /// The soft phosphor halo BEHIND the pile's top card — the Odds Assist
-    /// marker for "this pile's best call has the highest survival odds".
-    /// Baked once (a CG radial falloff — a static asset, never a live
-    /// filter), pulsing gently via one SKAction alpha cycle. It sits UNDER
-    /// the card (zPosition below Layer.card), so the rank, stickers, badge
-    /// count and the on-card tell chip all stay untouched and the peek-glow
-    /// family remains distinguishable (those live ON the face; this bleeds
-    /// around the edges).
-    public func syncAssist(_ on: Bool) {
-        guard on != lastAssist else { return }
-        lastAssist = on
-        assistHalo?.removeFromParent()
-        assistHalo = nil
-        guard on, !isDead, cardCount > 0 else { return }
-        let s = cardScale.size
-        let tex: SKTexture
-        if let cached = Self.assistHaloTexture {
-            tex = cached
-        } else {
-            let w = 96.0, h = 128.0
-            let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
-                // A rectangular soft falloff: concentric rounded fills at
-                // stepping alpha — reads as a glow, costs one texture.
-                for step in 0..<8 {
-                    let t = CGFloat(step) / 8
-                    let inset = 24 * t
-                    cg.setFillColor(CRT.phosphor.withAlphaComponent(0.05 + 0.06 * t).cgColor)
-                    let r = CGRect(x: inset, y: inset, width: w - inset * 2, height: h - inset * 2)
-                    cg.fill(r)
-                }
+    /// The one baked glow-bar texture every assist edge reuses: a horizontal
+    /// phosphor bar with a soft stepped falloff (bright core, tapered ends —
+    /// a CG bake, a static asset, never a live filter). Stepped fills
+    /// COMPOSITE, so the core reaches ~0.7 opacity while the outermost
+    /// fringe stays a whisper — clearly visible at a glance, still soft.
+    /// Sides reuse it rotated 90°.
+    private static func assistBar() -> SKTexture {
+        if let cached = assistBarTexture { return cached }
+        let w = 128.0, h = 36.0
+        let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
+            for step in 0..<8 {
+                let t = CGFloat(step) / 8
+                let iy = (h / 2 - 4) * t          // squeeze toward the core line
+                let ix = 12 * t                   // taper the ends
+                cg.setFillColor(CRT.phosphor.withAlphaComponent(0.10 + 0.10 * t).cgColor)
+                cg.fill(CGRect(x: ix, y: iy, width: w - ix * 2, height: h - iy * 2))
             }
-            tex = PixelTexture.texture(from: img)
-            Self.assistHaloTexture = tex
         }
-        let halo = SKSpriteNode(texture: tex)
-        halo.size = CGSize(width: s.width + 22, height: s.height + 22)
-        halo.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        halo.position = CGPoint(x: s.width / 2, y: -s.height / 2)
-        halo.zPosition = Layer.card - 6   // under the whole card stack
-        halo.alpha = 0.5
-        halo.run(.repeatForever(.sequence([
-            .fadeAlpha(to: 0.85, duration: 0.9),
-            .fadeAlpha(to: 0.5, duration: 0.9),
-        ])), withKey: "assistPulse")
-        addChild(halo)
-        assistHalo = halo
+        let tex = PixelTexture.texture(from: img)
+        assistBarTexture = tex
+        return tex
+    }
+
+    /// The Odds Assist marker, now DIRECTIONAL: the recommended pile glows
+    /// along the edge that names the call — TOP edge for HIGHER, BOTTOM
+    /// edge for LOWER, BOTH SIDES for SAME. nil clears. The bars sit UNDER
+    /// the card (zPosition below Layer.card) centred on the card's edge
+    /// line, so only the outward half bleeds into view and the rank,
+    /// stickers, badge count and the on-card tell chip all stay untouched
+    /// (the peek-glow family lives ON the face and stays distinguishable).
+    /// One SKAction alpha cycle per bar — no filters.
+    public func syncAssist(_ call: Guess?) {
+        guard call != lastAssistCall else { return }
+        lastAssistCall = call
+        for g in assistGlows { g.removeFromParent() }
+        assistGlows = []
+        guard let call, !isDead, cardCount > 0 else { return }
+        let s = cardScale.size
+        let tex = Self.assistBar()
+        let thickness: CGFloat = 34    // half rides under the card, half bleeds out
+        let bleed: CGFloat = 24        // the bar wraps the corners a touch
+        func bar(at position: CGPoint, along length: CGFloat, vertical: Bool) -> SKSpriteNode {
+            let n = SKSpriteNode(texture: tex)
+            n.size = CGSize(width: length + bleed, height: thickness)
+            n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            n.position = position
+            if vertical { n.zRotation = .pi / 2 }
+            n.zPosition = Layer.card - 6   // under the whole card stack
+            return n
+        }
+        // Card frame in pile space: top edge y = 0, bottom y = -height,
+        // left x = 0, right x = width (the card anchors top-left).
+        switch call {
+        case .higher:
+            assistGlows = [bar(at: CGPoint(x: s.width / 2, y: 0),
+                               along: s.width, vertical: false)]
+        case .lower:
+            assistGlows = [bar(at: CGPoint(x: s.width / 2, y: -s.height),
+                               along: s.width, vertical: false)]
+        case .same:
+            assistGlows = [bar(at: CGPoint(x: 0, y: -s.height / 2),
+                               along: s.height, vertical: true),
+                           bar(at: CGPoint(x: s.width, y: -s.height / 2),
+                               along: s.height, vertical: true)]
+        }
+        for g in assistGlows {
+            g.alpha = 0.7
+            g.run(.repeatForever(.sequence([
+                .fadeAlpha(to: 1.0, duration: 0.9),
+                .fadeAlpha(to: 0.7, duration: 0.9),
+            ])), withKey: "assistPulse")
+            addChild(g)
+        }
     }
 
     /// Show/clear the directional Tell hint (▲ higher / ▼ lower / ＝ same) —

@@ -77,6 +77,9 @@ public final class DealController {
 
     private var plan: DealPlan?
     private var interactionLocked = true   // locked during the deal-out cascade
+    // ODDS ASSIST deal-out gate (v6.72): holds the glow OFF until the
+    // cascade lands (GameCore-testable; opens held, re-armed per re-deal).
+    private var assistGate = OddsAssistGate()
     public private(set) var isOver = false
     private var pendingFinish: (() -> Void)?
     private var awaitingDeathFinish = false
@@ -344,6 +347,9 @@ public final class DealController {
         }
         scene.slotsVisible = !isZen   // Zen collapses the artifact slot rows
         scene.isZen = isZen
+        // Every boot deals out (first deal AND reshuffle re-deals route
+        // here): hold the assist glow until the cascade lands.
+        assistGate.dealOutStarted()
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
         scene.setPillars(pillars, bases: bases)
         refreshAll()
@@ -354,6 +360,10 @@ public final class DealController {
             // the kill interrupted (a paid bury, a shuffle offer, a ripple /
             // second-wind / shuffler consent, a revive target).
             interactionLocked = false
+            // No cascade coming — the restored board is live right now, so
+            // release the assist gate and repaint the glow it suppressed.
+            assistGate.dealOutFinished()
+            refreshBoard()
             drainPrompts()
             return
         }
@@ -384,6 +394,7 @@ public final class DealController {
     /// the deck character. Control is handed over when the last card lands.
     private func startCascade() {
         interactionLocked = true
+        assistGate.dealOutStarted()   // idempotent — boot armed it already
         scene.charReset()
         if !reduceMotion { Sound.shared.deal() }
         let n = engine.board.size
@@ -391,6 +402,9 @@ public final class DealController {
         scene.dealCascade(tops: tops) { [weak self] in
             guard let self else { return }
             self.interactionLocked = false
+            // The board is live: open the assist gate BEFORE the refresh so
+            // the glow's first appearance is this post-deal repaint.
+            self.assistGate.dealOutFinished()
             self.refreshAll()
             // The Queen's Mulligan announces itself once, at deal start.
             if self.freeRedealAvailable { self.scene.announceFreeRedeal() }
@@ -1728,12 +1742,15 @@ public final class DealController {
         // Tell / Spade Whispers: the display-only directional hint per pile,
         // repainted every board refresh so it tracks the real deck top.
         scene.syncPileHints((0..<n).map { engine.pileHint($0) })
-        // ODDS ASSIST (v6.71): recomputed here — once per board change, the
+        // ODDS ASSIST (v6.72): recomputed here — once per board change, the
         // same cadence as the hints, never per frame. Off unless the player
-        // both UNLOCKED it (first Straight win) and switched it on.
+        // both UNLOCKED it (first Straight win) and switched it on — and
+        // GATED while a deal-out cascade is still flying cards in (the glow
+        // waits for the board to be live; the completion callback flips the
+        // gate and re-runs this refresh).
         let assistOn = campaign.saveStore.pref("oddsAssist") == "1"
             && campaign.deckUnlocks.wonAnyStraight()
-        scene.syncAssist(assistOn ? engine.assistPiles() : [])
+        scene.syncAssist(assistGate.allows(assistOn) ? engine.assistRecommendation() : nil)
         scene.syncPillarBadges(pillarBadges())
         scene.syncBaseBadges(baseBadges())
         scene.syncBaseLights(baseLights())
@@ -1972,6 +1989,10 @@ public final class DealController {
     /// free zen reshuffle).
     public func reshuffle() {
         guard !isZen, !isOver, engine.run.totalGuesses == 0 else { return }
+        // The re-deal's cascade is coming: re-arm the assist gate NOW and
+        // clear the stale glow so it doesn't ride the gather-back animation.
+        assistGate.dealOutStarted()
+        scene.syncAssist(nil)
         switch mode {
         case .debug(let setup):
             interactionLocked = true
