@@ -373,6 +373,58 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   transitions/pagehide.
 - `getCardById(id)` and `getRunDeckLive()` return **LIVE objects — never
   mutate them**; mutations go through the mutator methods.
+- **v6.76 persisted keys** (the iOS snapshot key-set parity pins these):
+  `shopRolls` (climb-locked shop-rolled item values, R2 — see below) and
+  `purgePriceCut` (Purge Coupon's accumulated climb-permanent cut) ride
+  `campaign.serialize()`; store-offer slots may carry `shopRolled`/
+  `shopRolled2`, and the offer carries `freeReroll` (On the House's free
+  first restock). Engine run state gained `pillarRolls` (col → {roll,roll2})
+  and `suitShieldSuits` (Daily Suit's per-deal roll — web re-derives it from
+  the deal seed on resume; the iOS snapshot must round-trip it).
+- **Restore accepts removal-shrunk decks** (v6.76 bugfix): the old
+  `baseDeck.length < 52` floor rejected EVERY save made after a store Purge
+  (a refresh wiped the climb). The floor is now relative
+  (`baseDeck.length >= ownedIds.length`); poisoned decks still reach the
+  rebuild and throw (the preserved-save path resume1 pins).
+
+### Archetype batch v6.76 — the mechanics contracts
+
+- **Same-tolerance = full Same (R1).** ONE shared resolution in `guess()`
+  (`pillar.effect === "sameTolerance"`, `tol` ∈ near/royalPair/sum10/sameSuit)
+  flips a would-be-wrong Same to correct; the ordinary correct branch then
+  banks the charge + fires the Same-Power + bumps stats. Never branch around
+  it. `sameSuit` also makes NON-Same calls safe on a same-suit landing; the
+  other three tolerate Same calls only. **One per column, engine-enforced**:
+  `placePillar`/`buyPillar` reject a family member onto a column already
+  holding one (no in-family swap — pick up first).
+- **Shop-rolled values (R2).** Items with `shopRoll:"rank"|"suit"` (+
+  `shopRoll2`) roll at OFFER time inside `rollUnifiedSlots` off the seeded
+  store stream (one extra draw per roll, in slot order), lock climb-wide in
+  the campaign's persisted `shopRolls` map, ride the slot (`shopRolled`/
+  `shopRolled2`), and transfer to the equipped item via
+  `getColumnPillarRolls()` → `engine.startRun`'s 4th arg (`run.pillarRolls`).
+- **Composition conditions (R3) read the FULL OWNED deck live** through
+  engine hooks injected at deal start: `setCompositionHook`
+  (`campaign.getRunDeckLive`) and `setPurseHook` (`campaign.getCoins`, the
+  Pauper family's live gate — unset = dormant). Bare engine runs fall back to
+  the deal deck + Infinite purse. Most-copied-rank ties break to the LOWEST
+  rank (`mostCommonRank`); an empty full deck is always inert.
+- **Daily Suit re-rolls per deal** from the deal's seeded rng at Start Run
+  (a redeal mints a fresh seed → fresh suit; a resume replays → same suit).
+- **On-purchase items fire inside `buyMixedSlot`** (Rank Purge purges the
+  rolled rank via `purgeRankFromDeck`; Transmute re-suits it via
+  `transmuteRankToSuit`) — never in-deal. Mid-deal campaign-side base effects
+  persist through the "base-fired" handler (`addPurgeDiscount`,
+  `removeDeckCard`, `inflictSticker`, `removeStickerInstances`); durable
+  board re-ranks ride `valueApplied` → `campaign.randomizeCard` (Chorus,
+  Rank Flood — same contract as Rank Setter).
+- **Pricing**: Flat Purge's `value` OVERRIDES the Removal ladder in
+  `removalPrice()` (flat, no multiplier/coupon); Purge Coupon cuts are
+  climb-permanent, floored at the coupon's `min`. On the House: first
+  restock per store (`storeOffer.freeReroll`) and first reshuffle per deal
+  (derived from persisted `reshuffleIndex === 0` — no new checkpoint key);
+  both freebies still consume their ladder rung.
+
 
 ### Debug
 

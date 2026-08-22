@@ -300,7 +300,7 @@
       "behavior": "gainCoin",
       "value": 1,
       "tier": "common",
-      "price": 1,
+      "price": 2,
       "description": "+1 coin",
       "suits": [
         "♥"
@@ -434,11 +434,6 @@
     },
     {
       "id": "shuffle",
-      "unlock": {
-        "type": "milestone",
-        "stat": "runsPlayed",
-        "count": 5
-      },
       "label": "Shuffle",
       "icon": "🔀",
       "kind": "behavior",
@@ -470,9 +465,9 @@
       "icon": "⚡",
       "kind": "behavior",
       "behavior": "quickBury",
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 7,
-      "description": "Bury 1 card under the pile",
+      "description": "When a card lands on this card → bury 1 card under the pile",
       "suits": [
         "♣"
       ]
@@ -738,11 +733,6 @@
     },
     {
       "id": "tell",
-      "unlock": {
-        "type": "behavior",
-        "stat": "zenGamesPlayed",
-        "count": 3
-      },
       "label": "Tell",
       "icon": "🔮",
       "kind": "behavior",
@@ -1040,6 +1030,11 @@
     },
     {
       "id": "allHeartsCoin",
+      "unlock": {
+        "type": "milestone",
+        "stat": "coinsEarnedLifetime",
+        "count": 60
+      },
       "label": "All Hearts",
       "icon": "💗",
       "kind": "scoring",
@@ -1052,6 +1047,11 @@
     },
     {
       "id": "envy",
+      "unlock": {
+        "type": "milestone",
+        "stat": "runsPlayed",
+        "count": 5
+      },
       "label": "Envy",
       "icon": "💚",
       "kind": "scoring",
@@ -1112,11 +1112,6 @@
     },
     {
       "id": "secondWind",
-      "unlock": {
-        "type": "behavior",
-        "stat": "pilesLost",
-        "count": 30
-      },
       "label": "Second Wind",
       "icon": "🌬️",
       "kind": "guess",
@@ -1124,7 +1119,7 @@
       "tier": "rare",
       "price": 6,
       "saveChance": 0.25,
-      "description": "Each pile that dies in this column has a 25% chance to offer its rescue: take it and all the pile's cards return to the deck, or refuse and let it die"
+      "description": "Each pile that dies in this column has a 25% chance to be saved, but all the buried cards return to the deck"
     },
     {
       "id": "greedy",
@@ -1377,11 +1372,6 @@
     },
     {
       "id": "queensEye",
-      "unlock": {
-        "type": "behavior",
-        "stat": "zenEasyWon",
-        "count": 3
-      },
       "label": "Queen's Eye",
       "icon": "👁️",
       "kind": "live",
@@ -1418,6 +1408,11 @@
     },
     {
       "id": "gambler",
+      "unlock": {
+        "type": "behavior",
+        "stat": "jokersPlayed",
+        "count": 12
+      },
       "label": "Gambler",
       "icon": "🎲",
       "kind": "scoring",
@@ -1503,6 +1498,261 @@
       "tier": "uncommon",
       "price": 3,
       "description": "When a ♦ lands in this column → make all piles in this column equal size"
+    },
+    {
+      "id": "zeroRanksBury",
+      "label": "Empty Ranks",
+      "icon": "🈳",
+      "kind": "live",
+      "effect": "clubZeroRanksBury",
+      "tier": "rare",
+      "price": 8,
+      "description": "When a ♣ lands in this column → bury 1 card under that pile per rank with zero copies in your full deck"
+    },
+    {
+      "id": "eightStart",
+      "label": "Crazy Eights",
+      "icon": "8️⃣",
+      "kind": "composition",
+      "effect": "startPileSizeEight",
+      "tier": "rare",
+      "price": 10,
+      "description": "If 8s are the most common rank in your full deck → this column's piles start at pile size 8"
+    },
+    {
+      "id": "royalSanctuary",
+      "label": "Royal Sanctuary",
+      "icon": "🏰",
+      "kind": "guess",
+      "effect": "royalSafeNoTwos",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "If your full deck contains no 2s → royals (J/Q/K) are always safe in this column"
+    },
+    {
+      "id": "absentSuitClubBury",
+      "label": "Void Tribute",
+      "icon": "🌫️",
+      "kind": "live",
+      "effect": "absentSuitClubBury",
+      "shopRoll": "suit",
+      "buryCount": 2,
+      "tier": "rare",
+      "price": 8,
+      "description": "If your full deck contains no {suit} → when a ♣ lands in this column, bury 2 cards under that pile"
+    },
+    {
+      "id": "suitMajoritySafe",
+      "label": "Majority Rule",
+      "icon": "🗳️",
+      "kind": "guess",
+      "effect": "suitMajoritySafe",
+      "shopRoll": "suit",
+      "tier": "rare",
+      "price": 8,
+      "description": "If half or more of your full deck is {suit} → {suit} cards are safe when they land in this column"
+    },
+    {
+      "id": "diamondDupeSize",
+      "label": "Diamond Echo",
+      "icon": "👯",
+      "kind": "live",
+      "effect": "diamondDupeSize",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "When a ♦ lands in this column → +1 pile size per duplicate of that card's rank in your full deck"
+    },
+    {
+      "id": "sameTolNear",
+      "label": "Close Call",
+      "icon": "🤏",
+      "kind": "guess",
+      "effect": "sameTolerance",
+      "family": "sameTolerance",
+      "tol": "near",
+      "tier": "rare",
+      "price": 9,
+      "description": "Same calls are safe on cards ±1 in value in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power"
+    },
+    {
+      "id": "sameTolRoyal",
+      "label": "Royal Pair",
+      "icon": "🤴",
+      "kind": "guess",
+      "effect": "sameTolerance",
+      "family": "sameTolerance",
+      "tol": "royalPair",
+      "tier": "uncommon",
+      "price": 7,
+      "description": "A royal landing on a royal survives a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power"
+    },
+    {
+      "id": "sameTolSum10",
+      "label": "Perfect Ten",
+      "icon": "🔟",
+      "kind": "guess",
+      "effect": "sameTolerance",
+      "family": "sameTolerance",
+      "tol": "sum10",
+      "tier": "uncommon",
+      "price": 7,
+      "description": "Ranks summing to 10 survive a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power"
+    },
+    {
+      "id": "sameTolSuit",
+      "label": "Suit Match",
+      "icon": "🧥",
+      "kind": "guess",
+      "effect": "sameTolerance",
+      "family": "sameTolerance",
+      "tol": "sameSuit",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "A suit landing on its own suit is safe in this column, including Same calls. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power"
+    },
+    {
+      "id": "rankShield",
+      "label": "Rank Shield",
+      "icon": "🔰",
+      "kind": "guess",
+      "effect": "rankShield",
+      "shopRoll": "rank",
+      "tier": "uncommon",
+      "price": 5,
+      "description": "Any {rank} landing in this column is safe. The rank is rolled at the shop and shown before purchase"
+    },
+    {
+      "id": "suitShield",
+      "label": "Daily Suit",
+      "icon": "📅",
+      "kind": "guess",
+      "effect": "suitShieldDaily",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "A suit rolled at the start of each deal (re-rolled on redeal, shown on the plaque) is safe when it lands in this column"
+    },
+    {
+      "id": "purgeFlatFive",
+      "label": "Flat Purge",
+      "icon": "✋",
+      "kind": "meta",
+      "effect": "purgeFlat",
+      "value": 5,
+      "tier": "rare",
+      "price": 8,
+      "description": "The store's Purge always costs 5 coins. No effect during deal"
+    },
+    {
+      "id": "firstFree",
+      "label": "On the House",
+      "icon": "🆓",
+      "kind": "meta",
+      "effect": "firstFree",
+      "tier": "rare",
+      "price": 7,
+      "description": "The first restock in each store and the first reshuffle of each deal are free"
+    },
+    {
+      "id": "eightPeek",
+      "label": "Eight Ball",
+      "icon": "🎱",
+      "kind": "live",
+      "effect": "eightPeek",
+      "tier": "common",
+      "price": 3,
+      "description": "When an 8 lands in this column → peek at the next card"
+    },
+    {
+      "id": "pauperHeart",
+      "label": "Pauper's Heart",
+      "icon": "❤️‍🩹",
+      "kind": "live",
+      "effect": "pauperHeart",
+      "purseBelow": 10,
+      "value": 3,
+      "tier": "common",
+      "price": 2,
+      "description": "While your purse holds under 10 coins → when a ♥ lands in this column, +3 coins"
+    },
+    {
+      "id": "pauperDiamond",
+      "label": "Pauper's Diamond",
+      "icon": "💎",
+      "kind": "live",
+      "effect": "pauperDiamondSize",
+      "purseBelow": 10,
+      "value": 2,
+      "tier": "common",
+      "price": 3,
+      "description": "While your purse holds under 10 coins → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1"
+    },
+    {
+      "id": "pauperSpade",
+      "label": "Pauper's Spade",
+      "icon": "🥄",
+      "kind": "live",
+      "effect": "pauperSpadeTell",
+      "purseBelow": 10,
+      "tier": "common",
+      "price": 2,
+      "description": "While your purse holds under 10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)"
+    },
+    {
+      "id": "pauperClub",
+      "label": "Pauper's Club",
+      "icon": "🍀",
+      "kind": "live",
+      "effect": "pauperClubBury",
+      "purseBelow": 10,
+      "digCount": 1,
+      "tier": "common",
+      "price": 2,
+      "description": "While your purse holds under 10 coins → when a ♣ lands in this column, bury 1 card under that pile"
+    },
+    {
+      "id": "curseHarvest",
+      "label": "Curse Harvest",
+      "icon": "🧺",
+      "kind": "live",
+      "effect": "curseBuryPeek",
+      "digCount": 1,
+      "tier": "rare",
+      "price": 7,
+      "description": "When a cursed card lands in this column → bury 1 card under that pile, then peek at the next card"
+    },
+    {
+      "id": "clubThin",
+      "label": "Club Thin",
+      "icon": "✂️",
+      "kind": "live",
+      "effect": "clubThin",
+      "per": 25,
+      "digCount": 1,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "When a ♣ lands in this column → bury 1 card per 25 cards remaining in the deck"
+    },
+    {
+      "id": "purgeRank",
+      "label": "Rank Purge",
+      "icon": "🗑️",
+      "kind": "meta",
+      "effect": "purgeRank",
+      "shopRoll": "rank",
+      "tier": "rare",
+      "price": 10,
+      "description": "On purchase → purge every {rank} from your deck. No effect during deal"
+    },
+    {
+      "id": "sizeOneDiamonds",
+      "label": "Diamond Lifeline",
+      "icon": "🔷",
+      "kind": "live",
+      "effect": "sizeOneDiamonds",
+      "value": 2,
+      "tier": "uncommon",
+      "price": 5,
+      "description": "While any pile in this column has pile size 1 → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1"
     }
   ],
   "bases": [
@@ -1549,11 +1799,6 @@
     },
     {
       "id": "revive",
-      "unlock": {
-        "type": "behavior",
-        "stat": "earlyLosses",
-        "count": 1
-      },
       "label": "Phoenix",
       "icon": "🔥",
       "kind": "active",
@@ -1768,15 +2013,10 @@
       "effect": "emptyPurse",
       "tier": "rare",
       "price": 5,
-      "description": "Spend ALL your coins and peek the next card"
+      "description": "Spend ALL your coins → peek 1 card, +1 more per 10 coins spent"
     },
     {
       "id": "sameTell",
-      "unlock": {
-        "type": "behavior",
-        "stat": "correctSames",
-        "count": 6
-      },
       "label": "Same Tell",
       "icon": "🪞",
       "kind": "active",
@@ -1829,6 +2069,83 @@
       "tier": "rare",
       "price": 8,
       "description": "Only usable in an ambush → clear the deal instantly. No effect during deal"
+    },
+    {
+      "id": "purgeDiscount",
+      "label": "Purge Coupon",
+      "icon": "🎟️",
+      "kind": "active",
+      "effect": "purgeDiscount",
+      "value": 3,
+      "min": 5,
+      "tier": "uncommon",
+      "price": 5,
+      "description": "Activate → the store's Purge costs 3 less (minimum 5). No effect during deal"
+    },
+    {
+      "id": "transmute",
+      "label": "Transmute",
+      "icon": "⚗️",
+      "kind": "active",
+      "effect": "transmute",
+      "shopRoll": "rank",
+      "shopRoll2": "suit",
+      "tier": "rare",
+      "price": 8,
+      "description": "On purchase → set all {rank} cards in your deck to {suit}. No effect during deal"
+    },
+    {
+      "id": "sacrifice",
+      "label": "Sacrifice",
+      "icon": "🩸",
+      "kind": "active",
+      "effect": "sacrifice",
+      "target": "pile",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "Choose a pile → purge its top card from your deck, then kill that pile"
+    },
+    {
+      "id": "devilsDeal",
+      "label": "Devil's Deal",
+      "icon": "😈",
+      "kind": "active",
+      "effect": "devilsDeal",
+      "tier": "rare",
+      "price": 8,
+      "description": "Double your bonus coins earned this deal, then add a curse to a top card in this column"
+    },
+    {
+      "id": "cleanseColumn",
+      "label": "Cleanse",
+      "icon": "🧼",
+      "kind": "active",
+      "effect": "cleanseColumn",
+      "tier": "uncommon",
+      "price": 5,
+      "description": "Remove all curses from the top cards in this column"
+    },
+    {
+      "id": "chorus",
+      "label": "Chorus",
+      "icon": "🎼",
+      "kind": "active",
+      "effect": "chorus",
+      "tier": "rare",
+      "price": 8,
+      "description": "Set every top card in this column to the rank your full deck holds the most copies of"
+    },
+    {
+      "id": "diamondBoost",
+      "label": "Diamond Boost",
+      "icon": "💠",
+      "kind": "active",
+      "effect": "diamondBoost",
+      "target": "pile",
+      "value": 3,
+      "tier": "common",
+      "price": 3,
+      "description": "Choose a pile with a ♦ top card in this column → +3 pile size"
     }
   ],
   "samePowers": [
@@ -1873,11 +2190,6 @@
     },
     {
       "id": "linkShuffle",
-      "unlock": {
-        "type": "behavior",
-        "stat": "samesCalled",
-        "count": 40
-      },
       "label": "Link Shuffler",
       "icon": "🔀",
       "effect": "linkShuffle",
@@ -1952,6 +2264,15 @@
       "tier": "rare",
       "price": 9,
       "description": "Add +1 pile size to every pile, and +3 to the pile you called Same on"
+    },
+    {
+      "id": "rankFlood",
+      "label": "Rank Flood",
+      "icon": "🌊",
+      "effect": "rankFlood",
+      "tier": "rare",
+      "price": 9,
+      "description": "A correct Same sets the top card of every alive pile to this card's rank. A Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces"
     }
   ],
   "packStickerOdds": [

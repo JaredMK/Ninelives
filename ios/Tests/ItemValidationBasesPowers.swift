@@ -708,6 +708,180 @@ enum IVBases {
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
             ]
 
+        // ── v6.76 archetype batch (purgeDiscount / transmute run their
+        //    CampaignCheck — their effect is store-side / at purchase) ───────
+
+        case "sacrifice":
+            return [
+                IV.Scenario("trigger-purgesTopAndKillsPile", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
+                    fire: { e in _ = e.baseActivate(col: 0, targetIndex: 1) },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.board.isActive(1), "\(c): the chosen pile dies")
+                        XCTAssertTrue(e.board.piles[1].cards.isEmpty,
+                                      "\(c): its top card was purged, not buried or returned")
+                        XCTAssertEqual(e.board.pileSize(0), 1, "\(c): the other pile is untouched")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-noTargetRefuses", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "sacrifice needs a picked pile") },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): a refused fire keeps the charge")
+                    }),
+                IV.Scenario("mustNotFire-foreignPile", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0, targetIndex: 2), "pile 3 is another column's") },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.isActive(2), "\(c)")
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)")
+                    }),
+            ]
+
+        case "devilsDeal":
+            // v6.76: the base carries NO `target` — an untargeted activation
+            // curses an in-column top via the seeded pick (the Kamikaze
+            // precedent); an un-cursable supplied pick re-picks seeded.
+            return [
+                IV.Scenario("trigger-untargetedDoublesAndCurses", allowed: .all,
+                    build: {
+                        let e = baseEngine(def)
+                        e.run.bonusCoins = 5
+                        return e
+                    },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.bonusCoins, 10, "\(c): the deal's bonus tally doubled")
+                        // The seeded pick cursed exactly ONE top in the column.
+                        let curses = [0, 1].flatMap {
+                            e.board.top($0)?.stickers.filter {
+                                data.stickerTypes.get($0.type)?.cursed == true } ?? [] }
+                        XCTAssertEqual(curses.count, 1, "\(c): one curse on an in-column top")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-uncursablePickRepicksSeeded", allowed: .all,
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 0, joker: true), IV.spec(2, 8, "♥"),
+                                                       IV.spec(3, 6, "♣")])
+                        e.run.bonusCoins = 4
+                        return e
+                    },
+                    fire: { e in _ = e.baseActivate(col: 0, targetIndex: 0) },   // the ★ can't take a curse
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.bonusCoins, 8, "\(c): the tally still doubles")
+                        let curses = e.board.top(1)?.stickers.filter {
+                            data.stickerTypes.get($0.type)?.cursed == true } ?? []
+                        XCTAssertEqual(curses.count, 1,
+                                       "\(c): the seeded re-pick cursed the only cursable top")
+                        XCTAssertTrue(e.board.top(0)?.stickers.isEmpty ?? false,
+                                      "\(c): the ★ stays clean")
+                    }),
+                IV.Scenario("edge-noCursableTopJustDoubles", allowed: .all,
+                    build: {
+                        let e = baseEngine(def, tops: [IV.spec(1, 0, joker: true), IV.spec(2, 0, joker: true),
+                                                       IV.spec(3, 6, "♣")])
+                        e.run.bonusCoins = 7
+                        return e
+                    },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.bonusCoins, 14, "\(c): it still doubles with nothing to curse")
+                        let curses = [0, 1].flatMap {
+                            e.board.top($0)?.stickers.filter {
+                                data.stickerTypes.get($0.type)?.cursed == true } ?? [] }
+                        XCTAssertEqual(curses.count, 0, "\(c): no curse could land")
+                        assertSpent(e, c)
+                    }),
+            ]
+
+        case "cleanseColumn":
+            return [
+                IV.Scenario("trigger-stripsOnlyCurses", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠", ["mute", "tell"]),
+                                                    IV.spec(2, 8, "♥", ["spoiler"]),
+                                                    IV.spec(3, 6, "♣", ["leech"])]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.top(0)?.stickers.map(\.type), ["tell"],
+                                       "\(c): the curse peeled, the clean sticker stayed")
+                        XCTAssertEqual(e.board.top(1)?.stickers.count, 0, "\(c)")
+                        XCTAssertEqual(e.board.top(2)?.stickers.map(\.type), ["leech"],
+                                       "\(c): the OTHER column keeps its curse")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-lastCurseCounts", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠", ["drainShield"]),
+                                                    IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.top(0)?.stickers.isEmpty ?? false, "\(c)")
+                    }),
+                IV.Scenario("mustNotFire-noCurses", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "nothing to cleanse") },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)")
+                    }),
+            ]
+
+        case "chorus":
+            // Full deck = 3 tops + deckOrder. Three 7s in the deck make 7 the
+            // most-copied rank; the 7/3 tie variant checks the LOWEST-rank rule.
+            return [
+                IV.Scenario("trigger-topsTakeTheMostCopiedRank", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♣")],
+                                        deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 7, "♥"),
+                                                    IV.spec(52, 7, "♦"), IV.spec(53, 4, "♦")]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.top(0)?.value, 7, "\(c)")
+                        XCTAssertEqual(e.board.top(1)?.value, 7, "\(c): both column tops join the chorus")
+                        XCTAssertEqual(e.board.top(2)?.value, 6, "\(c): the other column is untouched")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-tiesBreakToLowestRank", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♣")],
+                                        deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 7, "♥"),
+                                                    IV.spec(52, 3, "♦"), IV.spec(53, 3, "♣")]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.top(0)?.value, 3, "\(c): 7s tie 3s at 2 each → 3 wins")
+                        XCTAssertEqual(e.board.top(1)?.value, 3, "\(c)")
+                    }),
+                IV.Scenario("mustNotFire-emptyColumn", allowed: [],
+                    build: { baseEngine(def, tops: [nil, nil, IV.spec(3, 6, "♣")]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no alive pile in the column") },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)")
+                    }),
+            ]
+
+        case "diamondBoost":
+            let boost = def.int("value", 3)
+            return [
+                IV.Scenario("trigger-diamondPileGrows", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
+                    fire: { e in _ = e.baseActivate(col: 0, targetIndex: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.pileSize(0), 1 + boost, "\(c): +\(boost) pile size")
+                        XCTAssertEqual(e.board.pileSize(1), 1, "\(c): the other pile is untouched")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-noTargetRefuses", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "diamondBoost needs a picked pile") },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): a refused fire keeps the charge")
+                    }),
+                IV.Scenario("mustNotFire-nonDiamondTarget", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0, targetIndex: 1), "the ♥ pile is no target") },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.pileSize(1), 1, "\(c)")
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): the charge survives a bad pick")
+                    }),
+            ]
+
         default:
             return nil
         }
@@ -753,6 +927,13 @@ enum IVBases {
                     XCTAssertTrue(e.run.revealNextActive || e.run.tellDrawsLeft > 0
                                     || e.run.sightDrawsLeft > 0
                                     || !(e.run.whisperPiles.isEmpty), "\(c): a hint armed")
+                case "rankFlood":
+                    // v6.76: the Same was called on a 7 — EVERY alive pile's
+                    // top takes that rank, and the rewrite reports for the
+                    // durable write-back.
+                    XCTAssertTrue((0..<3).allSatisfy { e.board.top($0)?.value == 7 },
+                                  "\(c): every alive top took the called rank")
+                    XCTAssertEqual(result?.rankApplied.count, 3, "\(c)")
                 default:
                     break   // structural: the result event is the contract
                 }

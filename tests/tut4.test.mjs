@@ -1,8 +1,8 @@
 // TUT4 — Zen-first tutorial copy + How to Play manual + the "Replay tutorial"
 // button. The bubble choreography and DOM anchoring are UI-side, so this
 // suite covers what can be verified DOM-free: the tutorial.js copy (core
-// mechanics ONLY — no campaign concepts), the group shape (deal: 13, zenEnd:
-// 1 — the v6.51 interactive tour), the manual's claims, and the Replay
+// mechanics ONLY — no campaign concepts), the group shape (deal: 12, zenEnd:
+// 1 — v6.74 dropped the filler step), the manual's claims, and the Replay
 // button's one-shot arm + its
 // non-destructive reroute into Zen (the old save-safety confirm is gone —
 // Zen never touches the campaign save).
@@ -38,7 +38,7 @@ export function run() {
 
   // ---- group shape ----------------------------------------------------------
   {
-    r.eq(G.deal.length, 13, "the guided deal teaches in exactly 13 steps (v6.51 interactive tour)");
+    r.eq(G.deal.length, 12, "the guided deal teaches in exactly 12 steps (v6.74: 'more guesses' filler retired)");
     r.eq(G.zenEnd.length, 1, "the deal-end beat is a single bubble");
     r.eq(Object.keys(G).length, 2, "…and those are the ONLY groups (no campaign tour remains)");
     r.eq(TutorialData.problems.length, 0, "tutorial.js validates with zero problems");
@@ -54,33 +54,34 @@ export function run() {
     r.ok(G.deal[2].advance === "higher" && G.deal[2].anchor === "dealRailUp" && /higher/i.test(G.deal[2].text),
       "deal[2] is the tap-▲ action step, gated on the Higher button");
     // Ace-high / 2-low, taught on the scripted win.
-    r.ok(/Aces count as high/i.test(G.deal[3].text) && /2s are low/i.test(G.deal[3].text),
+    r.ok(/Aces are high/i.test(G.deal[3].text) && /2s are low/i.test(G.deal[3].text),
       "deal[3] teaches Aces high / 2s low on the scripted correct guess");
     r.ok(G.deal[4].advance === "guess", "deal[4] hands over with a free-guess-gated step");
     // The deck + its remaining count.
     r.ok(/this deck/i.test(G.deal[5].text) && /remain/i.test(G.deal[5].text) && G.deal[5].anchor === "dealDeckChar",
       "deal[5] teaches the deck + remaining count, on the deck-character anchor");
-    // M2/M3 — wrong kills the pile; beat the whole deck to win (a milestone
-    // wait step that a first WRONG guess releases early).
-    r.ok(/pile is killed/i.test(G.deal[7].text) && /entire deck/i.test(G.deal[7].text)
-      && G.deal[7].wait > 0 && G.deal[7].orWrong === true,
-      "deal[7] teaches wrong→pile killed + clear the deck, on an orWrong milestone wait");
+    // v6.74: the filler "more guesses" step is gone — the milestone waits
+    // shifted down one index. M2/M3 — wrong kills the pile; beat the whole
+    // deck to win (a milestone wait a first WRONG guess releases early).
+    r.ok(/pile is killed/i.test(G.deal[6].text) && /entire deck/i.test(G.deal[6].text)
+      && G.deal[6].wait > 0 && G.deal[6].orWrong === true,
+      "deal[6] teaches wrong→pile killed + clear the deck, on an orWrong milestone wait");
     // M6 — the histogram reads what's left, with its hold affordance.
-    r.ok(/remain in the deck/i.test(G.deal[8].text) && G.deal[8].anchor === "dealHistogram",
-      "deal[8] teaches the deck-composition histogram, on the band anchor");
-    r.ok(/\*hold\*/i.test(G.deal[8].text), "…including the hold-a-rank affordance");
-    // M4 — call Same; a correct Same charges the shield.
-    r.ok(/\*Same\*/.test(G.deal[9].text) && /\*shield\*/.test(G.deal[9].text) && G.deal[9].anchor === "sameShield",
-      "deal[9] teaches calling Same + the shield charge (M4), on the Same-shield anchor");
+    r.ok(/\*remain\*/i.test(G.deal[7].text) && G.deal[7].anchor === "dealHistogram",
+      "deal[7] teaches the deck-composition histogram, on the band anchor");
+    r.ok(/\*hold\*/i.test(G.deal[7].text), "…including the hold-a-rank affordance");
+    // M4 — call Same; a correct Same charges the Same Shield.
+    r.ok(/\*Same\*/.test(G.deal[8].text) && /\*Same Shield\*/.test(G.deal[8].text) && G.deal[8].anchor === "sameShield",
+      "deal[8] teaches calling Same + the Same Shield charge (M4), on the Same-shield anchor");
     // Swipe input.
-    r.ok(G.deal[10].advance === "swipe" && /swipe/i.test(G.deal[10].text),
-      "deal[10] teaches the swipe, gated on swipe-guessing");
+    r.ok(G.deal[9].advance === "swipe" && /swipe/i.test(G.deal[9].text),
+      "deal[9] teaches the swipe, gated on swipe-guessing");
     // The pile's card-count badge.
-    r.ok(/how many cards are in this pile/i.test(G.deal[11].text) && G.deal[11].anchor === "pileCount",
-      "deal[11] teaches the pile card-count badge");
+    r.ok(/how many cards are in this pile/i.test(G.deal[10].text) && G.deal[10].anchor === "pileCount",
+      "deal[10] teaches the pile card-count badge");
     // The send-off.
-    r.eq(G.deal[12].button, "Go", "the last deal bubble's button is 'Go'");
-    r.ok(/whole deck/i.test(G.deal[12].text) && /Good luck/i.test(G.deal[12].text),
+    r.eq(G.deal[11].button, "Go", "the last deal bubble's button is 'Go'");
+    r.ok(/whole deck/i.test(G.deal[11].text) && /Good luck/i.test(G.deal[11].text),
       "the last deal bubble hands over: clear the whole deck, 'Good luck!'");
     // The deal-end beat is a short sign-off (v5.60, player copy) — it no
     // longer narrates the climb/menu; free Zen play simply continues.

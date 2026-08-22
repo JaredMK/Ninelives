@@ -62,7 +62,7 @@ export function run() {
     num("randomFixedValue", "price", "Random Rank price");
     num("suitImmunity", "price", "Spade Guard price");
     num("gainCoin", "value", "Lucky Coin payout");
-    // v6.51: Bury 1 / Bury 2 are retired; Quick Bury (ungated, rare) is the
+    // v6.51: Bury 1 / Bury 2 are retired; Quick Bury (ungated) is the
     // cardsBuried ladder's only seed source.
     r.ok(!StickerTypes.get("oneTribute") && !StickerTypes.get("twoTribute"), "Bury 1 / Bury 2 are retired");
     num("quickBury", "price", "Quick Bury price");
@@ -211,28 +211,75 @@ export function run() {
     r.eq(e.getRun().bonusCoins, 1, "Lucky Coin pays +1 when the card lands and survives");
   }
 
-  // --- Quick Bury sticker: FREE + automatic — buries 1 per instance on
-  //     landing, no prompt, no charge (it carries no coinCost). --------------
+  // --- Quick Bury sticker (PILE-TOP, v6.75): FREE + automatic — buries 1
+  //     per instance when a card lands ON the pile the carrier tops. No
+  //     prompt, no charge (it carries no coinCost). --------------------------
   {
-    const e = GameEngine.create(specsWith("quickBury"), 10, { cols: [3, 4, 3] });
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
+    e.getBoard().top(0).stickers.push({ type: "quickBury" });   // the carrier tops pile 0
     const len0 = e.getBoard().piles[0].cards.length;     // 1 (deal)
     const deck0 = e.getDeck().remaining();
     landHigher(e, 0);
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "Quick Bury: pile gains the drawn card + 1 buried");
+    r.eq(e.getBoard().piles[0].cards.length, len0 + 2, "Quick Bury: landing on the carrier's pile buries 1 (+ the drawn card)");
     r.eq(e.getDeck().remaining(), deck0 - 2, "deck loses the drawn card and the buried card");
     r.eq(e.getRun().bonusCoins, 0, "Quick Bury charges nothing");
     r.ok(!e.pendingTribute || !e.pendingTribute(), "no offer is queued — the bury is automatic");
   }
-  // Two landings bury one more each time; the sticker never peels.
+  // Regression (v6.75, the reported bug): the carrier's OWN landing must NOT
+  // fire it — it fires when the NEXT card lands on the carrier.
   {
-    const e = GameEngine.create(specsWith("quickBury"), 10, { cols: [3, 4, 3] });
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
     e.start(); e.startRun([null, null, null]);
-    const len0 = e.getBoard().piles[0].cards.length;
+    const b = e.getBoard();
+    const len0 = b.piles[0].cards.length;
+    const deck0 = e.getDeck().remaining();
+    b.top(0).value = 5;
+    forceNext(e, 9, "♣", { stickers: [{ type: "quickBury" }] });
+    e.guess(0, "higher");                // 9 > 5 → the carrier lands CORRECTLY
+    r.eq(b.piles[0].cards.length, len0 + 1, "the carrier's own landing buries nothing");
+    r.eq(e.getDeck().remaining(), deck0, "no burial left the deck (the forced draw was synthetic — count-neutral)");
+    e.debug.setNextCard(11);             // 11 > 9 → correct, lands ON the carrier
+    e.guess(0, "higher");
+    r.eq(b.piles[0].cards.length, len0 + 3, "the NEXT landing on the carrier fires it (+1 buried)");
+  }
+  // Multiple instances on the pile top fire per instance; the sticker never peels.
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start(); e.startRun([null, null, null]);
+    const b = e.getBoard();
+    b.top(0).stickers.push({ type: "quickBury" }, { type: "quickBury" });
+    const len0 = b.piles[0].cards.length;
     landHigher(e, 0);
-    landHigher(e, 0);
-    r.eq(e.getBoard().piles[0].cards.length, len0 + 4, "two Quick Bury landings bury 1 each (+ 2 drawn cards)");
-    r.eq(e.getRun().bonusCoins, 0, "two Quick Bury landings still charge nothing");
+    r.eq(b.piles[0].cards.length, len0 + 3, "two Quick Bury instances bury 2 on one landing (+ the drawn card)");
+    r.eq(e.getRun().bonusCoins, 0, "two instances still charge nothing");
+  }
+  // Saved landing (v6.57 consistency): a wrong guess saved by the Same-Charge
+  // backstop LANDS on the carrier, so the pile-top Quick Bury fires — the
+  // same rule as the pile-top snobs. A FATAL landing fires nothing.
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3], sameCharge: true });
+    e.start(); e.startRun([null, null, null]);
+    const b = e.getBoard();
+    b.top(0).value = 9;
+    b.top(0).stickers.push({ type: "quickBury" });
+    const len0 = b.piles[0].cards.length;
+    e.debug.setNextCard(2);              // 2 < 9 → "higher" is WRONG → the charge saves
+    e.guess(0, "higher");
+    r.ok(b.isActive(0), "Same Charge saved the pile");
+    r.eq(b.piles[0].cards.length, len0 + 2, "a saved landing on the carrier fires Quick Bury (+ the landed card)");
+  }
+  {
+    const e = GameEngine.create(DeckManager.buildStandardDeck(), 10, { cols: [3, 4, 3] });
+    e.start(); e.startRun([null, null, null]);
+    const b = e.getBoard();
+    b.top(0).value = 9;
+    b.top(0).stickers.push({ type: "quickBury" });
+    const deck0 = e.getDeck().remaining();
+    e.debug.setNextCard(2);
+    e.guess(0, "higher");                // wrong, no charge → the pile dies
+    r.ok(!b.isActive(0), "the pile died");
+    r.eq(e.getDeck().remaining(), deck0 - 1, "only the draw left the deck — no burial on a fatal landing");
   }
 
   // (Double Tribute / Double Bury pillar removed — Tie Bury now buries 2.)

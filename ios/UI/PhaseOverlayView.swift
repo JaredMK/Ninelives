@@ -30,9 +30,9 @@ public final class PhaseOverlayView: UIView {
     /// Curse-cell help (v6.55): a cursed card in the reveal's well answers tap
     /// OR hold with the curse's registry description — the deck inspector's
     /// card-help idiom, panel at the top of the screen like every hold-help.
+    /// Content is THE SHARED CARD-INFO GRAMMAR (v6.74, CardInfoView).
     private var curseHelpPanel: PixelPanelView?
-    private let curseHelpTitle = UILabel()
-    private let curseHelpBody = UILabel()
+    private let curseHelpContent = CardInfoView(alignment: .center)
     /// The card whose TAP-opened curse help is currently up (nil = none).
     private var curseHelpShownId: Int?
 
@@ -196,36 +196,27 @@ public final class PhaseOverlayView: UIView {
             panel = existing
         } else {
             let p = PixelPanelView()
-            curseHelpTitle.textAlignment = .center
-            curseHelpBody.textAlignment = .center
-            curseHelpBody.numberOfLines = 0
-            p.addSubview(curseHelpTitle)
-            p.addSubview(curseHelpBody)
+            p.addSubview(curseHelpContent)
             addSubview(p)
             curseHelpPanel = p
             panel = p
         }
-        curseHelpTitle.attributedText = CRTKit.attributed(CurseCardCell.cardName(cell.card), size: 14,
-                                                          color: CRT.phosphor, display: true, glow: true)
-        // One row per curse (the deck inspector's body grammar): the NAME
-        // leads in the display font — blood-red for a curse — with the
-        // registry description in cream after it. Copy is NEVER hand-written.
-        let body = NSMutableAttributedString()
-        for (i, def) in cell.curses.enumerated() {
-            if i > 0 { body.append(NSAttributedString(string: "\n")) }
-            body.append(CRTKit.attributed(def.label, size: 14, color: CRT.suitRed, display: true))
-            body.append(CRTKit.attributed("  \(def.description)", size: 14, color: CRT.cardFace))
-        }
-        curseHelpBody.attributedText = body
+        // One row per curse (v6.74 grammar): the card's rank+suit LARGEST on
+        // top, then each curse's NAME in the display face — blood-red — with
+        // its registry description in cream. Copy is NEVER hand-written.
+        curseHelpContent.show(
+            title: CardInfo.title(for: cell.card), titleGlow: true,
+            rows: cell.curses.map {
+                CardInfo.Row(name: $0.label, color: CRT.suitRed, desc: $0.description)
+            })
         // TOP, over the panel — the same place every other screen puts
         // hold-help. Framed at show time: the overlay is in the hierarchy by
         // then, so the safe area is real.
         let w = min(bounds.width - 28, 400)
-        let bodyH = ceil(curseHelpBody.sizeThatFits(CGSize(width: w - 24, height: 400)).height)
+        let contentH = curseHelpContent.sizeThatFits(CGSize(width: w - 24, height: 600)).height
         panel.frame = CGRect(x: (bounds.width - w) / 2, y: safeAreaInsets.top + 8,
-                             width: w, height: bodyH + 46)
-        curseHelpTitle.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
-        curseHelpBody.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
+                             width: w, height: contentH + 26)
+        curseHelpContent.frame = CGRect(x: 12, y: 13, width: w - 24, height: contentH)
         panel.isHidden = false
         curseHelpShownId = cell.card.id
     }
@@ -1251,12 +1242,12 @@ public final class PhaseOverlayView: UIView {
                         for def in pair.curses {
                             let cap = NSMutableAttributedString()
                             cap.append(CRTKit.attributed(CurseCardCell.cardName(pair.card) + " · ",
-                                                         size: 14, color: CRT.gold, display: true))
+                                                         size: CardInfo.nameSize, color: CRT.gold, display: true))
                             cap.append(CRTKit.attributed(def.label + " · ",
-                                                         size: 14, color: CRT.suitRed, display: true))
+                                                         size: CardInfo.nameSize, color: CRT.suitRed, display: true))
                             cap.append(CRTKit.attributed(
                                 def.description.replacingOccurrences(of: "Cursed. ", with: ""),
-                                size: 14, color: CRT.cardFace))
+                                size: CardInfo.descSize, color: CRT.cardFace))
                             addCaption(cap)
                         }
                     }
@@ -1265,10 +1256,10 @@ public final class PhaseOverlayView: UIView {
                     for def in pairs.flatMap({ $0.curses }) where seen.insert(def.id).inserted {
                         let cap = NSMutableAttributedString()
                         cap.append(CRTKit.attributed(def.label.uppercased() + " — ",
-                                                     size: 14, color: CRT.suitRed, display: true))
+                                                     size: CardInfo.nameSize, color: CRT.suitRed, display: true))
                         cap.append(CRTKit.attributed(
                             def.description.replacingOccurrences(of: "Cursed. ", with: ""),
-                            size: 14, color: CRT.cardFace))
+                            size: CardInfo.descSize, color: CRT.cardFace))
                         addCaption(cap)
                     }
                 }
@@ -1286,13 +1277,14 @@ public final class PhaseOverlayView: UIView {
         let subText: NSAttributedString?
         if outcome.key == "stickerPack", let sid = outcome.stickerId,
            let def = GameData.shared.stickerTypes.get(sid) {
-            // CANONICAL STICKER NAME (v6.72): description-sized, BOLD
-            // (display face), gold — suit-red for a curse. Never oversized.
+            // CANONICAL STICKER NAME (v6.72, sized on the v6.74 info scale):
+            // description-sized (16), BOLD (display face), gold — suit-red for
+            // a curse. Never oversized.
             let t = NSMutableAttributedString()
-            t.append(CRTKit.attributed(def.label, size: 14,
+            t.append(CRTKit.attributed(def.label, size: CardInfo.nameSize,
                                        color: def.cursed ? CRT.suitRed : CRT.gold,
                                        display: true))
-            t.append(CRTKit.attributed("\n\(def.description)", size: 14,
+            t.append(CRTKit.attributed("\n\(def.description)", size: CardInfo.descSize,
                                        color: CRT.cardFace.withAlphaComponent(0.9)))
             subText = t
         } else {

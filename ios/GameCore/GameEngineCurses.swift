@@ -14,6 +14,37 @@ extension GameEngine {
         return card.stickers.contains { stickerTypes.get($0.type)?.behavior == behavior }
     }
 
+    // MARK: - The shared weighted curse roll (v6.76 Devil's Deal)
+
+    /// Every cursed sticker that can stick on THIS card: the GLOBAL
+    /// sticker-application gate (Joker/Blank, the sticker cap, no duplicate
+    /// type, suit restrictions) minus any curse whose `curseExclude` names one
+    /// of the card's EXISTING sticker types (the web's
+    /// `cursedStickerPoolFor`).
+    func cursedStickerPoolFor(_ card: LiveCard?) -> [ItemDef] {
+        guard let card else { return [] }
+        return data.items.stickers.filter { t in
+            guard t.cursed, CardRules.stickerEligible(card, t.id, data: data) else { return false }
+            return !card.stickers.contains { t.curseExclude.contains($0.type) }
+        }
+    }
+
+    /// ONE seeded draw over the card's curse pool, weighted by `curseWeight`
+    /// (default 1). nil when nothing can stick (the web's
+    /// `rollCursedStickerType`).
+    func rollCursedStickerType(_ card: LiveCard?) -> ItemDef? {
+        let pool = cursedStickerPoolFor(card)
+        let total = pool.reduce(0.0) { $0 + $1.num("curseWeight", 1) }
+        guard total > 0 else { return nil }
+        var r = rng.next() * total
+        var pick = pool.last
+        for t in pool {
+            r -= t.num("curseWeight", 1)
+            if r < 0 { pick = t; break }
+        }
+        return pick
+    }
+
     // MARK: - Top-card state curses
 
     /// MUTE: Same cannot be called on a pile whose top carries it.

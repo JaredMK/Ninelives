@@ -924,8 +924,11 @@ final class EventCaptureUITests: XCTestCase {
 
     private func mysteryRevealRun(hold: Bool) {
         let app = XCUIApplication()
-        app.launchArguments = ["-resetAll", "1", "-autoStore", "1", "-coins", "999",
-                               "-deck", "pink", "-tier", "regular", "-seed", "909"]
+        app.launchArguments = ["-resetAll", "1", "-autoStore", "1", "-coins", "9999",
+                               "-deck", "pink", "-tier", "regular", "-seed", "909",
+                               // The v6.76 shop-roll draws shifted the seeded
+                               // stream — the mystery slot lands later now.
+                               "-ninelives.pref.storeHelpSeen", "1"]
             + (hold ? ["-revealHold", "1"] : [])
         app.launch()
         XCTAssertTrue(app.buttons["shelf-0"].waitForExistence(timeout: 20), "store missing")
@@ -934,7 +937,7 @@ final class EventCaptureUITests: XCTestCase {
         let refreshQuery = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "↻ RESTOCK"))
         var bought = false
-        for _ in 0..<25 where !bought {
+        for _ in 0..<60 where !bought {
             for slot in 0..<6 {
                 let tile = app.buttons["shelf-\(slot)"].firstMatch
                 guard tile.exists, tile.isHittable else { continue }
@@ -1130,7 +1133,10 @@ final class EventCaptureUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-resetAll", "1", "-autoStore", "1", "-coins", "99",
                                "-deck", "pink", "-tier", "regular", "-seed", "909",
-                               "-storeFreeRefresh", "1"]
+                               "-storeFreeRefresh", "1",
+                               // v6.67's auto-help legend would open over the
+                               // demo store (fresh MemoryStore) and eat the taps.
+                               "-ninelives.pref.storeHelpSeen", "1"]
         app.launch()
         XCTAssertTrue(app.buttons["shelf-0"].waitForExistence(timeout: 20), "store missing")
         sleep(1)
@@ -1278,7 +1284,10 @@ final class EventCaptureUITests: XCTestCase {
     func testStoreRestockNaming() {
         let app = XCUIApplication()
         app.launchArguments = ["-resetAll", "1", "-autoStore", "1", "-coins", "99",
-                               "-deck", "pink", "-tier", "regular", "-seed", "909"]
+                               "-deck", "pink", "-tier", "regular", "-seed", "909",
+                               // v6.67's auto-help legend would open over the
+                               // demo store and eat the taps.
+                               "-ninelives.pref.storeHelpSeen", "1"]
         app.launch()
         XCTAssertTrue(app.buttons["shelf-0"].waitForExistence(timeout: 20), "store missing")
         sleep(1)

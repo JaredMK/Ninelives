@@ -486,9 +486,9 @@ export function run() {
     r.eq(countOf(src, "addLostDealCoins("), 2,
       "addLostDealCoins has exactly ONE call site (the loss path; the other hit is its definition)");
     // The engine emits pile-killed at every IN-PLAY pile death (kamikaze, the
-    // suit-kill pillar, the fatal guess) — and the debug loseNow() sweep does
-    // NOT emit (QA can't pad the stat).
-    r.eq(countOf(src, 'emit("pile-killed"'), 3, "the engine emits pile-killed at the 3 in-play kill sites");
+    // suit-kill pillar, the fatal guess, the v6.76 Sacrifice base) — and the
+    // debug loseNow() sweep does NOT emit (QA can't pad the stat).
+    r.eq(countOf(src, 'emit("pile-killed"'), 4, "the engine emits pile-killed at the 4 in-play kill sites");
     const loseAt = src.indexOf("loseNow()");
     const loseBody = loseAt === -1 ? "" : src.slice(loseAt, src.indexOf("\n      },", loseAt));
     r.ok(loseBody.length > 0 && !loseBody.includes("pile-killed"),

@@ -105,6 +105,16 @@ final class FatalLandingTests: XCTestCase {
         XCTAssertEqual(e.run.bonusCoins, 0, "a snob needs a CORRECT matching-suit landing")
     }
 
+    func testQuickBuryOnThePileTopFiresNothingWhenTheLandingKills() {
+        // PILE-TOP (v6.75): the carrier tops the pile, but the landing KILLS
+        // it — no pile-top effect fires on a fatal landing (the audit stands).
+        let e = fatalEngine(drawnStickers: [], topStickers: ["quickBury"])
+        let deckBefore = e.deck.remaining()
+        e.guess(0, .higher)
+        XCTAssertFalse(e.board.isActive(0))
+        XCTAssertEqual(e.deck.remaining(), deckBefore - 1, "only the draw left the deck — no burial")
+    }
+
     func testTrapdoorDoesNotOpenOnAFatalLanding() {
         // Grow the pile with a correct landing first, so there is a bottom
         // card the trapdoor could steal; then land the trapdoor FATALLY.

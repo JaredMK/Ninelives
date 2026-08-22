@@ -72,6 +72,21 @@ extension GameEngine {
         case "rechargeSameShield": return !sameCharge
         // Power Surge: needs a Same-Power equipped AND an alive pile to fire on.
         case "activateSamePower":  return run.samePower != nil && !alive.isEmpty
+        // ── v6.76 archetype batch ─────────────────────────────────────────
+        // PURGE COUPON: a store-side lever — always fireable, nothing in-deal.
+        case "purgeDiscount":     return true
+        // TRANSMUTE fires at PURCHASE, never in a deal (stays amber forever).
+        case "transmute":         return false
+        case "sacrifice":         return !alive.isEmpty
+        // DEVIL'S DEAL: needs an alive pile to point at — an un-CURSABLE pick
+        // re-picks seeded at fire time, so the gate is just an alive pile
+        // (the web's `alive.length > 0`).
+        case "devilsDeal":        return !alive.isEmpty
+        case "cleanseColumn":     return alive.contains {
+            board.top($0)?.stickers.contains(where: { stickerTypes.get($0.type)?.cursed == true }) ?? false
+        }
+        case "chorus":            return !alive.isEmpty
+        case "diamondBoost":      return alive.contains { matchesSuit(board.top($0), "♦") }
         default:                   return false
         }
     }
@@ -151,6 +166,15 @@ extension GameEngine {
             if run.samePower == nil { return "No Same-Power equipped." }
         case "lonePeek":
             if run.samePower != nil { return "Works only while NO Same-Power is equipped." }
+        // ── v6.76 archetype batch ─────────────────────────────────────────
+        case "transmute":
+            return "Fires at purchase — never during a deal."
+        case "sacrifice", "chorus", "devilsDeal":
+            return "No alive pile in this column."
+        case "cleanseColumn":
+            return "No curses on this column's top cards."
+        case "diamondBoost":
+            return "Needs a ♦ on top of a pile in this column."
         default: break
         }
         return nil
@@ -176,15 +200,21 @@ extension GameEngine {
 
     /// Activate the Base on column `col`. `targetIndex` is the chosen pile for
     /// pile-target Bases (Sticker Harvest); ignored by the whole-column Bases.
+    /// `purseCoins` threads the CAMPAIGN purse into the one Base that prices
+    /// off it (Empty Purse, v6.74) — coins are not engine state, so the
+    /// caller reads them and drains them again on the result (`purseSpent`).
     /// Spends the charge and fires the effect.
     @discardableResult
-    public func baseActivate(col: Int, targetIndex: Int? = nil) -> BaseResult? {
+    public func baseActivate(col: Int, targetIndex: Int? = nil, purseCoins: Int = 0) -> BaseResult? {
         guard baseAvailable(col), let base = baseForColumn(col) else { return nil }
         // Validate the target for pile-target Bases (column-scoped). Demolish
         // lost its target pick in v6.51 — it destroys its OWN column's Pillar.
         if base.target == "pile" {
             guard let targetIndex else { return nil }
             guard board.isActive(targetIndex), run.pileColumns?[targetIndex] == col else { return nil }
+            // DIAMOND BOOST (v6.76) further requires a ♦ top on the pick —
+            // a bad target refuses WITHOUT spending the charge.
+            if base.effect == "diamondBoost", !matchesSuit(board.top(targetIndex), "♦") { return nil }
         }
 
         var res = BaseResult(col: col, effect: base.effect ?? "", label: base.label)
@@ -251,13 +281,19 @@ extension GameEngine {
             evaluateEnd()
 
         case "emptyPurse":
-            // EMPTY PURSE: the peek happens here; the PURSE lives with the
-            // campaign, so the flow drains it on this result (coins are not
-            // engine state). Fires regardless of the purse's size.
-            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
-            res.peekCount = 1
-            res.cards = deck.peek(1)
-            logLine("\(base.label): every coin spent for one look ahead")
+            // EMPTY PURSE (v6.74 rework): 1 peek BASELINE + 1 more per 10
+            // coins in the purse when triggered — 0 coins still peeks 1.
+            // The purse lives with the campaign: the caller threads the
+            // count in (`purseCoins`) and drains exactly `res.purseSpent` on
+            // this result (coins are not engine state). Fires regardless of
+            // the purse's size.
+            let purse = max(0, purseCoins)
+            let peeks = 1 + purse / 10
+            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, peeks)
+            res.peekCount = peeks
+            res.purseSpent = purse
+            res.cards = deck.peek(peeks)
+            logLine("\(base.label): \(purse) coins spent to peek \(peeks) card\(peeks == 1 ? "" : "s") ahead")
 
         case "sameTell":
             // SAME TELL: one question, one answer. A rank match with a top
@@ -479,6 +515,105 @@ extension GameEngine {
             res.gained = taxGain
             logLine("taxed \(n) ♥ card\(n == 1 ? "" : "s") in the column → +\(jsNum(taxGain)) coins")
 
+        // ── v6.76 archetype batch ─────────────────────────────────────────
+
+        case "purgeDiscount":
+            // PURGE COUPON: a store-side lever carried on a base. The engine
+            // only REPORTS the activation (coins/pricing are campaign state) —
+            // the flow applies it via `CampaignState.addPurgeDiscount`.
+            res.purgePriceCut = base.int("value", 3)
+            res.purgePriceFloor = base.int("min", 5)
+            logLine("\(base.label): the store's Purge costs \(res.purgePriceCut!) less (never below \(res.purgePriceFloor!)) for the rest of the climb")
+
+        case "sacrifice":
+            // SACRIFICE: the chosen pile's TOP card is purged from the game
+            // entirely (the flow removes that identity from the campaign deck
+            // via `purgedCardId`) and the pile dies with the rest of its cards.
+            guard let ti = targetIndex, let top = board.top(ti) else { break }
+            board.piles[ti].cards.removeLast()          // purged — never returns
+            board.kill(ti)
+            run.tellPiles.remove(ti)
+            run.whisperPiles.remove(ti)
+            if run.lastLandedPile == ti { run.lastLandedPile = nil }
+            emit(.pileKilled(index: ti))
+            // Last Rites on the sacrifice, like every other pile death.
+            if let dd = resolvePillarDef(col), dd.effect == "lastRites" { peekPillar(col, dd) }
+            res.index = ti
+            res.purgedCardId = top.id
+            logLine("sacrificed pile \(ti + 1) — \(cardName(top)) purged from the deck; the pile dies")
+
+        case "devilsDeal":
+            // DEVIL'S DEAL: double this deal's bonus tally (the delta is
+            // exactly the pre-deal tally), then inflict a curse on a top card
+            // in this column. The base carries NO `target` — the curse lands
+            // on a SEEDED pick among the column's cursable tops (the
+            // Kamikaze random-pile precedent; the web's behavior). A supplied
+            // pick is honored only when valid (alive, in-column), else it
+            // folds to the same seeded re-pick; an un-CURSABLE pick
+            // (joker/blank/full/no eligible curse) also re-picks — one seeded
+            // draw either way. With no cursable top at all the deal still
+            // just doubles.
+            let boost = run.bonusCoins
+            if boost > 0 { addBonus(base.label, boost) }
+            res.gained = boost
+            var ti = targetIndex
+            if let t = ti, !(board.isActive(t) && run.pileColumns?[t] == col) { ti = nil }
+            if ti == nil || cursedStickerPoolFor(board.top(ti!)).isEmpty {
+                let cands = colAlivePiles(col).filter { !cursedStickerPoolFor(board.top($0)).isEmpty }
+                ti = cands.isEmpty ? nil : cands[rng.index(cands.count)]
+            }
+            if let t = ti, let top = board.top(t), let curse = rollCursedStickerType(top) {
+                top.stickers.append(StickerRecord(type: curse.id))
+                res.index = t
+                res.stickerApplied = (pileIndex: t, cardId: top.id, typeId: curse.id)
+                logLine("\(base.label): the bonus tally doubles (+\(jsNum(boost))); \(curse.label) curses pile \(t + 1)'s \(cardName(top))")
+            } else {
+                logLine("\(base.label): the bonus tally doubles (+\(jsNum(boost))) — no cursable top in the column")
+            }
+
+        case "cleanseColumn":
+            // CLEANSE: strip every CURSE off this column's top cards. The
+            // `.cursePeeled` event per card makes the peel permanent on the
+            // campaign identity (the Peeler contract).
+            var peeledTotal = 0
+            for i in colAlivePiles(col) {
+                guard let top = board.top(i) else { continue }
+                let curses = top.stickers.filter { stickerTypes.get($0.type)?.cursed == true }
+                if curses.isEmpty { continue }
+                top.stickers.removeAll { stickerTypes.get($0.type)?.cursed == true }
+                peeledTotal += curses.count
+                emit(.cursePeeled(index: i, cardId: top.id, types: curses.map(\.type)))
+                logLine("cleansed \(curses.count) curse\(curses.count == 1 ? "" : "s") off pile \(i + 1)'s \(cardName(top))")
+            }
+            res.cleansed = peeledTotal
+
+        case "chorus":
+            // CHORUS: every top card in the column takes the rank the FULL
+            // deck holds the most copies of (ties → the lowest rank). Joker /
+            // Removal tops are rankless and stay untouched. Durable for the
+            // run — `valueApplied` rides the Base write-back contract.
+            guard let rank = mostCopiedRank() else { break }
+            let rk = DeckManager.ranks.first { $0.value == rank }
+            var applied: [(cardId: Int, value: Int)] = []
+            for i in colAlivePiles(col) {
+                guard let top = board.top(i), !top.joker, !top.blank, top.value != rank else { continue }
+                top.value = rank
+                if let rk { top.label = rk.label }
+                applied.append((cardId: top.id, value: rank))
+            }
+            res.valueApplied = applied
+            res.sourceValue = rank
+            logLine("set \(applied.count) top card\(applied.count == 1 ? "" : "s") to \(rk?.label ?? "?") — the full deck's most-copied rank")
+
+        case "diamondBoost":
+            // DIAMOND BOOST: +value pile size to the chosen ♦-topped pile
+            // (target validated above, before the charge is spent).
+            guard let ti = targetIndex else { break }
+            let boost = base.int("value", 3)
+            board.addSizeBonus(ti, boost)
+            res.index = ti
+            logLine("pile \(ti + 1) gains +\(boost) pile size")
+
         default:
             currentEntry = nil
             fireContext = nil
@@ -505,6 +640,12 @@ extension GameEngine {
         if base.effect == "heartDemolish", let d = res.destroyedPiles, !d.isEmpty { imp["destroyed"] = Double(d.count) }
         if res.stickerApplied != nil { imp["applied"] = 1 }
         if let sa = res.suitApplied, !sa.isEmpty { imp["recolored"] = Double(sa.count) }
+        // v6.76 archetype batch.
+        if let va = res.valueApplied, !va.isEmpty { imp["ranked"] = Double(va.count) }
+        if res.purgedCardId != nil { imp["purged"] = 1; imp["killed"] = 1 }
+        if let cl = res.cleansed, cl != 0 { imp["peeled"] = Double(cl) }
+        if base.effect == "purgeDiscount", res.purgePriceCut != nil { imp["fires"] = 1 }
+        if base.effect == "diamondBoost", res.index != nil { imp["size"] = Double(base.int("value", 3)) }
         recT("base", base.id, base.label, imp)
 
         currentEntry = nil
@@ -663,6 +804,43 @@ extension GameEngine {
             recT("samePower", def.id, def.label, ["fires": 1])
             result.targets = targets
             result.amount = per * targets.count + hubBonus
+
+        case "rankFlood":
+            // RANK FLOOD (v6.76): every ALIVE pile's top takes the CALLED
+            // card's rank, permanently (rankApplied rides the durable
+            // write-back contract a Base's valueApplied uses). The called
+            // card is the hub's top; "a Joker on either side ranks them by
+            // the RANKED card" — the card BENEATH the top is the other side
+            // of the Same — "and Joker-on-Joker makes Aces". Joker/Removal
+            // tops are rankless wildcards and stay untouched.
+            let hubCards = board.piles[hub].cards
+            let topCard = hubCards.last
+            let beneath = hubCards.count >= 2 ? hubCards[hubCards.count - 2] : nil
+            let rank: Int
+            if let t = topCard, !t.joker, !t.blank {
+                rank = t.value
+            } else if let b = beneath, !b.joker, !b.blank {
+                rank = b.value
+            } else {
+                rank = maxRank          // Joker-on-Joker → Aces
+            }
+            let rk = DeckManager.ranks.first { $0.value == rank }
+            var hit: [Int] = []
+            var applied: [(cardId: Int, value: Int)] = []
+            for j in powerPiles("alive") {
+                guard let t = board.top(j), !t.joker, !t.blank else { continue }
+                t.value = rank
+                if let rk { t.label = rk.label }
+                hit.append(j)
+                applied.append((cardId: t.id, value: rank))
+            }
+            result.targets = hit
+            result.amount = hit.count
+            result.rankApplied = applied
+            if !hit.isEmpty {
+                logLine("\(def.label): \(hit.count) pile top\(hit.count == 1 ? "" : "s") become \(rk?.label ?? "?")")
+                recT("samePower", def.id, def.label, ["fires": 1, "ranked": Double(hit.count)])
+            }
 
         default: break
         }

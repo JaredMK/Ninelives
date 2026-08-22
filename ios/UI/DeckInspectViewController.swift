@@ -18,8 +18,9 @@ public final class DeckInspectViewController: UIViewController {
     private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 16)
     /// Hold-for-help: bottom panel naming the card + everything on it.
     private let helpPanel = PixelPanelView()
-    private let helpTitle = UILabel()
-    private let helpBody = UILabel()
+    /// THE SHARED CARD-INFO GRAMMAR (v6.74, CardInfoView): rank+suit largest,
+    /// then per sticker its bold colored name + registry description.
+    private let helpContent = CardInfoView(alignment: .center)
 
     public init(campaign: CampaignState,
                 remainingIds: Set<Int>? = nil,
@@ -71,11 +72,7 @@ public final class DeckInspectViewController: UIViewController {
 
         // Hold-for-help panel (hidden until a card is held).
         helpPanel.isHidden = true
-        helpTitle.textAlignment = .center
-        helpBody.textAlignment = .center
-        helpBody.numberOfLines = 0
-        helpPanel.addSubview(helpTitle)
-        helpPanel.addSubview(helpBody)
+        helpPanel.addSubview(helpContent)
         view.addSubview(helpPanel)
     }
 
@@ -98,16 +95,15 @@ public final class DeckInspectViewController: UIViewController {
         let hp = helpPanel
         if !hp.isHidden {
             let w = min(view.bounds.width - 28, 400)
-            let bodyH = helpBody.sizeThatFits(CGSize(width: w - 24, height: 400)).height
-            let h = bodyH + 46
+            let contentH = helpContent.sizeThatFits(CGSize(width: w - 24, height: 600)).height
+            let h = contentH + 26
             // TOP, over the histogram — the same place every other screen puts
             // hold-help. It used to sit at the bottom, so the one gesture that
             // works everywhere answered in a different place here.
             hp.frame = CGRect(x: (view.bounds.width - w) / 2,
                               y: view.safeAreaInsets.top + 8,
                               width: w, height: h)
-            helpTitle.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
-            helpBody.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
+            helpContent.frame = CGRect(x: 12, y: 13, width: w - 24, height: contentH)
         }
     }
 
@@ -176,9 +172,9 @@ public final class DeckInspectViewController: UIViewController {
     }
 
     private func showItemHelp(_ item: (key: String, label: String, desc: String)) {
-        helpTitle.attributedText = CRTKit.attributed(item.label, size: 14,
-                                                     color: CRT.gold, display: true)
-        helpBody.attributedText = CRTKit.attributed(item.desc, size: 14, color: CRT.cardFace)
+        // An item's name takes the title slot in gold; the copy is the
+        // registry description — never hand-written here.
+        helpContent.show(title: item.label, titleColor: CRT.gold, body: item.desc)
         helpPanel.isHidden = false
         helpShownCardId = nil
         helpShownItemKey = item.key
@@ -186,31 +182,7 @@ public final class DeckInspectViewController: UIViewController {
     }
 
     private func showHelp(for c: CardSpec) {
-        let name: String
-        if c.joker { name = "★ Joker" }
-        else if c.blank { name = "∅ Purge" }
-        else {
-            name = (DeckManager.ranks.first { $0.value == c.currentRank }?.label
-                    ?? "\(c.currentRank)") + c.suit
-        }
-        helpTitle.attributedText = CRTKit.attributed(name, size: 14,
-                                                     color: CRT.phosphor, display: true, glow: true)
-        // One row per sticker (v6.52): the NAME leads in the display font —
-        // gold for an ordinary sticker, blood-red for a curse — with the
-        // registry description in cream after it.
-        let body = NSMutableAttributedString()
-        for (i, rec) in c.stickers.enumerated() {
-            guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
-            if i > 0 { body.append(NSAttributedString(string: "\n")) }
-            body.append(CRTKit.attributed(def.label, size: 14,
-                                          color: def.cursed ? CRT.suitRed : CRT.gold,
-                                          display: true))
-            body.append(CRTKit.attributed("  \(def.description)", size: 14, color: CRT.cardFace))
-        }
-        if body.length == 0 {
-            body.append(CRTKit.attributed("No stickers on this card.", size: 14, color: CRT.cardFace))
-        }
-        helpBody.attributedText = body
+        helpContent.show(card: c)
         helpPanel.isHidden = false
         helpShownCardId = c.id
         helpShownItemKey = nil

@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.73"
-    static let note = "ios: the assist points at one call by its edge, the map deals honest bare cards, and Slyrex finally has Mamma's eyes."
+    static let version = "v6.76"
+    static let note = "ios: 31 archetype items — build your deck around a plan: same-tolerances, suit and rank shields, paupers, thins, and one flood."
     static let line = "build \(version) · \(note)"
 }
 
@@ -1369,14 +1369,19 @@ final class CollectionViewController: MenuScreenBase {
                     tile.addSubview(q)
                     let hint = CRTKit.label(unlocks.hint(for: def), size: 14, color: CRT.muted)
                     hint.textAlignment = .center
-                    hint.numberOfLines = 2
-                    hint.frame = CGRect(x: 4, y: 91, width: cw - 8, height: 30)
+                    // v6.74: wrap, never truncate with "…" — measure the hint
+                    // and seat the progress bar beneath it (was 2-line fixed
+                    // 30pt, which clipped longer hints).
+                    hint.numberOfLines = 0
+                    let hintH = ceil(hint.sizeThatFits(CGSize(width: cw - 8, height: .greatestFiniteMagnitude)).height)
+                    hint.frame = CGRect(x: 4, y: 91, width: cw - 8, height: hintH)
                     tile.addSubview(hint)
                     if let gate = def.unlock {
                         let cur = min(unlocks.statValue(gate.stat), Int(gate.count))
                         let total = max(1, Int(gate.count))
                         // The recessed well + phosphor fill.
-                        let bar = UIView(frame: CGRect(x: 8, y: 124, width: cw - 16, height: 8))
+                        let barY = min(91 + hintH + 6, 150 - 8 - 4)
+                        let bar = UIView(frame: CGRect(x: 8, y: barY, width: cw - 16, height: 8))
                         bar.backgroundColor = CRT.feltDeep
                         bar.layer.borderWidth = 1
                         bar.layer.borderColor = CRT.ink.cgColor

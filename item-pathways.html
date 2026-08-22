@@ -1,0 +1,556 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Ninelives — Item Pathways (v6.75)</title>
+<style>
+body{background:#101410;color:#e8e4d5;font:16px/1.45 monospace;max-width:960px;margin:24px auto;padding:0 16px}
+h1{color:#ffd23f;font-size:22px} h2{color:#4ef08a;font-size:18px;margin:28px 0 6px;border-bottom:1px solid #2c3a2c;padding-bottom:4px}
+h3{color:#ffd23f;font-size:16px;margin:18px 0 4px}
+table{border-collapse:collapse;width:100%;margin:6px 0 14px}
+td,th{border:1px solid #2c3a2c;padding:4px 8px;text-align:left;vertical-align:top}
+th{color:#ffd23f;background:#18201a}
+.id{color:#5a6b5a;font-size:12px}
+.num{text-align:right}
+.common{color:#e8e4d5}.uncommon{color:#8ecae6}.rare{color:#ffd23f}
+.c{color:#8a9a8a;white-space:nowrap}
+.note{color:#8a9a8a;font-size:14px}
+.chain{color:#4ef08a}
+ul{margin:4px 0}
+</style></head><body>
+<h1>NINELIVES — how to get every item (v6.75)</h1>
+<p class="note">Generated from <code>items.js</code> (current working tree). "Price" is in coins, bought at the Store.
+Until you finish your FIRST climb, only the starting pool below is ever unlocked.</p>
+
+<h2>① What you start with — the 33-item starting pool</h2>
+<p class="note">Always unlocked from a fresh save. These are the only items a brand-new player can see in stores,
+packs and grants until their first climb ends.</p>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Path</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>+1 Rank</b> <span class="id">rankUp</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>−1 Rank</b> <span class="id">rankDown</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Random Suit</b> <span class="id">changeSuitRandom</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Change to ♠</b> <span class="id">changeSuitSpade</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Change to ♥</b> <span class="id">changeSuitHeart</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Change to ♦</b> <span class="id">changeSuitDiamond</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Change to ♣</b> <span class="id">changeSuitClub</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Same-Safe</b> <span class="id">tieSafe</span></td>
+  <td class="common">common</td><td class="num">2</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Bonus Coin</b> <span class="id">gainCoin</span></td>
+  <td class="common">common</td><td class="num">2</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Anchor</b> <span class="id">anchor</span></td>
+  <td class="common">common</td><td class="num">2</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Last Coin</b> <span class="id">deathBounty</span></td>
+  <td class="common">common</td><td class="num">2</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Heavy</b> <span class="id">heavy</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Wild Suit</b> <span class="id">wildSuit</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Shuffle</b> <span class="id">shuffle</span></td>
+  <td class="uncommon">uncommon</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Donate</b> <span class="id">donate</span></td>
+  <td class="common">common</td><td class="num">1</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Quick Bury</b> <span class="id">quickBury</span></td>
+  <td class="uncommon">uncommon</td><td class="num">7</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Tell</b> <span class="id">tell</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Heart Bonus</b> <span class="id">heartBounty</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Guardian</b> <span class="id">columnGuardian</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Second Wind</b> <span class="id">secondWind</span></td>
+  <td class="rare">rare</td><td class="num">6</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Massive Diamond</b> <span class="id">stickerCount</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Queen's Eye</b> <span class="id">queensEye</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Shuffler</b> <span class="id">royalCourt</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Upheaval</b> <span class="id">shuffleColumn</span></td>
+  <td class="common">common</td><td class="num">5</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Phoenix</b> <span class="id">revive</span></td>
+  <td class="uncommon">uncommon</td><td class="num">7</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Ballast</b> <span class="id">evenOut</span></td>
+  <td class="common">common</td><td class="num">5</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Heart Tax</b> <span class="id">tax</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Same Tell</b> <span class="id">sameTell</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Dividend</b> <span class="id">linkCoins</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Link Shuffler</b> <span class="id">linkShuffle</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Same Peeker</b> <span class="id">samePeek</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Packs</td><td><b>Small Card Pack</b> <span class="id">smallCardPack</span></td>
+  <td class="common">common</td><td class="num">2</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+<tr>
+  <td class="c">Packs</td><td><b>Small Sticker Pack</b> <span class="id">stickerPack</span></td>
+  <td class="common">common</td><td class="num">3</td><td><span class="chain">STARTING POOL</span> — store shelf, packs, grants</td></tr>
+</table>
+
+<h2>② What each deck starts with</h2>
+<ul>
+<li><b>Pinky, Mamma, Slyrex, Rocko</b> — a clean deck: zero stickers, zero curses.</li>
+<li><b>Mr. Garden</b> — every card starts stickered (his override; never cursed).</li>
+<li><b>Rocko</b> — can never buy/hold stickers; curses from Just a Two still land.</li>
+<li>Sealed packs roll stickers at 75% none / 20% one / 4% two / 1% three, with a 5% curse chance each. Map pickup cards are always bare.</li>
+</ul>
+
+<h2>③ Unlock pathways — grouped by what you do</h2>
+<p class="note">Each row's requirement is a LIFETIME counter. Work down a ladder: doing the thing unlocks each item as its threshold is crossed.</p>
+
+<h3>perfectDeals <span class="note">(5 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Payout</b> <span class="id">extraCoin</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">Clear 1 perfect deal (no wrong guesses)</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Streak Size</b> <span class="id">streakBank</span></td>
+  <td class="rare">rare</td><td class="num">4</td><td><span class="chain">Clear 2 perfect deals (no wrong guesses)</span></td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Same Heavy</b> <span class="id">linkHeavy</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Clear 4 perfect deals (no wrong guesses)</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Snowball Bury</b> <span class="id">snowball</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Clear 6 perfect deals (no wrong guesses)</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Diamond Ripple</b> <span class="id">diamondRipple</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Clear 8 perfect deals (no wrong guesses)</span></td></tr>
+</table>
+
+<h3>endlessStagesReached <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Fourth Seat</b> <span class="id">fourthSeat</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Reach endless stage 1</span></td></tr>
+</table>
+
+<h3>dealsWonLegendary <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Last Rites</b> <span class="id">lastRites</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Win 1 deals on Legendary</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Kamikaze</b> <span class="id">kamikaze</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Win 2 deals on Legendary</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Revive</b> <span class="id">revive</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Win 4 deals on Legendary</span></td></tr>
+</table>
+
+<h3>runsWon <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Ditto</b> <span class="id">ditto</span></td>
+  <td class="rare">rare</td><td class="num">5</td><td><span class="chain">Win 1 climb</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Rank Setter</b> <span class="id">setValue</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Win 2 climbs</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Suit Setter</b> <span class="id">setSuit</span></td>
+  <td class="rare">rare</td><td class="num">5</td><td><span class="chain">Win 3 climbs</span></td></tr>
+</table>
+
+<h3>zenHardWon <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Spade Peeker</b> <span class="id">spadePeek</span></td>
+  <td class="uncommon">uncommon</td><td class="num">7</td><td><span class="chain">Beat Zen on Hard</span></td></tr>
+</table>
+
+<h3>zenEasyWon <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Scout</b> <span class="id">revealNext</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Beat Zen Easy 2 times</span></td></tr>
+</table>
+
+<h3>pinkyTipsSeen <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Freebie</b> <span class="id">freebie</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">See 2 Pinky tips</span></td></tr>
+</table>
+
+<h3>zenMediumWon <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Static</b> <span class="id">static</span></td>
+  <td class="rare">rare</td><td class="num">3</td><td><span class="chain">Beat Zen Medium 2 times</span></td></tr>
+</table>
+
+<h3>runsPlayed <span class="note">(2 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Random Rank</b> <span class="id">randomFixedValue</span></td>
+  <td class="uncommon">uncommon</td><td class="num">1</td><td><span class="chain">Play 3 climbs</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Envy</b> <span class="id">envy</span></td>
+  <td class="common">common</td><td class="num">4</td><td><span class="chain">Play 5 climbs</span></td></tr>
+</table>
+
+<h3>ambushesWon <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Escape Hatch</b> <span class="id">ambushOut</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Win 3 ambushes (native only)</span></td></tr>
+</table>
+
+<h3>dealsWonRegular <span class="note">(2 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>+2 Rank</b> <span class="id">rankUp2</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Win 4 deals on Regular</span></td></tr>
+<tr>
+  <td class="c">Packs</td><td><b>Large Card Pack</b> <span class="id">cardPack</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">Win 15 deals on Regular</span></td></tr>
+</table>
+
+<h3>zenGamesPlayed <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Twin Spark</b> <span class="id">twinSpark</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">Play 4 Zen games</span></td></tr>
+</table>
+
+<h3>jokersPlayed <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Bouncer</b> <span class="id">twoWard</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Play 4 Jokers</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Wild Aces</b> <span class="id">wildAces</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Play 8 Jokers</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Gambler</b> <span class="id">gambler</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Play 12 Jokers</span></td></tr>
+</table>
+
+<h3>dealsSurvived <span class="note">(4 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Greedy</b> <span class="id">greedy</span></td>
+  <td class="common">common</td><td class="num">5</td><td><span class="chain">Clear 6 deals</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>−2 Rank</b> <span class="id">rankDown2</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Clear 12 deals</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Crowd Favorite</b> <span class="id">crowdFavorite</span></td>
+  <td class="rare">rare</td><td class="num">6</td><td><span class="chain">Clear 18 deals</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Heart Guard</b> <span class="id">heartGuard</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Clear 25 deals</span></td></tr>
+</table>
+
+<h3>samesCalled <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Lone Eye</b> <span class="id">lonePeek</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Call Same 8 times</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Column Tie-Safe</b> <span class="id">columnTieSafe</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Call Same 12 times</span></td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Burrow</b> <span class="id">linkBury</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Call Same 30 times</span></td></tr>
+</table>
+
+<h3>stickersApplied <span class="note">(8 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Massive</b> <span class="id">massive</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Apply 10 stickers</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Flypaper</b> <span class="id">flypaper</span></td>
+  <td class="uncommon">uncommon</td><td class="num">6</td><td><span class="chain">Apply 25 stickers</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Wild Sticker</b> <span class="id">randomSticker</span></td>
+  <td class="uncommon">uncommon</td><td class="num">10</td><td><span class="chain">Apply 30 stickers</span></td></tr>
+<tr>
+  <td class="c">Packs</td><td><b>Large Sticker Pack</b> <span class="id">largeStickerPack</span></td>
+  <td class="common">common</td><td class="num">6</td><td><span class="chain">Apply 50 stickers</span></td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Sticker Spray</b> <span class="id">linkSticker</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Apply 70 stickers</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Collector</b> <span class="id">collector</span></td>
+  <td class="uncommon">uncommon</td><td class="num">1</td><td><span class="chain">Apply 90 stickers</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Sticker Harvest</b> <span class="id">stickerHarvest</span></td>
+  <td class="uncommon">uncommon</td><td class="num">6</td><td><span class="chain">Apply 115 stickers</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Dense Bury</b> <span class="id">denseBury</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Apply 140 stickers</span></td></tr>
+</table>
+
+<h3>removalsUsed <span class="note">(4 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Diamond Distribution</b> <span class="id">diamondDistribution</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">Purge 10 cards</span></td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Long Odds</b> <span class="id">linkPurge</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Purge 14 cards</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Bulk Rate</b> <span class="id">bulkRate</span></td>
+  <td class="uncommon">uncommon</td><td class="num">6</td><td><span class="chain">Purge 16 cards</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Diamond Snob</b> <span class="id">diamondSnob</span></td>
+  <td class="uncommon">uncommon</td><td class="num">6</td><td><span class="chain">Purge 18 cards</span></td></tr>
+</table>
+
+<h3>correctSames <span class="note">(6 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Recharge Shield</b> <span class="id">rechargeSameShield</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Win 10 Same calls</span></td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Second Sight</b> <span class="id">linkTell</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Win 16 Same calls</span></td></tr>
+<tr>
+  <td class="c">Same-Powers</td><td><b>Rekindle</b> <span class="id">linkRevive</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Win 24 Same calls</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Recharge Cell</b> <span class="id">rechargeSame</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Win 28 Same calls</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Tap Power</b> <span class="id">activateSamePower</span></td>
+  <td class="rare">rare</td><td class="num">6</td><td><span class="chain">Win 34 Same calls</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Power Surge</b> <span class="id">activateSame</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Win 44 Same calls</span></td></tr>
+</table>
+
+<h3>bossesBeaten <span class="note">(2 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Fibonacci</b> <span class="id">fibonacci</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">Beat 10 bosses</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Prime</b> <span class="id">prime</span></td>
+  <td class="rare">rare</td><td class="num">3</td><td><span class="chain">Beat 20 bosses</span></td></tr>
+</table>
+
+<h3>pillarsPlaced <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Pillar Scout</b> <span class="id">pillarScout</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Place 12 Pillars</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Demolish</b> <span class="id">demolish</span></td>
+  <td class="uncommon">uncommon</td><td class="num">8</td><td><span class="chain">Place 18 Pillars</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Rare Hunter</b> <span class="id">rareHunter</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Place 25 Pillars</span></td></tr>
+</table>
+
+<h3>basesPlaced <span class="note">(2 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Base Scout</b> <span class="id">baseScout</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Place 12 Bases</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Reactor</b> <span class="id">refreshBases</span></td>
+  <td class="rare">rare</td><td class="num">9</td><td><span class="chain">Place 25 Bases</span></td></tr>
+</table>
+
+<h3>pilesLost <span class="note">(4 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Last Licks</b> <span class="id">lastLicks</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">Lose 18 piles</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Club Snob</b> <span class="id">clubSnob</span></td>
+  <td class="uncommon">uncommon</td><td class="num">10</td><td><span class="chain">Lose 40 piles</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Insurance</b> <span class="id">insurance</span></td>
+  <td class="rare">rare</td><td class="num">4</td><td><span class="chain">Lose 55 piles</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Last Resort</b> <span class="id">lastResort</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Lose 75 piles</span></td></tr>
+</table>
+
+<h3>cardsBuried <span class="note">(4 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Underdog</b> <span class="id">underdog</span></td>
+  <td class="rare">rare</td><td class="num">6</td><td><span class="chain">Bury 40 cards</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Excavator</b> <span class="id">excavator</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">Bury 60 cards</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Streak Bury</b> <span class="id">streakTribute</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Bury 90 cards</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Club Guard</b> <span class="id">clubGuard</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Bury 120 cards</span></td></tr>
+</table>
+
+<h3>spadesPlayed <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Spade Snob</b> <span class="id">suitSnob</span></td>
+  <td class="uncommon">uncommon</td><td class="num">4</td><td><span class="chain">Play 60 spades</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Spade Guard</b> <span class="id">suitImmunity</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Play 150 spades</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Spade Whispers</b> <span class="id">spadeWhispers</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Play 200 spades</span></td></tr>
+</table>
+
+<h3>bestCoinsInClimb <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Loose Change</b> <span class="id">looseChange</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Hold 60 coins in one climb</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Diamond Guard</b> <span class="id">diamondGuard</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Hold 100 coins in one climb</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Deep Pockets</b> <span class="id">deepPockets</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">Hold 140 coins in one climb</span></td></tr>
+</table>
+
+<h3>coinsEarnedLifetime <span class="note">(2 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>All Hearts</b> <span class="id">allHeartsCoin</span></td>
+  <td class="common">common</td><td class="num">4</td><td><span class="chain">Earn 60 lifetime coins</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Empty Purse</b> <span class="id">emptyPurse</span></td>
+  <td class="rare">rare</td><td class="num">5</td><td><span class="chain">Earn 150 lifetime coins</span></td></tr>
+</table>
+
+<h3>heartsPlayed <span class="note">(3 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Heart Snob</b> <span class="id">heartSnob</span></td>
+  <td class="uncommon">uncommon</td><td class="num">2</td><td><span class="chain">Play 75 hearts</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Heart Demolish</b> <span class="id">heartDemolish</span></td>
+  <td class="uncommon">uncommon</td><td class="num">5</td><td><span class="chain">Play 90 hearts</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Heart Choir</b> <span class="id">heartChoir</span></td>
+  <td class="uncommon">uncommon</td><td class="num">3</td><td><span class="chain">Play 200 hearts</span></td></tr>
+</table>
+
+<h3>clubsPlayed <span class="note">(4 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Club Oracle</b> <span class="id">clubOracle</span></td>
+  <td class="uncommon">uncommon</td><td class="num">8</td><td><span class="chain">Play 90 clubs</span></td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Club Roots</b> <span class="id">clubRoots</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Play 120 clubs</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Clean Bury</b> <span class="id">clubTribute</span></td>
+  <td class="rare">rare</td><td class="num">10</td><td><span class="chain">Play 150 clubs</span></td></tr>
+<tr>
+  <td class="c">Bases</td><td><b>Club Dig</b> <span class="id">clubDig</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Play 250 clubs</span></td></tr>
+</table>
+
+<h3>bestCampaignScore <span class="note">(2 items)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Compound</b> <span class="id">compound</span></td>
+  <td class="rare">rare</td><td class="num">6</td><td><span class="chain">Score 120+ in one climb</span></td></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Highest Heart</b> <span class="id">highestEven</span></td>
+  <td class="rare">rare</td><td class="num">8</td><td><span class="chain">Score 220+ in one climb</span></td></tr>
+</table>
+
+<h3>diamondsPlayed <span class="note">(1 item)</span></h3>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Unlocks when you…</th></tr>
+<tr>
+  <td class="c">Pillars</td><td><b>Diamond Anchor</b> <span class="id">diamondAnchor</span></td>
+  <td class="rare">rare</td><td class="num">6</td><td><span class="chain">Play 200 diamonds</span></td></tr>
+</table>
+
+<h2>④ Cursed stickers (13) — never bought, only inflicted</h2>
+<table><tr><th>Class</th><th>Item</th><th>Rarity</th><th>Cost</th><th>Path</th></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Leech</b> <span class="id">leech</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Shrink</b> <span class="id">shrink</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Mute</b> <span class="id">mute</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Trapdoor</b> <span class="id">trapdoor</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Spoiler</b> <span class="id">spoiler</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Shield Drain</b> <span class="id">drainShield</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Flatline</b> <span class="id">flatline</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Magnet</b> <span class="id">magnet</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Jammer</b> <span class="id">jammer</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Peeler</b> <span class="id">peeler</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Base Drain</b> <span class="id">drainBase</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Malfunction</b> <span class="id">malfunction</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+<tr>
+  <td class="c">Stickers</td><td><b>Saboteur</b> <span class="id">saboteur</span></td>
+  <td class="common">common</td><td class="num">0</td><td>Just a Two's curse, the Old Joker's purge, or a 5% curse roll in a sealed pack</td></tr>
+</table>
+
+<h2>⑤ Special store slots</h2>
+<ul>
+<li><b>Mystery Same-Power (10)</b> — the only way Same-Powers appear: one blind slot (~4% of shelves), revealed after purchase, keep or discard.</li>
+<li><b>Card slot (3)</b> — a single card, minted with its own sticker roll (31%/6%/1%).</li>
+<li><b>Purge (5+, climbs +2 each time)</b> — remove a card permanently.</li>
+<li>Store class odds per slot: sticker 40 · pillar 20 · base 15 · pack 10 · card 10 · mystery same-power 5. Rarity odds: common 100 / uncommon 50 / rare 20.</li>
+</ul>
+</body></html>

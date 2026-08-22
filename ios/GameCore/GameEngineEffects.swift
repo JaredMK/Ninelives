@@ -4,6 +4,104 @@ import Foundation
 // field and reading its tunables from the item def — never a hardcoded number.
 extension GameEngine {
 
+    // MARK: - Same-Tolerance + landing shields (v6.76 archetype batch, R1)
+
+    /// Does the column's pillar make this otherwise-WRONG call safe? Returns
+    /// the effect key that saved it (for the fired pulse), nil for no save.
+    /// ONE shared resolution for the whole sameTolerance family: a tolerated
+    /// Same is promoted to a FULL correct Same by the caller, so it charges
+    /// the Same Shield, fires the equipped Same-Power and counts as a correct
+    /// Same in the stats. The `sameSuit` tolerance additionally shields ANY
+    /// call on a same-suit landing. The shield pillars (Royal Sanctuary,
+    /// Rank Shield, Majority Rule, Daily Suit) read their composition
+    /// conditions against the FULL deck, live, here (R3).
+    func landingSave(pillar: ItemDef, g: Guess, current: LiveCard, drawn: LiveCard, col: Int) -> String? {
+        switch pillar.effect {
+        case "sameTolerance":
+            switch pillar.tol {
+            case "near":
+                // ±1 in value survives a Same call.
+                guard g == .same, abs(drawn.value - current.value) == 1 else { return nil }
+            case "royalPair":
+                // A royal landing on a royal survives a Same call.
+                guard g == .same,
+                      (11...13).contains(drawn.value), (11...13).contains(current.value) else { return nil }
+            case "sum10":
+                // Ranks summing to 10 survive a Same call.
+                guard g == .same, drawn.value + current.value == 10 else { return nil }
+            case "sameSuit":
+                // A suit landing on its own suit is safe on ANY call, Same
+                // included (Wild Suit on either side counts as every suit).
+                guard matchesSuit(drawn, current.suit) || matchesSuit(current, drawn.suit) else { return nil }
+            default: return nil
+            }
+            return "sameTolerance"
+        case "royalSafeNoTwos":
+            // ROYAL SANCTUARY: no 2s anywhere in the full deck → a royal
+            // (J/Q/K) landing in this column is always safe.
+            guard (11...13).contains(drawn.value),
+                  (fullDeckRankCounts()[minRank] ?? 0) == 0 else { return nil }
+            return "royalSafeNoTwos"
+        case "rankShield":
+            // RANK SHIELD: the shop-rolled rank landing here is always safe.
+            guard let rank = run.shopRolls[pillar.id]?.rank, drawn.value == rank else { return nil }
+            return "rankShield"
+        case "suitMajoritySafe":
+            // MAJORITY RULE: half or more of the full deck is the rolled suit
+            // (printed suits) → that suit's landings here are safe. The check
+            // runs BEFORE the drawn card lands — it has already left the draw
+            // deck, so it counts IN FLIGHT, in both the numerator and the
+            // denominator (jokers/blanks count toward the deck, never the suit).
+            guard let suit = run.shopRolls[pillar.id]?.suit, matchesSuit(drawn, suit) else { return nil }
+            let cards = fullDeckCards()
+            let suited = cards.filter { !$0.joker && !$0.blank && $0.suit == suit }.count
+                + (drawn.suit == suit && !drawn.joker && !drawn.blank ? 1 : 0)
+            let total = cards.count + 1          // the drawn card is still in the deal
+            guard suited * 2 >= total else { return nil }
+            return "suitMajoritySafe"
+        case "suitShieldDaily":
+            // DAILY SUIT: the suit rolled at Start Run (run.dailySuits) is
+            // safe when it lands in this column.
+            guard let suit = run.dailySuits?[col], matchesSuit(drawn, suit) else { return nil }
+            return "suitShieldDaily"
+        default:
+            return nil
+        }
+    }
+
+    // MARK: - Board-wide size replacements (v6.76)
+
+    /// PAUPER'S DIAMOND / DIAMOND LIFELINE: a ♦ landing ANYWHERE on the board
+    /// can count as MORE than 1 toward its pile's size. The condition (purse
+    /// for the pauper; a size-1 pile in the pillar's column for the lifeline)
+    /// is read LIVE at the landing and the difference latches as a per-pile
+    /// size bonus — the Same Heavy mechanism. Pillar landing effect, so it
+    /// fires on CORRECT landings only (the fatal-landing audit's rule), like
+    /// every other pillar in this branch.
+    func maybeBoardWideSizeEffects(_ index: Int, _ drawn: LiveCard) {
+        guard matchesSuit(drawn, "♦"), let cols = run.cols else { return }
+        for c in 0..<cols.count {
+            guard let def = resolvePillarDef(c) else { continue }
+            let qualifies: Bool
+            switch def.effect {
+            case "pauperDiamondSize":
+                qualifies = purseBelow(def)
+            case "sizeOneDiamonds":
+                qualifies = colAlivePiles(c).contains { board.pileSize($0) == 1 }
+            default:
+                continue
+            }
+            guard qualifies else { continue }
+            let value = max(1, def.int("value", 2))
+            let extra = value - 1          // the card already counts 1
+            guard extra > 0 else { continue }
+            board.addSizeBonus(index, extra)
+            firePillar(c, def.effect ?? "", def.label, 0)
+            recT("pillar", def.id, def.label, ["fires": 1, "size": Double(extra)])
+            logLine("\(def.label): the ♦ counts \(value) toward pile \(index + 1)'s size")
+        }
+    }
+
     // MARK: - Live Pillar extras (on a correct landing)
 
     /// Prime / Royal Court (coins), Queen's Eye (peek), Same Spark (spray
@@ -66,6 +164,45 @@ extension GameEngine {
                 firePillar(col, "diamondDistribution", pillar.label, 0, moves: moves)
                 logLine("\(pillar.label): redistributed \(moved) buried card\(moved == 1 ? "" : "s") to even the column")
                 recT("pillar", pillar.id, pillar.label, ["moved": Double(moved)])
+            }
+
+        // ── v6.76 archetype batch ─────────────────────────────────────────
+
+        case "eightPeek" where v == 8:
+            // EIGHT BALL: an 8 landing here peeks the next card.
+            peekPillar(col, pillar)
+
+        case "curseBuryPeek" where drawn.stickers.contains(where: { stickerTypes.get($0.type)?.cursed == true }):
+            // CURSE HARVEST: a CURSED card landing here buries digCount, then
+            // peeks the next card.
+            let nb = buryTribute(index, pillar.int("digCount", 1), pillar.label)
+            run.revealNextActive = true
+            firePillar(col, "curseBuryPeek", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["buried": Double(nb), "peeks": 1])
+            logLine("\(pillar.label): a cursed landing — buried \(nb), peeking the next card")
+
+        case "pauperHeart" where matchesSuit(drawn, "♥") && purseBelow(pillar):
+            // PAUPER'S HEART: a ♥ landing while broke pays value, live.
+            payPillar(col, "pauperHeart", pillar.label, pillar.num("value", 3))
+
+        case "pauperSpadeTell" where matchesSuit(drawn, "♠") && purseBelow(pillar):
+            // PAUPER'S SPADE: a ♠ landing while broke arms a TELL on this pile
+            // (the Tell sticker's armed-pile chip — the next draw's direction).
+            run.tellPiles.insert(index)
+            firePillar(col, "pauperSpadeTell", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["peeks": 1])
+            logLine("\(pillar.label): a tell arms on pile \(index + 1)")
+
+        case "diamondDupeSize" where isDiamond:
+            // DIAMOND ECHO: +1 pile size per DUPLICATE of the landed rank in
+            // the full deck (copies beyond the one that landed — derived, no
+            // knob). Latched as a per-pile size bonus.
+            let dupes = max(0, (fullDeckRankCounts()[v] ?? 0) - 1)
+            if dupes > 0 {
+                board.addSizeBonus(index, dupes)
+                firePillar(col, "diamondDupeSize", pillar.label, 0)
+                recT("pillar", pillar.id, pillar.label, ["fires": 1, "size": Double(dupes)])
+                logLine("\(pillar.label): \(dupes) duplicate\(dupes == 1 ? "" : "s") of \(cardName(drawn)) → +\(dupes) pile size")
             }
 
         default: break
@@ -135,6 +272,48 @@ extension GameEngine {
                 if run.denseBuryUsed != nil { run.denseBuryUsed![col] += 1 }
                 firePillar(col, "denseBury", pillar.label, 0)
                 recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+            }
+        } else if pillar.effect == "clubZeroRanksBury" && isClub {
+            // EMPTY RANKS (v6.76): bury 1 per rank with ZERO copies in the
+            // full deck — derived live at the landing (R3), no count knob.
+            let counts = fullDeckRankCounts()
+            let empties = (minRank...maxRank).filter { (counts[$0] ?? 0) == 0 }.count
+            if empties > 0 {
+                let nb = buryTribute(index, empties, pillar.label)
+                if nb > 0 {
+                    firePillar(col, "clubZeroRanksBury", pillar.label, 0)
+                    recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+                }
+            }
+        } else if pillar.effect == "absentSuitClubBury" && isClub {
+            // VOID TRIBUTE (v6.76): the full deck holds NONE of the
+            // shop-rolled suit (live check) → a ♣ landing buries buryCount.
+            if let suit = run.shopRolls[pillar.id]?.suit,
+               (fullDeckSuitCounts()[suit] ?? 0) == 0 {
+                let nb = buryTribute(index, pillar.int("buryCount", 2), pillar.label)
+                if nb > 0 {
+                    firePillar(col, "absentSuitClubBury", pillar.label, 0)
+                    recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+                }
+            }
+        } else if pillar.effect == "pauperClubBury" && isClub && purseBelow(pillar) {
+            // PAUPER'S CLUB (v6.76): a ♣ landing while broke buries digCount.
+            let nb = buryTribute(index, pillar.int("digCount", 1), pillar.label)
+            if nb > 0 {
+                firePillar(col, "pauperClubBury", pillar.label, 0)
+                recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+            }
+        } else if pillar.effect == "clubThin" && isClub {
+            // CLUB THIN (v6.76): bury digCount per full `per`-card step of the
+            // REMAINING deck (read after this landing's draw).
+            let per = max(1, pillar.int("per", 25))
+            let n = (deck.remaining() / per) * max(1, pillar.int("digCount", 1))
+            if n > 0 {
+                let nb = buryTribute(index, n, pillar.label)
+                if nb > 0 {
+                    firePillar(col, "clubThin", pillar.label, 0)
+                    recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+                }
             }
         }
     }
@@ -212,9 +391,11 @@ extension GameEngine {
         }
     }
 
-    /// Expansion stickers carried by the DRAWN card. Order inside matters: coin
-    /// payouts FIRST (Deep Pockets reads the deck before this landing's own
-    /// burials), then burials, then projections, then the Scouts' peek.
+    /// Expansion stickers carried by the DRAWN card (plus the pile-top readers:
+    /// the Snob family and Quick Bury fire off `current`, the PRE-LANDING top).
+    /// Order inside matters: coin payouts FIRST (Deep Pockets reads the deck
+    /// before this landing's own burials), then burials, then projections,
+    /// then the Scouts' peek.
     func maybeExpansionStickers(_ index: Int, _ current: LiveCard, _ drawn: LiveCard, _ col: Int?) {
         let stickers = drawn.stickers
         // The SNOB family reads the PILE TOP's stickers, so bail only when
@@ -373,7 +554,13 @@ extension GameEngine {
         }
 
         // --- burials ---
-        let qb = n("quickBury")
+        // Quick Bury (PILE-TOP, v6.75): the sticker sits on the pile's
+        // PRE-LANDING top (`current`) and fires when ANY card lands on that
+        // pile — bury 1 deck card per instance under this pile. The carrier's
+        // OWN landing does NOT fire it (it fires from underneath the NEXT
+        // landing); a saved landing lands on it too (same rule as the
+        // pile-top snobs); a fatal landing never reaches here.
+        let qb = cn("quickBury")
         var qbBuried = 0
         for _ in 0..<qb { qbBuried += buryTribute(index, 1, "Quick Bury") }
         if qb > 0 { recT("sticker", "quickBury", "Quick Bury", ["buried": Double(qbBuried)]) }

@@ -120,8 +120,9 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
 
 // MARK: - Pause menu sheet
 
-/// The in-game pause menu, web `#gameMenu`: the dashed-gold seed row
-/// (tap-to-copy) above the stacked menu buttons.
+/// The in-game pause menu, web `#gameMenu`: the stacked menu buttons.
+/// (v6.74: the tap-to-copy seed row was retired — the menu is exactly four
+/// entries; the death/victory chips still carry the share string.)
 final class PauseSheetView: SheetView {
     struct Item {
         let label: String
@@ -136,16 +137,9 @@ final class PauseSheetView: SheetView {
         }
     }
 
-    private let seed: String?
-    private let exhibition: Bool
     private var items: [Item]
-    private var seedRow: UIControl?
-    private var seedLabel = UILabel()
-    private var dash: CAShapeLayer?
 
-    init(seed: String?, exhibition: Bool, items: [Item]) {
-        self.seed = seed
-        self.exhibition = exhibition
+    init(items: [Item]) {
         self.items = items
         super.init(title: "Menu")
         build()
@@ -155,33 +149,6 @@ final class PauseSheetView: SheetView {
         body.subviews.forEach { $0.removeFromSuperview() }
         let colW: CGFloat = 300
         var y: CGFloat = 0
-        if let seed {
-            let row = UIControl()
-            let dash = CAShapeLayer()
-            dash.fillColor = nil
-            dash.strokeColor = CRT.gold.cgColor
-            dash.lineWidth = CRT.px
-            dash.lineDashPattern = [6, 4]
-            row.layer.addSublayer(dash)
-            self.dash = dash
-            let text = NSMutableAttributedString(
-                string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace, .kern: 1])
-            if exhibition {
-                text.append(NSAttributedString(string: "  EXHIBITION",
-                                               attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.gold]))
-            }
-            text.append(NSAttributedString(string: "  tap to copy",
-                                           attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
-            seedLabel.attributedText = text
-            seedLabel.textAlignment = .center
-            seedLabel.isUserInteractionEnabled = false
-            row.addSubview(seedLabel)
-            row.addAction(UIAction { [weak self] _ in self?.copySeed() }, for: .touchUpInside)
-            row.tag = 71
-            body.addSubview(row)
-            seedRow = row
-            y += 36 + 10
-        }
         for item in items {
             let b = PixelButtonView(item.label, role: item.role, fontSize: item.role == .cta ? 16 : 15)
             b.setIcon(item.icon)
@@ -201,24 +168,11 @@ final class PauseSheetView: SheetView {
         _ = colW
     }
 
-    /// Sound toggles relabel in place.
+    /// Toggle rows (Sound / Odds Assist) relabel in place.
     func setItems(_ items: [Item]) {
         self.items = items
         build()
         setNeedsLayout()
-    }
-
-    private func copySeed() {
-        guard let seed else { return }
-        UIPasteboard.general.string = seed
-        // The copy flash: the dashed frame solidifies, the hint turns gold.
-        dash?.lineDashPattern = nil
-        let text = NSMutableAttributedString(
-            string: "SEED · \(seed)", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.cardFace, .kern: 1])
-        text.append(NSAttributedString(string: "  copied",
-                                       attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.gold]))
-        seedLabel.attributedText = text
-        Sound.shared.copied()
     }
 
     override func layoutSubviews() {
@@ -227,15 +181,7 @@ final class PauseSheetView: SheetView {
         let x = (body.bounds.width - colW) / 2
         var y: CGFloat = 0
         for v in body.subviews {
-            if v.tag == 71 {
-                v.frame = CGRect(x: x, y: y, width: colW, height: 36)
-                seedLabel.frame = v.bounds
-                if let dash {
-                    dash.frame = v.bounds
-                    dash.path = UIBezierPath(rect: v.bounds.insetBy(dx: 1, dy: 1)).cgPath
-                }
-                y += 46
-            } else if let b = v as? PixelButtonView {
+            if let b = v as? PixelButtonView {
                 let h: CGFloat = b.title.contains("RESUME") ? 50 : 46
                 b.frame = CGRect(x: x, y: y, width: colW, height: h)
                 y += h + 9

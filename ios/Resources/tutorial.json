@@ -3,7 +3,7 @@
     "deal": [
       {
         "anchor": "dealBoard",
-        "text": "Choose a pile and guess if the next card dealt will be *higher* or *lower* than the card shown."
+        "text": "The easiest game ever! Just pick a pile and guess if the next card dealt will be *higher* or *lower* than the card shown."
       },
       {
         "anchor": "dealPileFirst",
@@ -13,11 +13,11 @@
       {
         "anchor": "dealRailUp",
         "advance": "higher",
-        "text": "Tap the *higher* button to guess that the next card drawn will be higher than this 3."
+        "text": "Tap the *higher* button to guess that the next card will be higher than this 3."
       },
       {
         "anchor": "dealPileFirst",
-        "text": "You guessed correctly. *Aces count as high* in this game and *2s are low*."
+        "text": "You guessed correctly. *Aces are high* and *2s are low*."
       },
       {
         "advance": "guess",
@@ -28,9 +28,6 @@
         "text": "Cards are drawn from *this deck*. The number on the deck is how many cards remain."
       },
       {
-        "text": "Try to make *more guesses*."
-      },
-      {
         "wait": 4,
         "orWrong": true,
         "text": "If you make a wrong guess, the *pile is killed*. Your goal is to get through the *entire deck* before all your piles are killed."
@@ -38,12 +35,12 @@
       {
         "wait": 2,
         "anchor": "dealHistogram",
-        "text": "This graph tells you how many cards of each rank *remain in the deck*. You can *hold* on a rank and it will tell you how many remaining cards are higher or lower than it."
+        "text": "This graph tells you how many cards of each rank *remain*. You can *hold* on a rank for more information."
       },
       {
         "wait": 2,
         "anchor": "sameShield",
-        "text": "You can make a *Same* guess too! A correct Same guess charges this *shield*, protecting a pile from your next wrong guess."
+        "text": "You can make a *Same* guess too! A correct Same guess charges this *Same Shield*, protecting a pile from the next wrong guess."
       },
       {
         "wait": 2,

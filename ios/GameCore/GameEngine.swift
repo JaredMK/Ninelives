@@ -24,6 +24,9 @@ public final class GameEngine {
     var samePowerId: String?
     var samePowerVariant: String?
     var pillarRankVariants: [String: Int] = [:]
+    /// The shop-rolled items' climb-locked {rank}/{suit} (v6.76), seeded from
+    /// the campaign via RunConfig and handed to each deal's RunState.
+    var shopRolls: [String: ShopRoll] = [:]
     /// Scratch: Second Wind rolled and missed for this column (consumed by
     /// the death path's miss emit — presentation only, never rules).
     var secondWindMissCol: Int?
@@ -51,6 +54,7 @@ public final class GameEngine {
         self.samePowerId = runConfig.samePower
         self.samePowerVariant = runConfig.samePowerVariant
         self.pillarRankVariants = runConfig.pillarRankVariants
+        self.shopRolls = runConfig.shopRolls
         self.economy = Economy(data: data)
     }
 
@@ -279,8 +283,7 @@ public final class GameEngine {
 
     /// The alive pile with the smallest (weighted) size, excluding `not`. Ties
     /// break to the lowest index. nil if no other alive pile.
-    func smallestAlivePileExcept(_ not: Int) -> Int? {
-        var best: Int? = nil, bestSize = Int.max
+    func smallestAlivePileExcept(_ not: Int) -> Int? {        var best: Int? = nil, bestSize = Int.max
         for i in 0..<board.size {
             if i == not || !board.isActive(i) { continue }
             let sz = board.pileSize(i)
@@ -308,6 +311,61 @@ public final class GameEngine {
     public var isStickerUnlocked: (ItemDef) -> Bool = { _ in true }
     func grantableStickers() -> [ItemDef] {
         stickerTypes.grantableBase().filter(isStickerUnlocked)
+    }
+
+    /// PAUPER family (v6.76): the LIVE campaign purse, threaded in by the flow
+    /// — coins are not engine state (the Empty Purse / `purseCoins` precedent),
+    /// and the gate re-evaluates at EVERY landing, so a closure, not a snapshot.
+    /// nil (unwired flows, fixtures, legacy tests) reads as "not broke": the
+    /// paupers sleep and legacy rng streams stay untouched.
+    public var purseCoinsProvider: (() -> Int)?
+    /// Is the purse under this def's `purseBelow` ceiling RIGHT NOW?
+    func purseBelow(_ def: ItemDef) -> Bool {
+        guard let provider = purseCoinsProvider else { return false }
+        return provider() < def.int("purseBelow", 0)
+    }
+
+    // MARK: - Full-deck composition (v6.76 archetype batch, R3)
+
+    /// EVERY card still in this deal: the remaining draw deck + every pile's
+    /// cards (alive AND dead — a dead pile's cards are buried in the board,
+    /// not gone) + a parked Second Wind's held-out killer. The composition
+    /// conditions read this LIVE at each check, so mid-deal burials, purges
+    /// and deaths all move them.
+    func fullDeckCards() -> [LiveCard] {
+        var out = deck.peekAll()
+        for p in board.piles { out.append(contentsOf: p.cards) }
+        if let sw = run?.pendingSecondWind { out.append(sw.killingCard) }
+        return out
+    }
+
+    /// Rank → copies among the full deck's RANKED cards (jokers/blanks are
+    /// rankless and never count).
+    func fullDeckRankCounts() -> [Int: Int] {
+        var out: [Int: Int] = [:]
+        for c in fullDeckCards() where !c.joker && !c.blank { out[c.value, default: 0] += 1 }
+        return out
+    }
+
+    /// Suit → copies by PRINTED suit (jokers/blanks excluded; a Wild Suit
+    /// sticker counts as its printed suit here — the campaign's
+    /// `suitComposition()` reads composition the same way).
+    func fullDeckSuitCounts() -> [String: Int] {
+        var out: [String: Int] = [:]
+        for c in fullDeckCards() where !c.joker && !c.blank { out[c.suit, default: 0] += 1 }
+        return out
+    }
+
+    /// The full deck's most-copied rank; TIES BREAK TO THE LOWEST RANK (the
+    /// ascending scan keeps the incumbent). nil when no ranked cards remain.
+    func mostCopiedRank() -> Int? {
+        let counts = fullDeckRankCounts()
+        var best: Int? = nil
+        for r in minRank...maxRank {
+            let n = counts[r] ?? 0
+            if n > 0 && (best == nil || n > (counts[best!] ?? 0)) { best = r }
+        }
+        return best
     }
 
     /// The stickers Wild Sticker may roll for THIS top: never onto a Joker or
@@ -368,6 +426,7 @@ public final class GameEngine {
                        pileCount: pileCount, samePower: samePowerId)
         run.samePowerVariant = samePowerVariant
         run.pillarRankVariants = pillarRankVariants
+        run.shopRolls = shopRolls
         currentEntry = nil
         fireContext = nil
         // A shuffled COPY of the campaign deck — deterministic per seed.
@@ -449,6 +508,38 @@ public final class GameEngine {
                     run.gamblerFlips?[c] = rollChance("pillar", def.id, def.label,
                                                       def.num("chance", 0.5), col: c)
                 }
+            }
+        }
+        // DAILY SUIT (v6.76): each Daily Suit column rolls its shielded suit
+        // HERE, at Start Run, off the deal's seeded stream (the baseRandom
+        // precedent). A redeal re-creates the engine with a fresh seed, which
+        // re-rolls — there is no stale-suit state to clear. Only columns that
+        // actually carry the pillar draw, so deals without it keep the exact
+        // legacy rng sequence.
+        if let pillars = run.pillars, run.dailySuits != nil {
+            for c in 0..<pillars.count {
+                if let def = resolvePillarDef(c), def.effect == "suitShieldDaily" {
+                    let suit = DeckManager.suits[rng.index(DeckManager.suits.count)].symbol
+                    run.dailySuits?[c] = suit
+                    recT("pillar", def.id, def.label, ["fires": 1])
+                }
+            }
+        }
+        // CRAZY EIGHTS (v6.76): if 8s are the full deck's most common rank
+        // (ties → lowest rank), each pile in the pillar's column STARTS at
+        // pile SIZE 8 — latched as a per-pile size bonus at Start Run (the
+        // Same Heavy mechanism: it rides the pile object and the snapshot's
+        // sizeBonus). The "8" is the mechanic itself — the data has no knob.
+        if let pillars = run.pillars, mostCopiedRank() == 8 {
+            for c in 0..<pillars.count {
+                guard let def = resolvePillarDef(c), def.effect == "startPileSizeEight" else { continue }
+                for i in colAlivePiles(c) {
+                    let boost = max(0, 8 - board.pileSize(i))
+                    if boost > 0 { board.addSizeBonus(i, boost) }
+                }
+                firePillar(c, def.effect ?? "startPileSizeEight", def.label, 0)
+                logLine("\(def.label): 8s lead the deck — column \(c + 1) opens at pile size 8")
+                recT("pillar", def.id, def.label, ["fires": 1])
             }
         }
         let bound = (run.pillars ?? []).enumerated().compactMap { c, pid -> String? in
@@ -538,6 +629,20 @@ public final class GameEngine {
         // JOKER: never wrong — a correct guess for ANY call, whichever SIDE it's
         // on (a rankless ★ can't be compared, so a guess against it must be safe).
         if drawn.joker || current.joker { correct = true }
+        // SAME-TOLERANCE + LANDING SHIELDS (v6.76 archetype batch, R1): the
+        // column pillar can make an otherwise-WRONG call safe. A tolerated
+        // SAME counts as a FULL correct Same — the shared correct branch below
+        // banks the Same Charge, fires the equipped Same-Power and reports
+        // `.resolved(correct: true)`, which is also where the flow's
+        // correctSames bump reads from. ONE shared resolution for the whole
+        // family (and the sameSuit tolerance additionally shields ANY call on
+        // a same-suit landing).
+        if !correct, let pillar, let pcol = run.pileColumns?[index],
+           let saveEffect = landingSave(pillar: pillar, g: g, current: current, drawn: drawn, col: pcol) {
+            correct = true
+            firePillar(pcol, saveEffect, pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["saves": 1])
+        }
         // A Tie-Safe STICKER turned a directional tie into a save — SAY SO
         // (v6.50: the only save with no cue; the pillar version always had one).
         if isTie && correct && g != .same && (current.tieSafe || drawn.tieSafe) {
@@ -682,6 +787,7 @@ public final class GameEngine {
             maybeLandingBonus(index, drawn)
             maybeExpansionStickers(index, current, drawn, col)
             maybeLivePillarExtras(index, pillar, drawn, g, isTie, col)
+            maybeBoardWideSizeEffects(index, drawn)
             maybeDuplicate(index, current, drawn, g)
             maybeStickerTribute(index, drawn)
             maybeStickerActions(index, drawn)

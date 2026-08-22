@@ -200,7 +200,7 @@ const NATIVE_ONLY_STICKER_BEHAVIORS = new Set([
   "magnet", "jammer", "peeler", "drainBase", "malfunction", "saboteur",
 ]);
 const NATIVE_ONLY_BASE_EFFECTS = new Set(["ambushWin", "lonePeek", "clubTell",
-  "lastResort", "emptyPurse", "sameTell"]);
+  "lastResort", "sameTell"]);
 
 // 4. EVERY Pillar, one per scenario, on the middle column (so Ditto has a
 //    neighbour and Echo has something to echo).

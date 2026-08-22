@@ -137,7 +137,7 @@ public final class CardPickerViewController: UIViewController {
         bannerIcon.contentMode = .scaleAspectFit
         bannerIcon.layer.magnificationFilter = .nearest
         sheet.addSubview(bannerIcon)
-        bannerName.numberOfLines = 1
+        bannerName.numberOfLines = 0
         sheet.addSubview(bannerName)
         bannerDesc.numberOfLines = 0
         sheet.addSubview(bannerDesc)
@@ -148,7 +148,10 @@ public final class CardPickerViewController: UIViewController {
         sheet.addSubview(suitRow)
 
         hintLabel.numberOfLines = 0
-        hintLabel.attributedText = CRTKit.attributed(hintText(), size: 14, color: CRT.muted)
+        // The ONE instruction (v6.74): label size (16) in full cream — it was
+        // the dimmest, smallest line on the sheet while being the only thing
+        // telling you what to tap.
+        hintLabel.attributedText = CRTKit.attributed(hintText(), size: 16, color: CRT.cardFace)
         sheet.addSubview(hintLabel)
 
         scroll.alwaysBounceVertical = true
@@ -178,12 +181,16 @@ public final class CardPickerViewController: UIViewController {
     }
 
     private func descHeight(width w: CGFloat) -> CGFloat {
-        guard let s = bannerDesc.attributedText else { return 16 }
-        // Measure the FULL text — a 120pt ceiling clipped long sticker
-        // descriptions mid-sentence (v5.82); the 80vh sheet cap below
+        guard bannerDesc.attributedText != nil else { return 20 }
+        // Measure the FULL text with sizeThatFits (boundingRect under-measures
+        // VT323 and clips the last line — v6.20); the 80vh sheet cap below
         // already bounds the extreme.
-        return ceil(s.boundingRect(with: CGSize(width: w, height: 800),
-                                   options: .usesLineFragmentOrigin, context: nil).height)
+        return ceil(bannerDesc.sizeThatFits(CGSize(width: w, height: 800)).height)
+    }
+
+    private func nameHeight(width w: CGFloat) -> CGFloat {
+        guard bannerName.attributedText != nil else { return 20 }
+        return ceil(bannerName.sizeThatFits(CGSize(width: w, height: 60)).height)
     }
 
     public override func viewDidLayoutSubviews() {
@@ -195,10 +202,17 @@ public final class CardPickerViewController: UIViewController {
         let sheetX = (b.width - sheetW) / 2
         let pad: CGFloat = 16
         let innerW = sheetW - pad * 2
-        let descH = descHeight(width: innerW)
+        // The name+desc column beside the icon: the description runs DIRECTLY
+        // under the name, left-aligned with it (v6.74).
+        let textW = innerW - 54
+        let nameH = nameHeight(width: textW)
+        let descH = descHeight(width: textW)
+        // The banner block is as tall as the taller of the icon (50+56=106)
+        // and the name+desc stack.
+        let bannerBottom = max(106, 52 + nameH + 4 + descH)
 
         // Fixed content above the scrollable grid (bars 64 + ticks 16 = 80).
-        let fixedH: CGFloat = 112 + descH + 8 + 80 + 5 + 18 + 8 + 22 + 8 + 16 + 8
+        let fixedH: CGFloat = bannerBottom + 12 + 80 + 5 + 18 + 8 + 22 + 8 + 20 + 8
         let gridH = min(gridContentHeight(width: innerW), b.height * 0.5)   // web: .sa-cards max-height 50vh
         // safeB: the sheet runs to the screen's bottom edge, so reserve the
         // home-indicator zone INSIDE it — the grid viewport ends above it.
@@ -228,18 +242,18 @@ public final class CardPickerViewController: UIViewController {
                                y: chipTop - 2 - cap.frame.height,
                                width: cap.frame.width, height: cap.frame.height)
         }
-        bannerName.frame = CGRect(x: pad + 54, y: 50, width: innerW - 54, height: 56)
-        bannerDesc.frame = CGRect(x: pad, y: 112, width: innerW, height: descH)
+        bannerName.frame = CGRect(x: pad + 54, y: 52, width: textW, height: nameH)
+        bannerDesc.frame = CGRect(x: pad + 54, y: 52 + nameH + 4, width: textW, height: descH)
 
-        var y: CGFloat = 112 + descH + 8
+        var y: CGFloat = bannerBottom + 12
         histBars.frame = CGRect(x: pad, y: y, width: innerW, height: 80)
         y += 80 + 5
         legendRow.frame = CGRect(x: pad, y: y, width: innerW, height: 18)
         y += 18 + 8
         suitRow.frame = CGRect(x: pad, y: y, width: innerW, height: 22)
         y += 22 + 8
-        hintLabel.frame = CGRect(x: pad, y: y, width: innerW, height: 16)
-        y += 16 + 8
+        hintLabel.frame = CGRect(x: pad, y: y, width: innerW, height: 20)
+        y += 20 + 8
         // The prompt and the hold-help panel both TAKE OVER the composition
         // strip — the histogram/legend/suit block — rather than floating at the
         // screen's top, which on this sheet is above the sheet itself.
@@ -297,8 +311,18 @@ public final class CardPickerViewController: UIViewController {
         switch g.state {
         case .began:
             guard let card = campaign.getRunDeck().first(where: { $0.id == id }) else { return }
-            let info = CardInfoText.make(DeckManager.toCard(card))
-            showHoldHelp(title: info.title, body: info.body)
+            // THE SHARED CARD-INFO GRAMMAR (v6.74, CardInfoView): rank+suit
+            // largest, then per sticker its bold name + registry description.
+            // The LIVE card carries the ×N folds and state lines (compound
+            // banked, snowball count) — same content as the pile hold.
+            let live = DeckManager.toCard(card)
+            if live.joker {
+                showHoldHelp(title: "★ Joker", body: "Always safe on any guess", rows: [])
+            } else {
+                showHoldHelp(title: CardInfo.title(for: card),
+                             body: card.stickers.isEmpty ? "No stickers on this card." : nil,
+                             rows: CardInfo.rows(for: live))
+            }
             Sound.shared.button()
         case .ended, .cancelled, .failed:
             hideHoldHelp()
@@ -309,27 +333,22 @@ public final class CardPickerViewController: UIViewController {
     /// Hold-help floats in its OWN panel at the top, over the composition
     /// strip — the standard everywhere else. Overwriting the banner meant the
     /// held card's info replaced the instruction telling you what to pick.
-    private func showHoldHelp(title: String, body: String) {
+    private func showHoldHelp(title: String, body: String?, rows: [CardInfo.Row]) {
         holdHelp.removeFromSuperview()
         holdHelp = PixelPanelView(face: CRT.feltDeep, border: CRT.phosphor)
-        let t = CRTKit.label(title, size: 18, color: CRT.phosphor, display: true, glow: true)
-        let b = CRTKit.label(body, size: 16, color: CRT.cardFace)
-        t.textAlignment = .center
-        b.textAlignment = .center
-        b.numberOfLines = 0
+        let info = CardInfoView(alignment: .center)
+        info.show(title: title, titleGlow: true, body: body, rows: rows)
         let region = stripRect.isEmpty
             ? CGRect(x: 14, y: view.safeAreaInsets.top + 8, width: view.bounds.width - 28, height: 0)
             : stripRect
         let w = min(region.width, 400)
-        let bodyH = b.sizeThatFits(CGSize(width: w - 24, height: 500)).height
-        let h = bodyH + 46
+        let contentH = info.sizeThatFits(CGSize(width: w - 24, height: 600)).height
+        let h = contentH + 26
         holdHelp.frame = CGRect(x: region.minX + (region.width - w) / 2,
                                 y: region.minY + max(0, (region.height - h) / 2),
                                 width: w, height: h)
-        t.frame = CGRect(x: 12, y: 8, width: w - 24, height: 18)
-        b.frame = CGRect(x: 12, y: 30, width: w - 24, height: bodyH)
-        holdHelp.addSubview(t)
-        holdHelp.addSubview(b)
+        info.frame = CGRect(x: 12, y: 13, width: w - 24, height: contentH)
+        holdHelp.addSubview(info)
         view.addSubview(holdHelp)
     }
 
@@ -340,7 +359,9 @@ public final class CardPickerViewController: UIViewController {
                            glow: Bool = true) {
         bannerName.attributedText = CRTKit.attributed(name, size: nameSize, color: nameColor,
                                                       display: true, glow: glow)
-        bannerDesc.attributedText = CRTKit.attributed(desc, size: 14, color: CRT.muted)
+        // The description is the thing being explained — label size (16) in
+        // full cream, never the dim 14pt footnote it used to be (v6.74).
+        bannerDesc.attributedText = CRTKit.attributed(desc, size: 16, color: CRT.cardFace)
     }
 
     private func configureBanner() {
@@ -356,11 +377,12 @@ public final class CardPickerViewController: UIViewController {
                 // sticker drops its "Change suit to {suit}" description —
                 // it only restated the heading.
                 let desc = queenGrantCopy && def.behavior == "changeSuitTo" ? "" : def.description
-                // CANONICAL STICKER NAME (v6.72): description-sized, BOLD
-                // (display face), gold — suit-red for a curse. Never oversized.
+                // CANONICAL STICKER NAME (v6.72/v6.74): description-sized
+                // (16), BOLD (display face), gold — suit-red for a curse.
+                // Never oversized.
                 setBanner(name: def.label, desc: desc,
                           nameColor: def.cursed ? CRT.suitRed : CRT.gold,
-                          nameSize: 14, glow: false)
+                          nameSize: 16, glow: false)
             }
         case .removal(let price):
             // Effect + price only — "Tap the card to purge." below is the ONE

@@ -70,7 +70,10 @@ public final class GameFlowController: UIViewController {
 
     private var current: UIViewController?
     private let tissue = TissueView()
-    private let crt = CRTOverlayUIView()
+    /// The topmost scanline layer. Internal (not private) so the debug
+    /// specimen-sheet extensions (ArtSheet.swift, `-artSheet 1`) can slide
+    /// their panels UNDER it, like the in-file sheets do.
+    let crt = CRTOverlayUIView()
     let prompt = PromptBar()
     private var autopilot: FlowAutopilot?
 
@@ -149,6 +152,11 @@ public final class GameFlowController: UIViewController {
         // chip art + label + help text (per-curse art evidence).
         if UserDefaults.standard.bool(forKey: "curseSheet") {
             showCurseSheet()
+        }
+        // Screenshot harness: `-artSheet 1` overlays the v6.76 archetype-batch
+        // item art (every new pillar/base/Same-Power, labelled).
+        if UserDefaults.standard.bool(forKey: "artSheet") {
+            showArtSheet()
         }
         // Screenshot harness: `-showJoker <offerKey>` forces one of THE OLD
         // JOKER's offers with sample state, for per-event evidence stills.
@@ -750,6 +758,12 @@ public final class GameFlowController: UIViewController {
             // waiting to bite the node after it.
             clearMidDeal()
             reshuffleIndex = 0
+            // ON THE HOUSE (v6.76): the equipped pillar arms this deal's free
+            // first reshuffle NOW (idempotent within the deal; a reshuffle's
+            // re-plan never reaches this branch, so it can never re-arm
+            // mid-deal). Armed BEFORE the Queen's Mulligan is consumed — both
+            // boons read the same flag.
+            campaign.noteDealStarted()
             // The Queen's Mulligan: the deal that claims it opens with a free
             // first RESHUFFLE (the ladder resumes at base once it's spent).
             redealCost = campaign.consumeFreeRedeal() ? 0 : DealPlanner.redealBaseCost
@@ -1446,28 +1460,26 @@ public final class GameFlowController: UIViewController {
 
     // MARK: - Pause menu
 
-    /// The web `#gameMenu` bottom sheet: seed row (tap-to-copy) over Resume /
-    /// How to Play (or Restart in Zen) / Sound / New Climb / Quit to Menu.
+    /// The in-deal pause menu (v6.74): EXACTLY four entries — Resume, Odds
+    /// Assist (only once a Straight win unlocks it; the same toggle + pref as
+    /// the Settings sheet), Sound, Quit to Menu. Same list in Zen. The seed
+    /// row, How to Play/Restart and New Climb are retired from here.
     func showPauseMenu() {
         let isZenGame = zenDiff != nil
-        // The FULL share string (web showGameMenu's copy payload, index.html:
-        // 31694-31702) — the death/victory chips already pass seedShareString().
-        let sheet = PauseSheetView(seed: isZenGame ? nil : seedShareString(),
-                                   exhibition: !isZenGame && campaign.isExhibition(),
-                                   items: [])
+        let sheet = PauseSheetView(items: [])
         func makeItems() -> [PauseSheetView.Item] {
             var items: [PauseSheetView.Item] = [
                 .init("RESUME", role: .cta) {},
             ]
-            if isZenGame {
-                items.append(.init("RESTART") { [weak self] in
-                    guard let self, let d = self.zenDiff else { return }
-                    self.startZen(diff: d)
-                })
-            } else {
-                items.append(.init("HOW TO PLAY", keepOpen: true) { [weak self, weak sheet] in
-                    sheet?.removeFromSuperview()
-                    self?.showManualSheet()
+            // Gated exactly like the Settings sheet row (Sheets.swift): the
+            // unlock derives from DeckUnlocks, the state from the pref.
+            if campaign.deckUnlocks.wonAnyStraight() {
+                let on = campaign.saveStore.pref("oddsAssist") == "1"
+                items.append(.init("ODDS ASSIST: \(on ? "ON" : "OFF")",
+                                   keepOpen: true) { [weak self, weak sheet] in
+                    guard let self else { return }
+                    self.campaign.saveStore.setPref("oddsAssist", on ? "0" : "1")
+                    sheet?.setItems(makeItems())
                 })
             }
             items.append(.init("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")",
@@ -1475,11 +1487,6 @@ public final class GameFlowController: UIViewController {
                 Sound.shared.enabled.toggle()
                 sheet?.setItems(makeItems())
             })
-            if !isZenGame {
-                items.append(.init("NEW CLIMB") { [weak self] in
-                    self?.confirmNewClimb()
-                })
-            }
             items.append(.init("QUIT TO MENU", role: .danger) { [weak self] in
                 guard let self else { return }
                 if isZenGame {
@@ -1507,20 +1514,6 @@ public final class GameFlowController: UIViewController {
             }
         }
         sheet.present(in: view, below: crt)
-    }
-
-    private func confirmNewClimb() {
-        prompt.show("Abandon this campaign and start a fresh one?",
-                    help: "The current climb, coins and items are wiped. This can't be undone.", actions: [
-            .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
-            .init("New Climb", role: .danger) { [weak self] in
-                guard let self else { return }
-                self.prompt.hide()
-                self.clearSave()
-                self.campaign.reset()
-                self.showDeckSelect()
-            },
-        ]) { [weak self] in self?.prompt.hide() }
     }
 
     func seedShareString() -> String {

@@ -6994,7 +6994,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v6.64 · ios: Beheaded Queen event copy/presentation sweep; Cleanse strips all stickers";
+const APP_VERSION = "v6.76 · ARCHETYPE BATCH: 31 new items live (22 pillars, 7 bases, Rank Flood) — same-tolerance family, shop-rolled shields, composition conditions, pauper kit, on-purchase purge/transmute";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -7343,6 +7343,100 @@ const GLYPHS = {
   diamond_spread: '<path d="M12 6.6l3.4 4.4-3.4 4.4-3.4-4.4z" fill="var(--card-red)"/>' +
     '<path d="M6 11H2.8M4.9 8.9L2.7 11l2.2 2.1M18 11h3.2M19.1 8.9l2.2 2.1-2.2 2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
     '<path d="M4.5 19h4M10 19h4M15.5 19h4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+  // ---- ARCHETYPE BATCH v6.76 pillar emblems (same monoline style, pictorial
+  // — no letterforms; mirrors the iOS ItemArt.pillarGlyphs matrices) ----
+  // SAME-TOLERANCE family — ONE shared silhouette: the Same "=" up top with
+  // the family's tolerance mark below, so the four read as siblings.
+  // Close Call (±1): the = + two chevrons closing in on each other.
+  sameTolNear: '<path d="M4 7.5h16M4 11.5h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<path d="M6.8 15l2.6 3.2-2.6 3.2M17.2 15l-2.6 3.2 2.6 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Royal Pair: the = + a small crown.
+  sameTolRoyal: '<path d="M4 7h16M4 11h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<path d="M6.5 20.5h11l-1-5-2.4 2.2L12 14.6l-2.1 3.1-2.4-2.2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  // Perfect Ten: the = drawn as two bars of five pips (ten pips total).
+  sameTolSum10: '<g fill="currentColor">' +
+    '<circle cx="4.6" cy="7.6" r="1.5"/><circle cx="8.3" cy="7.6" r="1.5"/><circle cx="12" cy="7.6" r="1.5"/><circle cx="15.7" cy="7.6" r="1.5"/><circle cx="19.4" cy="7.6" r="1.5"/>' +
+    '<circle cx="4.6" cy="15.4" r="1.5"/><circle cx="8.3" cy="15.4" r="1.5"/><circle cx="12" cy="15.4" r="1.5"/><circle cx="15.7" cy="15.4" r="1.5"/><circle cx="19.4" cy="15.4" r="1.5"/></g>',
+  // Suit Match: the = + two matching suit pips.
+  sameTolSuit: '<path d="M4 7h16M4 11h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<g transform="translate(4.6 13.2) scale(0.32)"><path d="' + SUITP.spade + '" fill="currentColor"/></g>' +
+    '<g transform="translate(11.8 13.2) scale(0.32)"><path d="' + SUITP.spade + '" fill="currentColor"/></g>',
+  // SHIELDS — the guardian shield silhouette with the guarded thing inside.
+  // Rank Shield: the shield holding a mini card with a single rank pip.
+  rankShield: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<rect x="9" y="8" width="6" height="7.6" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/>' +
+    '<circle cx="12" cy="11.8" r="1.2" fill="currentColor"/>',
+  // Daily Suit: the shield holding a suit pip (re-rolled every deal).
+  suitShield: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<g transform="translate(7.9 7.2) scale(0.34)"><path d="' + SUITP.spade + '" fill="currentColor"/></g>',
+  // Empty Ranks: an EMPTY card outline (the zero-copy ranks) sinking into the
+  // ground — the bury family's composition.
+  zeroRanksBury: '<rect x="7.5" y="2.5" width="9" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M12 15.5v2.6M9.6 16.4l2.4 2.4 2.4-2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M4 21.4h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  // Crazy Eights: a TALL stack of cards (piles that start big).
+  eightStart: '<rect x="8" y="2.8" width="8" height="3" rx="1.2"/>' +
+    '<rect x="8" y="7.4" width="8" height="3" rx="1.2"/>' +
+    '<rect x="8" y="12" width="8" height="3" rx="1.2"/>' +
+    '<rect x="8" y="16.6" width="8" height="3" rx="1.2"/>',
+  // Royal Sanctuary: a crown inside the guardian shield.
+  royalSanctuary: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M8.6 15.4h6.8l-.6-3.4-1.5 1.4L12 11.6l-1.3 1.8-1.5-1.4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  // Void Tribute: a ♣ sinking toward a hole (the absent suit's void).
+  absentSuitClubBury: '<g transform="translate(6 0.2) scale(0.5)"><path d="' + SUITP.club + '" fill="currentColor"/></g>' +
+    '<ellipse cx="12" cy="17.8" rx="6.2" ry="3" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // Majority Rule: one BIG suit pip outvoting three small ones.
+  suitMajoritySafe: '<g transform="translate(6.6 1.2) scale(0.45)"><path d="' + SUITP.spade + '" fill="currentColor"/></g>' +
+    '<circle cx="5" cy="18.4" r="1.7" fill="currentColor"/><circle cx="12" cy="18.4" r="1.7" fill="currentColor"/><circle cx="19" cy="18.4" r="1.7" fill="currentColor"/>',
+  // Diamond Echo: two red ♦ (the duplicates) + a size-up arrow.
+  diamondDupeSize: '<path d="M8.4 4.4l3.2 4.2-3.2 4.2-3.2-4.2z" fill="var(--card-red)"/>' +
+    '<path d="M15.6 4.4l3.2 4.2-3.2 4.2-3.2-4.2z" fill="var(--card-red)"/>' +
+    '<path d="M12 20.6v-4.4M9.4 18.4l2.6-2.6 2.6 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  // Flat Purge: a price tag with a LEVEL bar (the price never climbs).
+  purgeFlatFive: '<path d="M4 4h7l9 9-7 7-9-9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' +
+    '<circle cx="8" cy="8" r="1.4" fill="currentColor"/>' +
+    '<path d="M9.5 13.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  // On the House: a house with a coin inside.
+  firstFree: '<path d="M4 11.5L12 5l8 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M6.5 10v10h11V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' +
+    '<circle cx="12" cy="14.8" r="2.7" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  // Eight Ball: the billiard ball (a ball with its spot) — the 8-peek.
+  eightPeek: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<circle cx="12" cy="10" r="3.1" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // PAUPER family — ONE shared motif: the broke player's empty open pouch,
+  // with the family's own suit dropping toward it.
+  pauperHeart: '<g transform="translate(8.6 0.4) scale(0.28)"><path d="' + SUITP.heart + '" fill="var(--card-red)"/></g>' +
+    '<path d="M6 10.5h12l-1.6 8.6a2 2 0 0 1-2 1.6h-4.8a2 2 0 0 1-2-1.6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  pauperDiamond: '<g transform="translate(8.6 0.4) scale(0.28)"><path d="' + SUITP.diamond + '" fill="var(--card-red)"/></g>' +
+    '<path d="M6 10.5h12l-1.6 8.6a2 2 0 0 1-2 1.6h-4.8a2 2 0 0 1-2-1.6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  pauperSpade: '<g transform="translate(8.6 0.4) scale(0.28)"><path d="' + SUITP.spade + '" fill="currentColor"/></g>' +
+    '<path d="M6 10.5h12l-1.6 8.6a2 2 0 0 1-2 1.6h-4.8a2 2 0 0 1-2-1.6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  pauperClub: '<g transform="translate(8.6 0.4) scale(0.28)"><path d="' + SUITP.club + '" fill="currentColor"/></g>' +
+    '<path d="M6 10.5h12l-1.6 8.6a2 2 0 0 1-2 1.6h-4.8a2 2 0 0 1-2-1.6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  // Curse Harvest: a red leech sinking into the ground (the bury family's
+  // composition; the curse is the red worm).
+  curseHarvest: '<path d="M4.5 5.5c1.8-2.2 3.3 2.2 5 0s3.2 2.2 5 0 3.2 2.2 5 0" fill="none" stroke="var(--card-red)" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M12 10v6M9.4 13.8l2.6 2.6 2.6-2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M4 20.5h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  // Club Thin: a ♣ over a shrinking stack (the deck thins out).
+  clubThin: '<g transform="translate(7.4 0.4) scale(0.38)"><path d="' + SUITP.club + '" fill="currentColor"/></g>' +
+    '<rect x="4.5" y="12.5" width="15" height="2.6" rx="1.3"/>' +
+    '<rect x="6.5" y="16.5" width="11" height="2.6" rx="1.3"/>' +
+    '<rect x="8.5" y="20.5" width="7" height="2.6" rx="1.3"/>',
+  // Rank Purge: a card dropping into the trash bin (the on-purchase purge).
+  purgeRank: '<rect x="9" y="1.5" width="6" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
+    '<path d="M5 10h14M9.5 10V8.4h5V10M7 10l1 11h8l1-11" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  // Diamond Lifeline: a red ♦ raised on a line above a lone (size-1) pile.
+  sizeOneDiamonds: '<path d="M12 2.5l3.4 4.2L12 10.9l-3.4-4.2z" fill="var(--card-red)"/>' +
+    '<path d="M12 10.9v2.4" stroke="currentColor" stroke-width="2"/>' +
+    '<rect x="7.5" y="14" width="9" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>',
+  // Rank Flood (Same-Power logo): the shared linked-nodes mark + the flood
+  // that flattens every top to one rank (two wave lines).
+  rankFlood: '<circle cx="6" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<circle cx="18" cy="5.5" r="2.1" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M8.1 5.5h7.8" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M3 14c2-2.4 4-2.4 6 0s4 2.4 6 0 4-2.4 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M3 19.5c2-2.4 4-2.4 6 0s4 2.4 6 0 4-2.4 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
 };
 const ELEM_GLYPH = {
   rankUp: "rankup", rankDown: "rankdown", rankUp2: "rankup2", rankDown2: "rankdown2",
@@ -7377,6 +7471,19 @@ const ELEM_GLYPH = {
   diamondAnchor: "diamond_anchor", diamondDistribution: "diamond_spread",
   shuffle: "shuffle", donate: "donate",
   cardPack: "cardstack", smallCardPack: "cardstack", stickerPack: "cache",
+  // ARCHETYPE BATCH v6.76 — every new pillar's OWN emblem (no guardian
+  // fallback), keyed 1:1 with the GLYPHS entries above.
+  zeroRanksBury: "zeroRanksBury", eightStart: "eightStart",
+  royalSanctuary: "royalSanctuary", absentSuitClubBury: "absentSuitClubBury",
+  suitMajoritySafe: "suitMajoritySafe", diamondDupeSize: "diamondDupeSize",
+  sameTolNear: "sameTolNear", sameTolRoyal: "sameTolRoyal",
+  sameTolSum10: "sameTolSum10", sameTolSuit: "sameTolSuit",
+  rankShield: "rankShield", suitShield: "suitShield",
+  purgeFlatFive: "purgeFlatFive", firstFree: "firstFree", eightPeek: "eightPeek",
+  pauperHeart: "pauperHeart", pauperDiamond: "pauperDiamond",
+  pauperSpade: "pauperSpade", pauperClub: "pauperClub",
+  curseHarvest: "curseHarvest", clubThin: "clubThin", purgeRank: "purgeRank",
+  sizeOneDiamonds: "sizeOneDiamonds",
 };
 function glyph(name, cls) {
   const g = GLYPHS[name] || GLYPHS.dot;
@@ -10107,9 +10214,9 @@ const TutorialData = (() => {
   // The writer-owned groups and their EXACT step counts. The tour's
   // choreography (which group fires when, what each step rings) lives in
   // index.html — tutorial.js may reword a bubble, never add or remove one.
-  // v6.51: the guided deal is the 13-step INTERACTIVE tour (scripted opening,
+  // v6.74: the guided deal is the 12-step INTERACTIVE tour (scripted opening,
   // event-gated steps, milestone waits) — the same data the native port runs.
-  const GROUPS = { deal: 13, zenEnd: 1 };
+  const GROUPS = { deal: 12, zenEnd: 1 };
   // The Zen-first tour carries no live placeholders: any {token} in the copy
   // is a writer error and fails loudly here.
   const PLACEHOLDERS = [];
@@ -12499,6 +12606,14 @@ const GameEngine = (() => {
     const samePower = runConfig.samePower || null;
     let deck, board, status, run, listeners = [];
     let rng = null;   // the run's seeded rng (shared by the deck + board shuffles)
+    // v6.76 hooks (UI-injected, live reads — the engine owns neither):
+    // purseHook() → the CAMPAIGN coin balance (Pauper family gates on it live).
+    //   Unset → Infinity (the pauper pillars stay dormant — never a free fire).
+    // compositionHook() → the FULL OWNED deck's cards (persistent shape:
+    //   currentRank/suit/joker/blank) for the R3 composition conditions. Unset →
+    //   the engine falls back to everything it holds (remaining deck + every
+    //   pile's cards — the whole DEAL deck), which keeps bare test/QA runs sane.
+    let purseHook = null, compositionHook = null;
     // currentEntry: the log entry that in-flight cascade lines append to (set
     // while a guess or the run-end settle is resolving). Debug-only ground truth.
     let currentEntry = null;
@@ -12578,6 +12693,91 @@ const GameEngine = (() => {
         // the moving cards (presentation only — indices, never identities).
         const { moved, moves } = redistributeColumn(col);
         if (moved > 0) { firePillar(col, "diamondDistribution", pillar.label, 0, { moves }); logLine(pillar.label + ": redistributed " + moved + " buried card" + (moved === 1 ? "" : "s") + " to even the column"); recT("pillar", pillar.id, pillar.label, { moved }); }
+      } else if (pillar.effect === "eightPeek" && v === 8) {
+        // Eight Ball (v6.76): an 8 landed → peek the next upcoming card.
+        peekPillar(col, pillar);
+      } else if (pillar.effect === "clubZeroRanksBury" && cardMatchesSuit(drawn, "♣")) {
+        // Empty Ranks (v6.76, R3): bury 1 per rank with ZERO copies in the full
+        // deck (live count; an empty/full-coverage deck buries nothing).
+        const n = zeroRankCount();
+        if (n > 0) {
+          const nb = buryTribute(index, n, pillar.label);
+          if (nb > 0) { firePillar(col, "clubZeroRanksBury", pillar.label, 0); recT("pillar", pillar.id, pillar.label, { buried: nb }); }
+        }
+      } else if (pillar.effect === "absentSuitClubBury" && cardMatchesSuit(drawn, "♣")) {
+        // Void Tribute (v6.76, R3): the shop-rolled suit has ZERO copies in the
+        // full deck → a ♣ landing buries `buryCount`.
+        const roll = pillarShopRoll(col);
+        if (roll && fullSuitStats(roll.roll).count === 0) {
+          const nb = buryTribute(index, itemNum(pillar, "buryCount", 2), pillar.label);
+          if (nb > 0) { firePillar(col, "absentSuitClubBury", pillar.label, 0); recT("pillar", pillar.id, pillar.label, { buried: nb }); }
+        }
+      } else if (pillar.effect === "diamondDupeSize" && isDiamond) {
+        // Diamond Echo (v6.76, R3): +1 pile size per DUPLICATE of the landed
+        // card's rank in the full deck (copies beyond the first; a singleton
+        // rank pays nothing). Deal-persistent size bonus.
+        const dupes = Math.max(0, fullRankCounts()[v] - 1);
+        if (dupes > 0) {
+          board.addSizeBonus(index, dupes);
+          firePillar(col, "diamondDupeSize", pillar.label, 0);
+          recT("pillar", pillar.id, pillar.label, { applied: dupes });
+          logLine(pillar.label + ": +" + dupes + " pile size (" + dupes + " duplicate" + (dupes === 1 ? "" : "s") + " of " + cardName(drawn) + "'s rank)");
+        }
+      } else if (pillar.effect === "pauperHeart" && cardMatchesSuit(drawn, "♥") && purseBroke(pillar)) {
+        // Pauper's Heart (v6.76): broke purse (< purseBelow, live) → +value per ♥ landing.
+        payPillar(col, "pauperHeart", pillar.label, itemNum(pillar, "value", 3));
+      } else if (pillar.effect === "pauperSpadeTell" && cardMatchesSuit(drawn, "♠") && purseBroke(pillar)) {
+        // Pauper's Spade (v6.76): broke purse → a ♠ landing arms a Tell on this
+        // pile (the shared tellPiles idiom — a directional hint for the next draw).
+        if (run.tellPiles) run.tellPiles.add(index);
+        firePillar(col, "pauperSpadeTell", pillar.label, 0);
+        recT("pillar", pillar.id, pillar.label, { peeks: 1 });
+        logLine(pillar.label + ": the next card shows a tell on this pile");
+      } else if (pillar.effect === "pauperClubBury" && cardMatchesSuit(drawn, "♣") && purseBroke(pillar)) {
+        // Pauper's Club (v6.76): broke purse → a ♣ landing buries `digCount`.
+        const nb = buryTribute(index, itemNum(pillar, "digCount", 1), pillar.label);
+        if (nb > 0) { firePillar(col, "pauperClubBury", pillar.label, 0); recT("pillar", pillar.id, pillar.label, { buried: nb }); }
+      } else if (pillar.effect === "curseBuryPeek" && isCursedCard(drawn)) {
+        // Curse Harvest (v6.76): a CURSED card landed → bury `digCount`, then
+        // peek the next upcoming card.
+        const nb = buryTribute(index, itemNum(pillar, "digCount", 1), pillar.label);
+        run.revealNextActive = true;
+        firePillar(col, "curseBuryPeek", pillar.label, 0);
+        recT("pillar", pillar.id, pillar.label, { buried: nb, peeks: 1 });
+        logLine(pillar.label + ": cursed landing harvested — buried " + nb + ", peeking the next card");
+      } else if (pillar.effect === "clubThin" && cardMatchesSuit(drawn, "♣")) {
+        // Club Thin (v6.76): a ♣ landing buries digCount per full `per`-card
+        // step of the REMAINING deck.
+        const n = Math.floor(deck.remaining() / itemNum(pillar, "per", 25)) * itemNum(pillar, "digCount", 1);
+        if (n > 0) {
+          const nb = buryTribute(index, n, pillar.label);
+          if (nb > 0) { firePillar(col, "clubThin", pillar.label, 0); recT("pillar", pillar.id, pillar.label, { buried: nb }); }
+        }
+      }
+    }
+
+    /** Board-wide ♦-landing SIZE pillars (v6.76): Pauper's Diamond (broke purse)
+        and Diamond Lifeline (its column holds a pile of size 1, evaluated AFTER
+        the landing resolves — a ♦ that lifts the column's last size-1 pile to 2
+        gets no boost) make a ♦ landing count `value` toward pile size instead of
+        the physical +1, WHEREVER on the board it lands. The card itself is the
+        +1; each qualifying pillar tops it up by (value − 1) as a size bonus. Both
+        pillars may stack (they live on different columns). */
+    function maybeBoardWideDiamondSize(index, drawn) {
+      if (!run || !run.pillars || !cardMatchesSuit(drawn, "♦")) return;
+      for (let c = 0; c < run.pillars.length; c++) {
+        const def = resolvePillarDef(c);
+        if (!def) continue;
+        let qualifies = false;
+        if (def.effect === "pauperDiamondSize") qualifies = purseBroke(def);
+        else if (def.effect === "sizeOneDiamonds") qualifies = colAlivePiles(c).some(i => board.pileSize(i) === 1);
+        if (!qualifies) continue;
+        const extra = Math.max(0, itemNum(def, "value", 2) - 1);
+        if (extra <= 0) continue;
+        board.addSizeBonus(index, extra);
+        firePillar(c, def.effect, def.label, 0);
+        recT("pillar", def.id, def.label, { applied: extra });
+        logLine(def.label + ": the ♦ counts +" + itemNum(def, "value", 2) + " toward pile size");
       }
     }
 
@@ -12665,6 +12865,109 @@ const GameEngine = (() => {
       pushLog({ title, lines: Array.isArray(lines) ? lines.slice() : [] });
     }
     const cardName = (c) => !c ? "?" : c.joker ? "★ Joker" : (c.label + c.suit);
+
+    /* ---- v6.76 helpers: full-deck composition (R3), purse gate, shop rolls ----
+       Composition conditions evaluate against the FULL OWNED deck (all owned
+       cards — board + buried + remaining + everything not dealt), LIVE at each
+       check. The UI injects compositionHook (the campaign's live run deck);
+       without it the engine falls back to the whole DEAL deck it holds. */
+    const fValue = (c) => (c && c.currentRank != null) ? c.currentRank : (c ? c.value : 0);
+    const fRanked = (c) => !!c && !c.joker && !c.blank && fValue(c) >= 2 && fValue(c) <= 14;
+    function fullDeckCards() {
+      let src = null;
+      if (compositionHook) { try { src = compositionHook(); } catch (e) { src = null; } }
+      if (!src) {
+        src = [];
+        if (deck) src = src.concat(deck._peekAll());
+        if (board) for (const p of board.piles) src = src.concat(p.cards);
+      }
+      return src;
+    }
+    /** Rank histogram (2..14) over the full deck — jokers/blanks are rankless. */
+    function fullRankCounts() {
+      const counts = {};
+      for (let v = 2; v <= 14; v++) counts[v] = 0;
+      for (const c of fullDeckCards()) if (fRanked(c)) counts[fValue(c)]++;
+      return counts;
+    }
+    /** How many ranks (2..A) have ZERO copies in the full deck (Empty Ranks).
+        An EMPTY full deck is inert (0), never 13 — no free mega-bury. */
+    function zeroRankCount() {
+      const cards = fullDeckCards();
+      if (!cards.some(fRanked)) return 0;
+      const counts = fullRankCounts();
+      let n = 0;
+      for (let v = 2; v <= 14; v++) if (counts[v] === 0) n++;
+      return n;
+    }
+    /** The full deck's most-copied rank; TIES BREAK TO THE LOWEST RANK
+        (documented v6.76 choice — Crazy Eights / Chorus). Null on an empty deck. */
+    function mostCommonRank() {
+      const counts = fullRankCounts();
+      let best = null, bestN = 0;
+      for (let v = 2; v <= 14; v++) if (counts[v] > bestN) { best = v; bestN = counts[v]; }
+      return best;
+    }
+    /** Suit stats over the full deck: `count` of `sym` (a Wild Suit card counts
+        as every suit) out of `total` ranked cards (jokers/blanks excluded from
+        BOTH — a Joker is no suit's majority fodder). */
+    function fullSuitStats(sym) {
+      let count = 0, total = 0;
+      for (const c of fullDeckCards()) {
+        if (!fRanked(c)) continue;
+        total++;
+        if (cardMatchesSuit(c, sym) || cardIsWildSuit(c)) count++;
+      }
+      return { count, total };
+    }
+    /** Majority Rule: is `sym` ≥50% of the full deck's ranked cards? */
+    function fullSuitMajority(sym) {
+      const s = fullSuitStats(sym);
+      return s.total > 0 && s.count * 2 >= s.total;
+    }
+    /** The Pauper gate: the LIVE campaign purse under the item's purseBelow
+        ceiling (exclusive). No purse hook → never broke (dormant). */
+    function purseBroke(def) {
+      const purse = purseHook ? purseHook() : Infinity;
+      return purse < itemNum(def, "purseBelow", 10);
+    }
+    /** The column's climb-locked SHOP-ROLLED value ({ roll, roll2 } | null),
+        snapshotted at Start Run beside run.pillars. A Ditto column (mirroring
+        the center's Pillar) reads the CENTER column's roll. */
+    function pillarShopRoll(col) {
+      if (col == null || !run) return null;
+      let r = run.pillarRolls ? run.pillarRolls[col] : null;
+      if (!r && run.pillars && run.pillars[col] === "ditto") {
+        const ctr = centerColumn();
+        if (ctr != null && ctr !== col && run.pillarRolls) r = run.pillarRolls[ctr];
+      }
+      return r || null;
+    }
+    /** A "cursed card" = carrying at least one sticker whose def is cursed. */
+    function isCursedCard(c) {
+      return !!(c && c.stickers && c.stickers.some(s => {
+        const t = StickerTypes.get(s.type);
+        return t && t.cursed === true;
+      }));
+    }
+    /** The shared weighted curse roll (v6.76 Devil's Deal): one seeded draw over
+        the items.js `cursed: true` pool, weighted by `curseWeight`, eligible for
+        THIS card (Joker/Blank/suits gate + the type's `curseExclude` sticker
+        list). Returns the type def, or null when nothing can stick. */
+    function cursedStickerPoolFor(card) {
+      if (!card) return [];
+      return ItemData.stickers.filter(t => t.cursed === true
+        && stickerCardEligible(card, t.id)
+        && !(Array.isArray(t.curseExclude) && (card.stickers || []).some(s => t.curseExclude.indexOf(s.type) !== -1)));
+    }
+    function rollCursedStickerType(card) {
+      const pool = cursedStickerPoolFor(card);
+      const total = pool.reduce((a, t) => a + itemNum(t, "curseWeight", 1), 0);
+      if (total <= 0) return null;
+      let r = rng() * total, pick = pool[pool.length - 1];
+      for (const t of pool) { if ((r -= itemNum(t, "curseWeight", 1)) < 0) { pick = t; break; } }
+      return pick;
+    }
 
     /** Bury `count` cards from the deck's BOTTOM under pile `index` (hidden).
         Stops early if the deck empties. Returns how many were actually buried.
@@ -12845,9 +13148,11 @@ const GameEngine = (() => {
     }
 
     /** Expansion stickers carried by the DRAWN card that just landed on a
-        SURVIVING pile. Runs after maybeLandingBonus. Order inside matters:
-        coin payouts FIRST (Deep Pockets reads the deck before this landing's
-        own burials), then burials (Quick Bury / Snowball), then projections
+        SURVIVING pile (plus the pile-top readers: the Snob family and Quick
+        Bury fire off `current`, the PRE-LANDING top). Runs after
+        maybeLandingBonus. Order inside matters: coin payouts FIRST (Deep
+        Pockets reads the deck before this landing's own burials), then
+        burials (Quick Bury — pile-top; Snowball — drawn), then projections
         (Twin Spark / Mirror — live, this-deal-only), then the Scouts' peek.
         Coin payouts also emit "sticker-coins" so the UI floats the result over
         the pile (including Loose Change's visible +0). */
@@ -13005,9 +13310,14 @@ const GameEngine = (() => {
         }
       }
       // --- burials ---
-      // Quick Bury — always buries 1 per instance and never peels (the sticker
-      // persists on the card for the rest of the run).
-      const qb = n("quickBury");
+      // Quick Bury (PILE-TOP, v6.75): the sticker sits on the pile's
+      // PRE-LANDING top (`current`) and fires when ANY card lands on that
+      // pile — bury 1 deck card per instance under this pile (the sticker
+      // persists; it never peels). The carrier's OWN landing does NOT fire
+      // it — it fires from underneath the NEXT landing. A saved landing
+      // (Same-Charge backstop) lands on it too (same rule as the pile-top
+      // snobs); a fatal landing never reaches here.
+      const qb = cn("quickBury");
       let qbBuried = 0;
       for (let k = 0; k < qb; k++) qbBuried += buryTribute(index, 1, "Quick Bury");
       if (qb > 0) recT("sticker", "quickBury", "Quick Bury", { buried: qbBuried });
@@ -13310,11 +13620,28 @@ const GameEngine = (() => {
         // Club Oracle: needs a next deck card AND at least one ♣-topped alive
         // pile in its own column to read it against.
         case "clubTell":         return !deck.isEmpty() && alive.some(i => topIsSuit(i, "♣"));
+        // EMPTY PURSE (v6.74 — now implemented on the web too, was native-only):
+        // needs a next card to peek; the purse may be empty (0 coins still peeks 1).
+        case "emptyPurse":       return !deck.isEmpty();
         case "tax":              return colHearts > 0;
         // Recharge Cell: only when a charge can actually be banked (never wasted).
         case "rechargeSameShield": return !sameCharge;
         // Power Surge: needs a Same-Power equipped AND an alive pile to fire on.
         case "activateSamePower":  return !!run.samePower && alive.length > 0;
+        // ---- v6.76 archetype batch ----
+        // Purge Coupon: a store-side lever — always activatable while charged
+        // (the cut is recorded campaign-side for the rest of the climb).
+        case "purgeDiscount":    return true;
+        // Transmute: ON-PURCHASE only — never available in a deal.
+        case "transmute":        return false;
+        // Sacrifice / Devil's Deal / Chorus need an alive pile in the column.
+        case "sacrifice":        return alive.length > 0;
+        case "devilsDeal":       return alive.length > 0;
+        case "chorus":           return alive.length > 0;
+        // Cleanse: at least one CURSED top card in the column.
+        case "cleanseColumn":    return alive.some(i => isCursedCard(board.top(i)));
+        // Diamond Boost: needs a ♦-topped alive pile in the column to target.
+        case "diamondBoost":     return alive.some(i => cardMatchesSuit(board.top(i), "♦"));
         default:                 return false;
       }
     }
@@ -13344,12 +13671,16 @@ const GameEngine = (() => {
     /**
      * Activate the Base on column `col`. `targetIndex` is the chosen pile for
      * target Bases (Kamikaze / Random Sticker / Sticker Harvest); ignored by the
-     * whole-column Bases. Spends the charge and fires the effect. Returns a result
-     * object describing what happened (for the UI + tests), or null if it could
-     * not activate. Some effects (Copy to Inventory, sticker persistence) hand a
-     * follow-up to the UI via the "base-fired" event payload.
+     * whole-column Bases. `purseCoins` threads the CAMPAIGN purse into the one
+     * Base that prices off it (Empty Purse, v6.74) — coins are not engine
+     * state, so the caller reads them and the "base-fired" handler drains
+     * exactly `res.purseSpent`. Spends the charge and fires the effect.
+     * Returns a result object describing what happened (for the UI + tests),
+     * or null if it could not activate. Some effects (Copy to Inventory,
+     * sticker persistence) hand a follow-up to the UI via the "base-fired"
+     * event payload.
      */
-    function baseActivate(col, targetIndex) {
+    function baseActivate(col, targetIndex, purseCoins) {
       if (!baseAvailable(col)) return null;
       const base = baseForColumn(col);
       // Validate the target for target Bases (column-scoped). (v6.51: no Base
@@ -13361,6 +13692,19 @@ const GameEngine = (() => {
         // their own column.
         if (!board.isActive(targetIndex)) return null;
         if (run.pileColumns[targetIndex] !== col) return null;
+      }
+      // v6.76: per-effect target validation. Diamond Boost (target: "pile") needs
+      // a ♦-topped pile; Sacrifice (target: "pile") needs a pile with a top card.
+      // Devil's Deal carries NO `target` in its data — the player-picks-a-top
+      // variant only activates if the def gains `target: "pile"`; until then a
+      // supplied targetIndex is honored when valid, else the curse lands on a
+      // seeded pick (documented v6.76 choice).
+      if (targetIndex != null && board.isActive(targetIndex) && run.pileColumns && run.pileColumns[targetIndex] === col) {
+        if (base.effect === "diamondBoost" && !cardMatchesSuit(board.top(targetIndex), "♦")) return null;
+        if (base.effect === "sacrifice" && !board.top(targetIndex)) return null;
+        if (base.effect === "devilsDeal" && !cursedStickerPoolFor(board.top(targetIndex)).length) targetIndex = null;   // can't curse it → re-pick below
+      } else if (base.effect === "devilsDeal") {
+        targetIndex = null;   // no valid optional target supplied
       }
 
       const res = { col, effect: base.effect, label: base.label };
@@ -13631,6 +13975,127 @@ const GameEngine = (() => {
           logLine("taxed " + n + " ♥ card" + (n === 1 ? "" : "s") + " in the column → +" + taxGain + " coins");
           break;
         }
+        case "emptyPurse": {
+          // EMPTY PURSE (v6.74 rework, web parity with the native engine):
+          // 1 peek BASELINE + 1 more per 10 coins in the purse when triggered
+          // — 0 coins still peeks 1. The purse lives with the campaign: the
+          // caller threads the count in (`purseCoins`) and the "base-fired"
+          // handler drains exactly `res.purseSpent`. Fires regardless of the
+          // purse's size.
+          const purse = Math.max(0, Math.floor(purseCoins || 0));
+          const peeks = 1 + Math.floor(purse / 10);
+          run.kamikazeRevealLeft = Math.max(run.kamikazeRevealLeft || 0, peeks);
+          res.peekCount = peeks;
+          res.purseSpent = purse;
+          res.cards = deck.peek(peeks).map(c => ({ ...c }));   // read-only snapshot (no order change)
+          logLine(purse + " coins spent to peek " + peeks + " card" + (peeks === 1 ? "" : "s") + " ahead");
+          break;
+        }
+        case "purgeDiscount": {
+          // PURGE COUPON (v6.76): a store-side lever carried on a Base. The
+          // engine moves nothing — the "base-fired" handler records the cut on
+          // the campaign (permanent for the rest of the climb, floored at the
+          // def's `min` in removalPrice). Nothing happens on the board.
+          res.purgeDiscount = itemNum(base, "value", 3);
+          res.purgeFloor = itemNum(base, "min", 5);
+          logLine("the store's Purge is now " + res.purgeDiscount + " coins cheaper (min " + res.purgeFloor + ") — for the rest of the climb");
+          break;
+        }
+        case "sacrifice": {
+          // SACRIFICE (v6.76, target pile): the pile's top card is purged from
+          // the deck PERMANENTLY (the "base-fired" handler runs
+          // campaign.removeDeckCard on res.purgedCardId) and the pile dies.
+          const top = board.top(targetIndex);
+          board.kill(targetIndex);
+          emit("pile-killed", { index: targetIndex, board, deck, run });   // pile-death signal
+          if (run.tellPiles) run.tellPiles.delete(targetIndex);
+          // Last Rites on the sacrificed pile's column (any death counts).
+          { const dd = resolvePillarDef(col); if (dd && dd.effect === "lastRites") peekPillar(col, dd); }
+          res.index = targetIndex;
+          res.purgedCardId = top.id;
+          logLine("sacrificed pile " + (targetIndex + 1) + " — " + cardName(top) + " purged from the deck forever, the pile dies");
+          break;
+        }
+        case "devilsDeal": {
+          // DEVIL'S DEAL (v6.76): double this deal's bonus tally
+          // (run.bonusCoins), then inflict a curse — the shared weighted
+          // curseWeight roll — on a top card in this column (the player's
+          // target when one was picked, else a seeded pick among cursable
+          // tops). The curse persists campaign-side via the "base-fired"
+          // handler (campaign.inflictSticker — no player-applied stats bump).
+          const cur = run.bonusCoins;
+          if (cur > 0) addBonus(base.label, cur);   // doubling = adding the current tally once more
+          res.doubled = cur;
+          let ti = targetIndex;   // validated/nulled above
+          if (ti == null) {
+            const cands = colAlivePiles(col).filter(i => cursedStickerPoolFor(board.top(i)).length > 0);
+            ti = cands.length ? cands[Math.floor(rng() * cands.length)] : null;
+          }
+          if (ti != null) {
+            const top = board.top(ti);
+            const ctype = rollCursedStickerType(top);
+            if (ctype) {
+              projectStickerOntoCard(top, ctype.id);
+              res.curseApplied = { pileIndex: ti, cardId: top.id, typeId: ctype.id };
+              res.index = ti;
+              logLine("doubled the deal bonus (+" + cur + ") — and " + ctype.label + " curses " + cardName(top));
+            }
+          }
+          if (!res.curseApplied) logLine("doubled the deal bonus (+" + cur + ") — no cursable top in the column");
+          break;
+        }
+        case "cleanseColumn": {
+          // CLEANSE (v6.76): strip every CURSED sticker off this column's top
+          // cards (deal-level here; the "base-fired" handler strips the same
+          // instances off the persistent campaign cards via res.cursesRemoved).
+          const removed = [];
+          for (const i of colAlivePiles(col)) {
+            const top = board.top(i);
+            if (!isCursedCard(top)) continue;
+            const byType = {};
+            top.stickers = top.stickers.filter(s => {
+              const t = StickerTypes.get(s.type);
+              const cursed = !!(t && t.cursed === true);
+              if (cursed) byType[s.type] = (byType[s.type] || 0) + 1;
+              return !cursed;
+            });
+            for (const typeId in byType) removed.push({ cardId: top.id, typeId, count: byType[typeId] });
+          }
+          res.cursesRemoved = removed;
+          const total = removed.reduce((a, x) => a + x.count, 0);
+          logLine(total ? "cleansed " + total + " curse" + (total === 1 ? "" : "s") + " off the column's top cards" : "no curses to cleanse");
+          break;
+        }
+        case "chorus": {
+          // CHORUS (v6.76, R3): set every top card in this column to the full
+          // deck's most-copied rank (ties → the LOWEST rank, documented). Joker
+          // tops stay ★. Durable: res.valueApplied rides the shared write-back.
+          const rank = mostCommonRank();
+          if (rank == null) break;   // an empty full deck sets nothing
+          const rk = DeckManager.RANKS.find(x => x.value === rank);
+          const applied = [];
+          for (const i of colAlivePiles(col)) {
+            const top = board.top(i);
+            if (!top || top.joker || top.value === rank) continue;
+            top.value = rank;
+            if (rk) top.label = rk.label;
+            applied.push({ cardId: top.id, value: rank });
+          }
+          res.valueApplied = applied;
+          res.sourceValue = rank;
+          logLine("set " + applied.length + " top card" + (applied.length === 1 ? "" : "s") + " to " + (rk ? rk.label : rank) + " (the deck's most-copied rank)");
+          break;
+        }
+        case "diamondBoost": {
+          // DIAMOND BOOST (v6.76, target pile — ♦-topped, validated above):
+          // +value pile size (deal-persistent size bonus).
+          const add = itemNum(base, "value", 3);
+          board.addSizeBonus(targetIndex, add);
+          res.index = targetIndex;
+          res.sizeAdded = add;
+          logLine("+" + add + " pile size to pile " + (targetIndex + 1));
+          break;
+        }
         default:
           currentEntry = null;
           return null;
@@ -13655,6 +14120,12 @@ const GameEngine = (() => {
         if (base.effect === "heartDemolish" && res.destroyedPiles && res.destroyedPiles.length) imp.destroyed = res.destroyedPiles.length;
         if (res.stickerApplied) imp.applied = 1;
         if (res.suitApplied && res.suitApplied.length) imp.recolored = res.suitApplied.length;
+        // ---- v6.76 archetype batch ----
+        if (res.valueApplied && res.valueApplied.length) imp.recolored = res.valueApplied.length;   // Chorus
+        if (base.effect === "sacrifice" && res.purgedCardId != null) { imp.killed = 1; imp.destroyed = 1; }
+        if (res.curseApplied) imp.applied = 1;                                      // Devil's Deal
+        if (res.cursesRemoved) { const n = res.cursesRemoved.reduce((a, x) => a + x.count, 0); if (n) imp.applied = (imp.applied || 0) + n; }   // Cleanse
+        if (base.effect === "diamondBoost" && res.sizeAdded) imp.applied = res.sizeAdded;
         recT("base", base.id, base.label, imp);
       }
       currentEntry = null;
@@ -13752,6 +14223,36 @@ const GameEngine = (() => {
           board.addSizeBonus(hub, hubBonus);
           result.targets = targets;
           result.amount = (def.value || 5) * targets.length + hubBonus;
+          break;
+        }
+        case "rankFlood": {
+          // RANK FLOOD (v6.76): set EVERY alive pile's top to the CALLED card's
+          // rank — permanently (the UI persists result.valueApplied onto the
+          // campaign deck, like Rank Setter). The "called card" is the card that
+          // just landed on the hub; a Joker on EITHER side ranks the flood by
+          // the RANKED card (the hub's previous top when the draw was a Joker);
+          // Joker-on-Joker floods ACES (14). Joker TOPS stay ★ (rankless).
+          const hubCards = board.piles[hub].cards;
+          const hubTop = hubCards.length ? hubCards[hubCards.length - 1] : null;
+          const hubPrev = hubCards.length >= 2 ? hubCards[hubCards.length - 2] : null;
+          const rank = (hubTop && !hubTop.joker) ? hubTop.value
+            : (hubPrev && !hubPrev.joker) ? hubPrev.value : 14;
+          const rk = DeckManager.RANKS.find(x => x.value === rank);
+          const targets = powerPiles("alive");
+          const applied = [];
+          for (const j of targets) {
+            const t = board.top(j);
+            if (!t || t.joker || t.value === rank) continue;
+            t.value = rank;
+            if (rk) t.label = rk.label;
+            applied.push({ cardId: t.id, value: rank });
+          }
+          result.targets = targets;
+          result.amount = applied.length;
+          result.valueApplied = applied;   // durable — the UI writes these back
+          result.sourceValue = rank;
+          recT("samePower", def.id, def.label, { applied: applied.length });
+          logLine(def.label + ": flooded every alive top to rank " + (rk ? rk.label : rank) + " (" + applied.length + " changed)");
           break;
         }
       }
@@ -14001,6 +14502,16 @@ const GameEngine = (() => {
         // shows the SAME result the deal end pays — and no read ever consumes
         // the action-stream rng. Null for column-agnostic legacy/test runs.
         gamblerFlips: cols ? {} : null,
+        // v6.76: per-column SHOP-ROLLED Pillar values (Rank Shield's rank, Void
+        // Tribute's / Majority Rule's suit), snapshotted at Start Run beside
+        // run.pillars (column index → { roll, roll2 } | null). The values lock
+        // climb-wide in the campaign's persisted shopRolls map (R2).
+        pillarRolls: null,
+        // v6.76 DAILY SUIT (suitShieldDaily Pillar): the shielded suit per
+        // column, rolled at deal start from the deal's seeded rng — a redeal
+        // mints a fresh deal seed (re-rolled), a resume replays the same seed
+        // (same suit). Column index → suit symbol | null.
+        suitShieldSuits: cols ? new Array(cols.length).fill(null) : null,
         // Compound: { cardId: newHits } accrued this run, written back to the
         // persistent card on a win so N survives to future runs.
         compoundUpdates: {},
@@ -14061,7 +14572,7 @@ const GameEngine = (() => {
         while playing and not already started. Closes the sticker window
         (anti-exploit: no mid/late-run sticker saves) and emits "run-started"
         so the UI can swap the Start Run button for the guess buttons. */
-    function startRun(pillars, bases, samePower) {
+    function startRun(pillars, bases, samePower, pillarRolls) {
       if (status !== "playing" || !run || run.started) return;
       run.started = true;
       run.stickerWindow = false;
@@ -14073,6 +14584,10 @@ const GameEngine = (() => {
       // to the campaign binding can't affect a run in progress). A plain copy
       // of the 3-slot array (column index → Pillar id | null).
       run.pillars = Array.isArray(pillars) ? pillars.slice() : null;
+      // v6.76 (R2): the climb-locked shop-rolled Pillar values ride alongside
+      // (column index → { roll, roll2 } | null), same snapshot rule.
+      run.pillarRolls = Array.isArray(pillarRolls) ? pillarRolls.slice()
+        : (cols ? new Array(cols.length).fill(null) : null);
       // Install the board's PILLAR size/anchor hooks for this run. They read LIVE
       // run state each call, so Heavy Diamond (♦ cards → +1 size), Streak Size
       // (+1 per streak step from the 3rd), and Diamond Anchor (♦ top → anchored)
@@ -14118,11 +14633,37 @@ const GameEngine = (() => {
       // action-stream rng. A column JAMMED at Start Run (resolvePillarDef sees
       // no pillar) rolls on its first payout read instead — the old behavior,
       // confined to that edge.
+      // v6.76 deal-start notes (Daily Suit's rolled suit, Crazy Eights arming) —
+      // appended to the "Start Climb" log entry below (no entry is open yet).
+      const startNotes = [];
       if (run.pillars) {
         for (let c = 0; c < run.pillars.length; c++) {
           const def = resolvePillarDef(c);
           if (def && def.effect === "gambler") {
             run.gamblerFlips[c] = rng() < itemNum(def, "chance", 0.5);
+          }
+          // DAILY SUIT (v6.76): roll this deal's shielded suit from the deal's
+          // seeded rng (one draw, right after any Gambler roll). A redeal mints
+          // a fresh seed → a fresh suit; a resume replays the seed → the SAME
+          // suit, so no checkpoint field is needed on the web side.
+          if (def && def.effect === "suitShieldDaily" && run.suitShieldSuits) {
+            run.suitShieldSuits[c] = DeckManager.SUITS[Math.floor(rng() * DeckManager.SUITS.length)].symbol;
+            startNotes.push("Daily Suit (col " + (c + 1) + "): " + run.suitShieldSuits[c]);
+          }
+          // CRAZY EIGHTS (v6.76, R3): 8s are the full deck's most-copied rank
+          // (ties break LOW — see mostCommonRank) → this column's piles START at
+          // pile SIZE 8 (a size bonus to 8, not 8 physical cards).
+          if (def && def.effect === "startPileSizeEight" && mostCommonRank() === 8) {
+            let grown = 0;
+            for (const i of colPiles(c)) {
+              const need = 8 - board.pileSize(i);
+              if (need > 0) { board.addSizeBonus(i, need); grown++; }
+            }
+            if (grown > 0) {
+              firePillar(c, "startPileSizeEight", def.label, 0);
+              recT("pillar", def.id, def.label, { applied: grown });
+              startNotes.push("Crazy Eights (col " + (c + 1) + "): piles start at size 8");
+            }
           }
         }
       }
@@ -14135,6 +14676,7 @@ const GameEngine = (() => {
       logAction("Start Climb", [
         bound.length ? "Pillars: " + bound.join(", ") : "No Pillars bound",
         boundBases.length ? "Bases: " + boundBases.join(", ") : "No Bases bound",
+        ...startNotes,
       ]);
       // A deal NEVER starts pre-peeked: Scout fires only when its card LANDS
       // during play. (The old rule armed the peek when a Scout-stickered card
@@ -14200,14 +14742,70 @@ const GameEngine = (() => {
       // any card landing ON a Joker top (a rankless ★ can't be compared, so a
       // guess against it must always be safe).
       if (drawn.joker || current.joker) correct = true;
+
+      const col = run.pileColumns ? run.pileColumns[index] : null;
+      // v6.76 save notes: the save blocks below run BEFORE this turn's logbook
+      // entry opens (logBegin), so they queue their lines and flush right after.
+      const saveNotes = [];
+
+      // SAME-TOLERANCE family (v6.76, R1): the column's tolerance Pillar makes a
+      // SAME call that would normally be wrong SURVIVE when the named relation
+      // holds between the top card and the drawn card — and the survived Same
+      // counts as a FULL correct Same (it flows through the ordinary correct
+      // branch below with guess === "same": banks the Same Charge, fires the
+      // equipped Same-Power, and the "resolved" payload bumps correctSames).
+      // ONE shared resolution for all four `tol` rules. Suit Match (sameSuit)
+      // ALSO makes NON-Same guesses safe on a same-suit landing; the other
+      // three tolerate Same calls only.
+      if (!correct && pillar && pillar.effect === "sameTolerance") {
+        const sameSuitPair = drawn.suit === current.suit || !!drawn.wildSuit || !!current.wildSuit;
+        let tolHit = false;
+        if (pillar.tol === "sameSuit") tolHit = sameSuitPair;                      // any call
+        else if (guess === "same") {
+          if (pillar.tol === "near") tolHit = Math.abs(drawn.value - current.value) === 1;
+          else if (pillar.tol === "royalPair") tolHit = drawn.value >= 11 && drawn.value <= 13 && current.value >= 11 && current.value <= 13;
+          else if (pillar.tol === "sum10") tolHit = drawn.value + current.value === 10;
+        }
+        if (tolHit) {
+          correct = true;
+          firePillar(col, "sameTolerance", pillar.label, 0);
+          recT("pillar", pillar.id, pillar.label, { saves: 1 });
+          saveNotes.push(pillar.label + ": tolerated " + (guess === "same" ? "Same" : "call") + " — " + cardName(drawn) + " on " + cardName(current) + " survives");
+        }
+      }
+
+      // Column SAFETY Pillars (v6.76): the qualifying card's landing in this
+      // column is safe on ANY call (the Joker rule's shape). One Pillar per
+      // column, so at most one applies.
+      if (!correct && pillar) {
+        let safeHit = false;
+        if (pillar.effect === "royalSafeNoTwos") {
+          // Royal Sanctuary: no 2s anywhere in the FULL deck → royals safe.
+          safeHit = drawn.value >= 11 && drawn.value <= 13 && fullRankCounts()[2] === 0;
+        } else if (pillar.effect === "rankShield") {
+          const roll = pillarShopRoll(col);
+          safeHit = !!(roll && drawn.value === roll.roll);
+        } else if (pillar.effect === "suitShieldDaily") {
+          const suit = run.suitShieldSuits ? run.suitShieldSuits[col] : null;
+          safeHit = !!suit && cardMatchesSuit(drawn, suit);
+        } else if (pillar.effect === "suitMajoritySafe") {
+          const roll = pillarShopRoll(col);
+          safeHit = !!(roll && fullSuitMajority(roll.roll) && cardMatchesSuit(drawn, roll.roll));
+        }
+        if (safeHit) {
+          correct = true;
+          firePillar(col, pillar.effect, pillar.label, 0);
+          recT("pillar", pillar.id, pillar.label, { saves: 1 });
+          saveNotes.push(pillar.label + ": " + cardName(drawn) + " is safe in this column");
+        }
+      }
+
       // Telemetry: a Tie-Safe STICKER turned a directional tie (would-die) into a
       // save (a same-guess tie survives without it, so only count directional).
       if (isTie && correct && guess !== "same" && (current.tieSafe || drawn.tieSafe)) recT("sticker", "tieSafe", "Tie-Safe", { saves: 1 });
 
       run.totalGuesses++;
       if (correct) run.correctGuesses++;
-
-      const col = run.pileColumns ? run.pileColumns[index] : null;
 
       // Static: a ♠ landing correctly in this column has a `chance` (items.js
       // knob, 50%) of peeking the next upcoming card. Set after the reveal
@@ -14240,6 +14838,7 @@ const GameEngine = (() => {
       const bonusBefore = run.bonusCoins;
       logBegin("Guess " + guess.toUpperCase() + " on pile " + (index + 1) + (col != null ? " (column " + (col + 1) + ")" : ""));
       logLine("drew " + cardName(drawn) + " — " + (correct ? (isTie ? "tie (safe)" : "correct") : "wrong"));
+      for (const note of saveNotes) logLine(note);   // v6.76 tolerance/shield saves
 
       // Streaks (Streak Bank / Streak Tribute): a guess in ANY other column
       // resets those columns' streaks; this column grows on a correct guess and
@@ -14332,6 +14931,7 @@ const GameEngine = (() => {
         maybeLandingBonus(index, drawn);
         maybeExpansionStickers(index, current, drawn, col);
         maybeLivePillarExtras(index, pillar, drawn, guess, isTie, col);
+        maybeBoardWideDiamondSize(index, drawn);   // v6.76: Pauper's Diamond / Diamond Lifeline
         maybeDuplicate(index, current, drawn, guess);
         maybeStickerTribute(index, drawn);
         // Optional post-landing actions (Shuffle / Donate) queue here; they
@@ -14620,9 +15220,12 @@ const GameEngine = (() => {
       // DEBUG: change the ACTIVE Pillar on a column mid-run (add / remove /
       // replace). Updates the live run snapshot so its effect applies for the rest
       // of the deal. Returns true if applied.
-      setColumnPillar(col, pillarId) {
+      setColumnPillar(col, pillarId, shopRoll) {
         if (!run || !run.pillars || col == null || col < 0 || col >= run.pillars.length) return false;
         run.pillars[col] = pillarId || null;
+        // v6.76: keep the shop-rolled value snapshot in step (a mid-run swap of
+        // a shopRoll Pillar may pass { roll, roll2 }; anything else clears it).
+        if (run.pillarRolls) run.pillarRolls[col] = shopRoll || null;
         logAction("DEBUG: column " + (col + 1) + " Pillar set → " + (pillarId || "none"));
         return true;
       },
@@ -14653,8 +15256,9 @@ const GameEngine = (() => {
       /** Whether the Base on column `col` needs the player to pick a target pile. */
       baseNeedsTarget(col) { const b = baseForColumn(col); return !!(b && b.target === "pile"); },
       /** Activate the Base on column `col` (with a chosen `targetIndex` for target
-          Bases). Returns a result object describing what fired, or null. */
-      baseActivate(col, targetIndex) { return baseActivate(col, targetIndex); },
+          Bases). `purseCoins` threads the campaign purse into Empty Purse (v6.74).
+          Returns a result object describing what fired, or null. */
+      baseActivate(col, targetIndex, purseCoins) { return baseActivate(col, targetIndex, purseCoins); },
       /** This deal's Base randomizers ({ value, suit }) for the UI to display, or null. */
       baseRandom() { return run ? run.baseRandom : null; },
       /** Back-compat shims for the (now Base) Kamikaze, used by the existing UI. */
@@ -14702,6 +15306,13 @@ const GameEngine = (() => {
       },
       /** A copy of the current link adjacency (pileIndex → linked indices). */
       getLinks() { return run ? run.links : {}; },
+      /** v6.76: inject the live CAMPAIGN purse reader (Pauper family gates).
+          `fn()` must return the current coin balance; unset → dormant. */
+      setPurseHook(fn) { purseHook = (typeof fn === "function") ? fn : null; },
+      /** v6.76: inject the FULL OWNED-deck reader for the R3 composition
+          conditions (the campaign's live run deck). Unset → the engine falls
+          back to the whole deal deck it holds (remaining + all piles). */
+      setCompositionHook(fn) { compositionHook = (typeof fn === "function") ? fn : null; },
       /** Tell: the directional hint for an armed pile, or null. Returns "higher",
           "lower", or "same" — the REAL next card's rank vs this pile's top card.
           DISPLAY ONLY: a pure read (deck.peek never changes draw order/RNG); it
@@ -14964,8 +15575,14 @@ const CampaignState = (() => {
       pack-odds; see campaign.genStoreCard) instead of a registry id; the
       "samepower" class yields an id-less MYSTERY slot ({ mystery: true }) —
       the concrete power is rolled at buy time. Every other slot is
-      { kind, id } (+ { card } for the card class). */
-  function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS, genCard = null) {
+      { kind, id } (+ { card } for the card class). `shopRolls` (optional,
+      the campaign's persisted map) carries the SHOP-ROLLED value lock
+      (v6.76, R2): a picked item whose def carries `shopRoll` ("rank"/"suit")
+      draws its value ONCE per climb from this same seeded stream (one extra
+      draw per roll, in slot order) and the value rides the slot as
+      `shopRolled` (+ `shopRolled2` for a `shopRoll2`). Without the map
+      (legacy/test callers) every offer re-rolls, unlocked. */
+  function rollUnifiedSlots(rng = Math.random, count = STORE_SLOTS, genCard = null, shopRolls = null) {
     const CW = ItemData.store.classWeights;
     // UNLOCK1: every registry class pool is pre-filtered to UNLOCKED items
     // (grantable() already filters stickers — cursed AND locked). A class whose
@@ -15015,6 +15632,26 @@ const CampaignState = (() => {
           if (id == null) continue;
           if ((perType[slotTypeKey(cls.key, id)] || 0) >= STORE_TYPE_CAP) continue;
           pick = { kind: cls.key, id };
+          // SHOP-ROLLED value (v6.76, R2): lock the item's rolled rank/suit the
+          // FIRST time it shows on a shelf this climb (the draw comes off THIS
+          // seeded store stream, so a reroll sequence stays deterministic);
+          // the value rides the slot so a saved offer restores it as-shown.
+          const rollDef = cls.key === "pillar" ? PillarTypes.get(id)
+            : cls.key === "base" ? BaseTypes.get(id) : null;
+          if (rollDef && rollDef.shopRoll) {
+            const drawShopRoll = (kind) => kind === "suit"
+              ? DeckManager.SUITS[Math.floor(rng() * DeckManager.SUITS.length)].symbol
+              : MIN_RANK + Math.floor(rng() * (MAX_RANK - MIN_RANK + 1));   // "rank": 2..A
+            let roll = shopRolls ? shopRolls[id] : undefined;
+            if (roll == null) { roll = drawShopRoll(rollDef.shopRoll); if (shopRolls) shopRolls[id] = roll; }
+            pick.shopRolled = roll;
+            if (rollDef.shopRoll2) {
+              const k2 = id + "#2";
+              let roll2 = shopRolls ? shopRolls[k2] : undefined;
+              if (roll2 == null) { roll2 = drawShopRoll(rollDef.shopRoll2); if (shopRolls) shopRolls[k2] = roll2; }
+              pick.shopRolled2 = roll2;
+            }
+          }
         }
       }
       if (!pick) { slots.push(null); continue; }   // unreachable in practice
@@ -15026,9 +15663,9 @@ const CampaignState = (() => {
   }
 
   /** A fresh offering: STORE_SLOTS class-first slots, reroll at base. */
-  function freshOffer(rng = Math.random, removalOn = false, genCard = null) {
+  function freshOffer(rng = Math.random, removalOn = false, genCard = null, shopRolls = null) {
     const rolled = removalOn ? STORE_SLOTS - 1 : STORE_SLOTS;
-    const slots = rollUnifiedSlots(rng, rolled, genCard);
+    const slots = rollUnifiedSlots(rng, rolled, genCard, shopRolls);
     if (removalOn) slots.push(removalSlot());   // permanent last slot
     return { slots, rerollCost: REROLL_BASE_COST };
   }
@@ -15156,6 +15793,17 @@ const CampaignState = (() => {
     // Removals bought THIS CLIMB — the removal slot's price ladder. Resets with
     // the climb (not per store visit, unlike the reroll ladder).
     let removalsBought = 0;
+    // SHOP-ROLLED values (ARCHETYPE BATCH v6.76, R2): items with a `shopRoll`
+    // ("rank"/"suit") knob lock their rolled value the FIRST time they appear on
+    // a shelf this climb and hold it for the whole climb. Keyed by item id
+    // (a second roll for shopRoll2 — Transmute's suit — rides id + "#2"). The
+    // draw happens inside rollUnifiedSlots off the seeded store stream; the map
+    // is persisted (save/restore) and the value rides the offer slot too.
+    let shopRolls = {};
+    // Purge Coupon (v6.76 base): each activation permanently knocks `value` off
+    // the store's Purge price for the REST OF THE CLIMB (floored at its `min`
+    // in removalPrice). Persists with the climb.
+    let purgePriceCut = 0;
     // Card Packs: pending CARD-pack picks (≤ PACK_TRAY_CAP), held until used to
     // replace a dealt card in the pre-run phase. Persists across runs; wiped on
     // loss. nextCardId mints unique ids for pack cards (base deck is ids 0..51).
@@ -16643,12 +17291,19 @@ const CampaignState = (() => {
       /** Place an owned Pillar from inventory onto column `col`. If the column
           already holds a Pillar, that one returns to inventory (a non-destructive
           swap). Consumes one from inventory of `typeId`. Returns true on success;
-          false if not owned / bad column / not a real type. */
+          false if not owned / bad column / not a real type.
+          SAME-TOLERANCE FAMILY (v6.76): ONE per column MAX, enforced HERE
+          engine-side (the UI leans on this rejection): a column already holding
+          a sameTolerance Pillar rejects placing another family member — pick the
+          current one up first (no silent in-family swap). */
       placePillar(typeId, col) {
         if (col < 0 || col >= COLUMN_SLOTS) return false;
         if (!PillarTypes.get(typeId)) return false;
         if ((pillarInventory[typeId] || 0) <= 0) return false;
         const displaced = columnPillars[col];
+        const incDef = PillarTypes.get(typeId);
+        const curDef = displaced ? PillarTypes.get(displaced) : null;
+        if (incDef.family === "sameTolerance" && curDef && curDef.family === "sameTolerance") return false;
         pillarInventory[typeId] -= 1;
         if (pillarInventory[typeId] <= 0) delete pillarInventory[typeId];
         if (displaced) pillarInventory[displaced] = (pillarInventory[displaced] || 0) + 1;
@@ -16707,6 +17362,9 @@ const CampaignState = (() => {
         const t = PillarTypes.get(typeId);
         if (!t) return false;
         if (col < 0 || col >= COLUMN_SLOTS) return false;
+        // sameTolerance family (v6.76): one per column — see placePillar.
+        const cur = columnPillars[col] ? PillarTypes.get(columnPillars[col]) : null;
+        if (t.family === "sameTolerance" && cur && cur.family === "sameTolerance") return false;
         const price = this.priceOfPillar(typeId);
         if (coins < price) return false;
         coins -= price;
@@ -16875,20 +17533,29 @@ const CampaignState = (() => {
       /** (Re)open the store for a new visit: a fresh random offer at base
           reroll cost. Call once when the store opens for a run. */
       openStore(rng) {
-        storeOffer = freshOffer(rng, removalSlotEnabled, (r) => this.genStoreCard(r));   // class-first (+ Removal slot when on)
+        storeOffer = freshOffer(rng, removalSlotEnabled, (r) => this.genStoreCard(r), shopRolls);   // class-first (+ Removal slot when on)
+        // ON THE HOUSE (v6.76 firstFree Pillar): the FIRST restock of this store
+        // visit is free. The flag rides the (persisted) offer; the free reroll
+        // still consumes its ladder rung (the next paid restock costs base+step).
+        if (this.hasFirstFree()) storeOffer.freeReroll = true;
         return storeOffer;
       },
       /** The current offer ({ stickers:[id|null], pillars:[id|null], rerollCost })
           or null. The UI renders FROM this — it never re-rolls on its own, so a
           re-render restores the same items (no free reroll via refresh). */
       getStoreOffer() { return storeOffer; },
-      storeRerollCost() { return storeOffer ? storeOffer.rerollCost : Infinity; },
-      canReroll() { return !!storeOffer && coins >= storeOffer.rerollCost; },
+      storeRerollCost() { return !storeOffer ? Infinity : (storeOffer.freeReroll === true ? 0 : storeOffer.rerollCost); },
+      canReroll() { return !!storeOffer && (storeOffer.freeReroll === true || coins >= storeOffer.rerollCost); },
       /** Reroll ALL offered slots for the current cost; cost then climbs by
-          REROLL_STEP. Returns true if it happened (affordable). */
+          REROLL_STEP. Returns true if it happened (affordable). An On-the-House
+          free restock (freeReroll, v6.76) skips the charge but still climbs the
+          ladder (its rung is consumed, so the reroll INDEX keeps stepping). */
       rerollStore() {
-        if (!storeOffer || coins < storeOffer.rerollCost) return false;
-        coins -= storeOffer.rerollCost;
+        if (!storeOffer) return false;
+        const freeReroll = storeOffer.freeReroll === true;   // v6.76 firstFree
+        if (!freeReroll && coins < storeOffer.rerollCost) return false;
+        if (!freeReroll) coins -= storeOffer.rerollCost;
+        storeOffer.freeReroll = false;
         const rolled = removalSlotEnabled ? STORE_SLOTS - 1 : STORE_SLOTS;
         storeOffer.slots = [];   // the outgoing shelf's Jokers vanish first (they'd otherwise count as held during the re-roll)
         // SEED1: the reroll keys to (store node, reroll index) — the index
@@ -16897,7 +17564,7 @@ const CampaignState = (() => {
         // back to Math.random.
         const rerollIndex = Math.max(0, Math.round((storeOffer.rerollCost - REROLL_BASE_COST) / REROLL_STEP));
         const rng = (nodePos != null) ? runRng("store", nodePos, rerollIndex) : Math.random;
-        storeOffer.slots = rollUnifiedSlots(rng, rolled, (r) => this.genStoreCard(r));
+        storeOffer.slots = rollUnifiedSlots(rng, rolled, (r) => this.genStoreCard(r), shopRolls);
         if (removalSlotEnabled) storeOffer.slots.push(removalSlot());
         storeOffer.rerollCost += REROLL_STEP;
         return true;
@@ -16947,11 +17614,31 @@ const CampaignState = (() => {
         }
         if (s.kind === "pillar") {
           if (!this.buyPillarToInventory(s.id)) return { ok: false };
-          storeOffer.slots[i] = null; return { ok: true, kind: "pillar" };
+          storeOffer.slots[i] = null;
+          const res = { ok: true, kind: "pillar" };
+          // RANK PURGE (v6.76): an ON-PURCHASE effect — every card of the
+          // shop-rolled rank leaves the deck NOW (the purchase price covers it;
+          // the Removal ladder is untouched). Nothing in-deal.
+          const pdef = PillarTypes.get(s.id);
+          if (pdef && pdef.effect === "purgeRank" && s.shopRolled != null) {
+            res.purgedRank = s.shopRolled;
+            res.purgedCount = this.purgeRankFromDeck(s.shopRolled);
+          }
+          return res;
         }
         if (s.kind === "base") {
           if (!this.buyBaseToInventory(s.id)) return { ok: false };
-          storeOffer.slots[i] = null; return { ok: true, kind: "base" };
+          storeOffer.slots[i] = null;
+          const res = { ok: true, kind: "base" };
+          // TRANSMUTE (v6.76): an ON-PURCHASE effect — every full-deck card of
+          // the shop-rolled rank becomes the shop-rolled suit, NOW. Never fires
+          // in a deal (baseCanActivate has no case for it → always false).
+          const bdef = BaseTypes.get(s.id);
+          if (bdef && bdef.effect === "transmute" && s.shopRolled != null && s.shopRolled2) {
+            res.transmuted = { rank: s.shopRolled, suit: s.shopRolled2,
+              count: this.transmuteRankToSuit(s.shopRolled, s.shopRolled2) };
+          }
+          return res;
         }
         if (s.kind === "samepower") {
           if (s.mystery) {
@@ -17000,9 +17687,83 @@ const CampaignState = (() => {
       setRemovalSlot(on) { removalSlotEnabled = !!on; },
       removalSlotOn() { return removalSlotEnabled; },
       /** Price of the NEXT Removal: base + step per one already bought this
-          climb, then the deck price multiplier. */
+          climb, then the deck price multiplier. v6.76 modifiers:
+          FLAT PURGE (purgeFlat Pillar) OVERRIDES the whole ladder — the Purge
+          is always its `value` (flat, no multiplier, no coupon cut); Purge
+          Coupon (purgeDiscount Base activations) subtracts the accumulated
+          purgePriceCut, floored at the Coupon's `min`. */
       removalPrice() {
-        return shopPrice(REMOVAL_PRICE + REMOVAL_PRICE_STEP * removalsBought);
+        for (const pid of columnPillars) {
+          const d = pid ? PillarTypes.get(pid) : null;
+          if (d && d.effect === "purgeFlat") return itemNum(d, "value", 5);
+        }
+        const coupon = BaseTypes.get("purgeDiscount");
+        const floor = (purgePriceCut > 0 && coupon) ? itemNum(coupon, "min", 0) : 0;
+        return shopPrice(Math.max(floor, REMOVAL_PRICE + REMOVAL_PRICE_STEP * removalsBought - purgePriceCut));
+      },
+      /** Purge Coupon (v6.76): record one activation's discount — permanent for
+          the rest of the climb (documented choice: it survives even if the Base
+          is later sold/unplaced). Returns the new accumulated cut. */
+      addPurgeDiscount(n) { purgePriceCut += Math.max(0, n | 0); return purgePriceCut; },
+      purgeDiscountTotal() { return purgePriceCut; },
+      /** ON THE HOUSE (v6.76 firstFree Pillar): true while any column holds it —
+          the first restock of each store and the first reshuffle of each deal
+          are free (read at store-open / reshuffle-charge time). */
+      hasFirstFree() {
+        return columnPillars.some(pid => { const d = pid ? PillarTypes.get(pid) : null; return !!d && d.effect === "firstFree"; });
+      },
+      /** SHOP-ROLLED values (v6.76, R2): the climb-locked roll for an item id
+          ({ roll, roll2 } — roll2 only for a shopRoll2 item), or null. */
+      getShopRoll(id) {
+        const r = shopRolls[id];
+        if (r == null) return null;
+        const r2 = shopRolls[id + "#2"];
+        return { roll: r, roll2: r2 != null ? r2 : null };
+      },
+      /** Per-column shop-rolled Pillar values for Start Run (column index →
+          { roll, roll2 } | null) — the rolled value TRANSFERS to the equipped
+          item: the engine snapshots this beside run.pillars. */
+      getColumnPillarRolls() {
+        return columnPillars.map(pid => {
+          const d = pid ? PillarTypes.get(pid) : null;
+          if (!d || !d.shopRoll) return null;
+          const r = shopRolls[pid];
+          if (r == null) return null;
+          const r2 = shopRolls[pid + "#2"];
+          return { roll: r, roll2: r2 != null ? r2 : null };
+        });
+      },
+      /** RANK PURGE (v6.76): permanently remove EVERY owned card of rank
+          `rank` (currentRank) from the deck. Returns how many were purged. */
+      purgeRankFromDeck(rank) {
+        const ids = ownedIds.filter(id => {
+          const c = findById(id);
+          return c && !c.joker && !c.blank && c.currentRank === rank;
+        });
+        for (const id of ids) this.removeDeckCard(id);
+        return ids.length;
+      },
+      /** TRANSMUTE (v6.76): set every owned full-deck card of rank `rank` to
+          suit `suit` (durable, recorded as a changeSuit modification). Returns
+          how many cards changed. */
+      transmuteRankToSuit(rank, suit) {
+        let n = 0;
+        for (const id of ownedIds) {
+          const c = findById(id);
+          if (c && !c.joker && !c.blank && c.currentRank === rank && c.suit !== suit) {
+            if (this.setCardSuit(id, suit)) n++;
+          }
+        }
+        return n;
+      },
+      /** Inflict a CURSED sticker on a persistent card (Devil's Deal's price —
+          v6.76). Unlike applySticker: no player-applied stats bump and NO
+          action-stream rng draw (cursed types carry no random-application
+          kinds). Returns true if attached. */
+      inflictSticker(cardId, typeId) {
+        const card = findById(cardId);
+        if (!card || !stickerCardEligible(card, typeId)) return false;
+        return applyStickerToCard(card, typeId, { rng: () => 0 });
       },
       /** Buy a Removal: charge the current rung and permanently remove card
           `id`. The offer slot is NOT consumed (repeatable), but the ladder
@@ -17319,6 +18080,8 @@ const CampaignState = (() => {
         samePowerInventory = {};
         equippedSamePower = null;
         storeOffer = null;
+        shopRolls = {};        // v6.76: climb-locked shop rolls die with the climb
+        purgePriceCut = 0;     // v6.76: Purge Coupon cuts die with the climb
         packTray = [];
         nextCardId = 52;
         runFossils = [];
@@ -17366,6 +18129,10 @@ const CampaignState = (() => {
           endless,                            // endless mode chosen (stages past ♠ in stageEntryDecks)
           sameCharge,
           removalsBought,                     // the removal slot's per-climb price ladder
+          // v6.76: climb-locked shop-rolled item values (R2) + the accumulated
+          // Purge Coupon cut (both reset with the climb).
+          shopRolls: { ...shopRolls },
+          purgePriceCut,
           stickerInventory: { ...stickerInventory },
           pillarInventory: { ...pillarInventory },
           baseInventory: { ...baseInventory },
@@ -17390,7 +18157,13 @@ const CampaignState = (() => {
           callers then fall back to a fresh campaign. */
       restore(s) {
         if (!s || s.schema !== 2) return false;   // schema-1 (old stages×deals) saves can't map onto the new run structure → fresh campaign
-        if (!Array.isArray(s.baseDeck) || s.baseDeck.length < 52) return false;   // ≥52: the deck GROWS as packs mint duplicate cards
+        // The deck GROWS as packs mint duplicates and SHRINKS under removals
+        // (store Purge; Rank Purge / Sacrifice in v6.76), so the old "≥52"
+        // floor would reject every post-removal save. The floor is now RELATIVE:
+        // the deck must hold at least as many cards as ownership claims. (A
+        // poisoned deck — null entries — still sails through to the rebuild
+        // below and THROWS there, the preserved-save path resume1 pins.)
+        if (!Array.isArray(s.baseDeck) || s.baseDeck.length < (Array.isArray(s.ownedIds) ? s.ownedIds.length : 0)) return false;
         deckId = DECK_RULES[s.deckId] ? s.deckId : "pink";   // pre-deck-rules saves are Pinky campaigns
         difficultyTier = DifficultyData.tierIds.indexOf(s.difficultyTier) !== -1 ? s.difficultyTier : "regular";
         RunMap.setDifficultyTier(difficultyTier);   // the map below regenerates on this tier's bands
@@ -17460,6 +18233,10 @@ const CampaignState = (() => {
         sameCharge = !!s.sameCharge;
         // Absent in pre-v5.82 saves — an old climb just restarts the ladder.
         removalsBought = Number(s.removalsBought) || 0;
+        // v6.76 (additive; older saves default to none): the climb-locked
+        // shop-rolled values + the accumulated Purge Coupon cut.
+        shopRolls = (s.shopRolls && typeof s.shopRolls === "object") ? { ...s.shopRolls } : {};
+        purgePriceCut = Math.max(0, Number(s.purgePriceCut) || 0);
         stickerInventory = { ...(s.stickerInventory || {}) };
         pillarInventory = { ...(s.pillarInventory || {}) };   // default {} for pre-inventory saves
         baseInventory = { ...(s.baseInventory || {}) };       // default {} for pre-Bases saves
@@ -19486,18 +20263,23 @@ const UIRenderer = (() => {
     const show = !!(run && run.totalGuesses === 0 && engine.getStatus && engine.getStatus() === "playing");
     // ZEN keeps the pre-first-guess reshuffle offer, FREE (there are no coins
     // in Zen) — the campaign offer keeps its escalating price.
-    const free = !!zenMode;
-    const cost = redealCost;
+    // ON THE HOUSE (v6.76 firstFree Pillar): the FIRST reshuffle of each deal is
+    // free. The freebie derives from the PERSISTED reshuffleIndex (0 = no
+    // reshuffle yet this deal), so a mid-deal refresh can't re-grant it — no
+    // checkpoint field of its own.
+    const house = !!(campaign && campaign.hasFirstFree && campaign.hasFirstFree() && reshuffleIndex === 0);
+    const free = !!zenMode || house;
+    const cost = house ? 0 : redealCost;
     const poor = free ? false : (!campaign || campaign.getCoins() < cost);
     const key = show + "|" + cost + "|" + poor + "|" + free;
     if (key === reshuffleKey) return;
     reshuffleKey = key;
     b.classList.toggle("hidden", !show);
     if (show) {
-      b.innerHTML = glyph("reroll") + " Reshuffle" + (free ? "" : " · " + COIN_SVG + " " + cost);
+      b.innerHTML = glyph("reroll") + " Reshuffle" + (free ? (house ? " · free (On the House)" : "") : " · " + COIN_SVG + " " + cost);
       b.disabled = poor;
       b.title = poor ? "Not enough coins (" + cost + " needed)"
-        : (free ? "Deal a fresh board — free in Zen" : "Re-deal the piles from the same deck");
+        : (free ? (house ? "Deal a fresh board — the first one is on the house" : "Deal a fresh board — free in Zen") : "Re-deal the piles from the same deck");
     }
   }
   function doReshuffle() {
@@ -19511,9 +20293,13 @@ const UIRenderer = (() => {
       startZenDeal();
       return;
     }
-    if (!campaign.spendCoins(redealCost)) return;                  // can't afford
+    // ON THE HOUSE (v6.76): the first reshuffle of each deal is free (derived
+    // from reshuffleIndex — see renderReshuffleBtn). The price ladder still
+    // steps, so the next reshuffle costs base+step.
+    const house = campaign.hasFirstFree && campaign.hasFirstFree() && reshuffleIndex === 0;
+    if (!house && !campaign.spendCoins(redealCost)) return;                // can't afford
     Sound.shuffle();   // a re-DEAL is a shuffle — the shared riffle, like every other shuffle source
-    if (engine.logAction) engine.logAction("Reshuffled the deal-out (−" + redealCost + " coins)");
+    if (engine.logAction) engine.logAction(house ? "Reshuffled the deal-out (free — On the House)" : "Reshuffled the deal-out (−" + redealCost + " coins)");
     // SEED1: step the deal identity — the re-deal mints from the NEXT keyed
     // board of the SAME node (startRun persists both seed and index), so a
     // refresh can never fish for a different reshuffle outcome.
@@ -20976,7 +21762,7 @@ const UIRenderer = (() => {
     // never reach a Zen engine — no Pillars, no Bases, no Same-Power.
     if (!engine) return;
     if (zenMode) engine.startRun([], [], null);
-    else engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower());
+    else engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower(), campaign.getColumnPillarRolls());
   }
 
   /* Help slot for the armed setup item. Whichever family is armed (card, sticker,
@@ -23792,6 +24578,9 @@ const UIRenderer = (() => {
         // Heart Demolish kills every ♥-topped pile in the column — same death cue.
         const heartKills = (payload.effect === "heartDemolish" && Array.isArray(payload.destroyedPiles)) ? payload.destroyedPiles : [];
         for (const di of heartKills) if (pileEls[di]) playPileDeath(di, board);
+        // Sacrifice (v6.76) kills its target pile — the same shared death cue.
+        const sacKill = payload.effect === "sacrifice" && payload.index != null && pileEls[payload.index];
+        if (sacKill) playPileDeath(payload.index, board);
         // Clamp to the event's board snapshot (see renderNetwork): pileEls and
         // this board can disagree around a rebuild — extra piles are absent.
         const nPiles = Math.min(pileEls.length, board.size);
@@ -23802,9 +24591,10 @@ const UIRenderer = (() => {
         paintPileCounts(board);
         renderHud(board, payload.deck);
         paintColumnBases(campaign.layoutForRun(campaign.currentRunIndex).cols);
-        // For a Kamikaze / Heart Demolish kill the network severs WITH the dissolve
-        // (scheduled above), matching guess-death sequencing — not at activation time.
-        if (!kamiKill && !heartKills.length) renderNetwork();
+        // For a Kamikaze / Heart Demolish / Sacrifice kill the network severs WITH
+        // the dissolve (scheduled above), matching guess-death sequencing — not at
+        // activation time.
+        if (!kamiKill && !heartKills.length && !sacKill) renderNetwork();
 
         // --- Activation feedback: NO Base resolves with zero visible feedback ---
         // (1) Always pulse the fired Base's banner + float its net coin delta —
@@ -23837,13 +24627,55 @@ const UIRenderer = (() => {
           case "setSuit":
           case "shuffleColumn":
           case "evenOut":
+          case "chorus":            // v6.76 — every top in the column re-ranked
+          case "cleanseColumn":     // v6.76 — curses stripped off the column's tops
             pulseBaseColumn(payload.col);
             break;
+          case "emptyPurse": {
+            // v6.74: the purse is campaign state — drained here (the engine
+            // only counted it), shown draining. Drain EXACTLY what the
+            // engine counted with, so the spend never disagrees with the
+            // peek count. floatCoins rings the descending coinLoss cue.
+            const spent = payload.purseSpent || 0;
+            if (spent > 0 && campaign) {
+              campaign.spendCoins(spent);
+              const pc = (payload.run && payload.run.pileColumns) || [];
+              const pp = pc.indexOf(payload.col);
+              if (pp >= 0 && pileEls[pp]) floatCoins(pileEls[pp], -spent, "pile-float");
+              renderHud(board, payload.deck);   // the coin chip shows the drained purse NOW
+            }
+            break;
+          }
+          // ---- v6.76 archetype batch — campaign-side persistence ----
+          case "purgeDiscount":   // Purge Coupon: permanent price cut (rest of climb)
+            if (campaign && payload.purgeDiscount) campaign.addPurgeDiscount(payload.purgeDiscount);
+            break;
+          case "sacrifice":       // the pile's top card leaves the deck FOREVER
+            if (campaign && payload.purgedCardId != null) {
+              campaign.removeDeckCard(payload.purgedCardId);
+              renderDeckStrip();   // composition changed mid-deal
+            }
+            break;
+          case "devilsDeal":      // the curse persists on the campaign card (no
+            if (campaign && payload.curseApplied) {   // player-applied stats bump)
+              campaign.inflictSticker(payload.curseApplied.cardId, payload.curseApplied.typeId);
+              renderDeckStrip();
+            }
+            break;
+          case "cleanseColumn": { // strip the same cursed instances off the deck
+            if (campaign && payload.cursesRemoved) {
+              let stripped = false;
+              for (const x of payload.cursesRemoved)
+                if (campaign.removeStickerInstances(x.cardId, x.typeId, x.count) > 0) stripped = true;
+              if (stripped) renderDeckStrip();
+            }
+            break;
+          }
         }
         // Upheaval / Ballast reshuffle or re-order piles → the shared shuffle sound.
         if (payload.effect === "shuffleColumn" || payload.effect === "evenOut") Sound.shuffle();
-        // Spade Peeker reveals the next X upcoming cards — refresh the peek strip.
-        if (payload.effect === "spadePeek") renderDeckReveal();
+        // Spade Peeker / Empty Purse reveal the next upcoming card(s) — refresh the peek strip.
+        if (payload.effect === "spadePeek" || payload.effect === "emptyPurse") renderDeckReveal();
 
         // Durable card modifications (Rank Setter's value change, Sticker Storm / Wild
         // Sticker's stickers) must last the REST OF THE RUN, not just this deal.
@@ -24498,6 +25330,23 @@ const UIRenderer = (() => {
           floatCoins(pileEls[coinIdx], payload.amount, "pile-float");
         }
         if (payload.board) paintPileCounts(payload.board);
+        // RANK FLOOD (v6.76) re-ranks tops PERMANENTLY — write the same change
+        // onto the persistent campaign cards (the Rank Setter base's contract)
+        // and repaint the faces so the new ranks show now.
+        if (payload.effect === "rankFlood" && campaign && payload.valueApplied) {
+          let flooded = false;
+          for (const v of payload.valueApplied) {
+            if (campaign.randomizeCard(v.cardId, v.value)) flooded = true;
+          }
+          if (payload.board) {
+            const nP = Math.min(pileEls.length, payload.board.size);
+            for (let i = 0; i < nP; i++) {
+              const top = payload.board.top(i);
+              if (top && pileEls[i]) paintFront(pileEls[i], top);
+            }
+          }
+          if (flooded) renderDeckStrip();
+        }
         if (payload.board && payload.deck) renderHud(payload.board, payload.deck);
         renderNetwork();
         if (payload.label) el.hint && (el.hint.textContent = "Same-Power · " + payload.label + " — " + (payload.targets || []).length + " linked pile" + ((payload.targets || []).length === 1 ? "" : "s"));
@@ -25817,6 +26666,10 @@ const UIRenderer = (() => {
     // resolve Pillars; the per-column Pillar binding is snapshotted later, at
     // Start Run, after the pre-run assignment phase.
     engine = GameEngine.create(deckForDeal, cfg.piles, { cols: cfg.cols, sameCharge: campaign.getSameCharge(), samePower: campaign.getSamePower(), noStickers: campaign.stickersLocked() });
+    // v6.76 live hooks: the Pauper family gates on the CAMPAIGN purse and the R3
+    // composition conditions read the FULL OWNED deck (both live at fire time).
+    engine.setPurseHook(() => campaign.getCoins());
+    engine.setCompositionHook(() => campaign.getRunDeckLive());
     engine.onEvent(handleEvent);
 
     // Rebuild pile elements every run for a clean deal animation; input
@@ -26852,6 +27705,11 @@ const UIRenderer = (() => {
     spadePeek: "peek",
     shuffleColumn: "util", revive: "util", randomSticker: "util",
     evenOut: "util", setValue: "util", setSuit: "util", refreshBases: "util",
+    // ARCHETYPE BATCH v6.76 (mirrors iOS ItemArt.baseSymbolColor).
+    purgeDiscount: "coins", devilsDeal: "coins",
+    sacrifice: "destroy",
+    transmute: "util", cleanseColumn: "util", chorus: "util",
+    diamondBoost: "util",
   };
   function baseFamily(t) { return (t && BASE_FAMILY[t.id]) || "util"; }
   const BASE_SUIT_KEY = { "♥": "heart", "♦": "diamond", "♠": "spade", "♣": "club" };
@@ -26872,6 +27730,22 @@ const UIRenderer = (() => {
     evenOut: '<path d="M11 3.4h2v15.6h-2z"/><rect x="5.5" y="19" width="13" height="2.2" rx="1.1"/><circle cx="12" cy="4.4" r="1.9"/><path d="M4.6 6.2L1.4 11.4h6.4zM19.4 6.2l3.2 5.2h-6.4z"/>',
     setValue: '<rect x="4.5" y="8.3" width="15" height="3" rx="1.5"/><rect x="4.5" y="12.7" width="15" height="3" rx="1.5"/>',
     refreshBases: '<path d="M12.6 2L4 13.2h5L8 22l8.4-11.4h-5z"/>',
+    // ---- ARCHETYPE BATCH v6.76 (bold filled, pictorial — mirrors the iOS
+    // ItemArt.baseGlyphs matrices) ----
+    // Purge Coupon: a ticket with a perforated stub (the Purge price cut).
+    purgeDiscount: '<rect x="2" y="6" width="20" height="12" rx="2"/><g ' + DK + '><circle cx="15.5" cy="9" r="1"/><circle cx="15.5" cy="12" r="1"/><circle cx="15.5" cy="15" r="1"/></g>',
+    // Transmute: the alchemy flask with its changed (dark) content.
+    transmute: '<path d="M10 2.5h4V7l4.2 9.2A3.6 3.6 0 0 1 15 21.4H9a3.6 3.6 0 0 1-3.2-5.2L10 7z"/><path d="M8 13.5h8l1.4 3.1a2 2 0 0 1-1.8 2.8H8.4a2 2 0 0 1-1.8-2.8z" ' + DK + '/>',
+    // Sacrifice: a drop of blood over the card it costs (the pile cracks).
+    sacrifice: '<path d="M12 2c2.6 3.1 4.2 5 4.2 7a4.2 4.2 0 0 1-8.4 0C7.8 7 9.4 5.1 12 2z"/><rect x="5" y="12.5" width="14" height="9" rx="1.6"/><path d="M12 13.5l-1.6 2.8 3.2 1.4-1.6 2.8" fill="none" ' + DKS + ' stroke-width="1.6" stroke-linejoin="round"/>',
+    // Devil's Deal: a coin wearing horns (double the bonus, take the curse).
+    devilsDeal: '<path d="M4.5 8.5C5.3 5.4 7.3 3.4 9.5 2.6 8.6 4.6 8.5 6.6 9.4 8.5zM19.5 8.5c-.8-3.1-2.8-5.1-5-5.9.9 2 1 4 .1 5.9z"/><circle cx="12" cy="14.5" r="7"/><circle cx="12" cy="14.5" r="3.3" ' + DK + '/>',
+    // Cleanse: a card with the clean sparkles (every curse washed off).
+    cleanseColumn: '<rect x="5" y="3.5" width="14" height="17" rx="2"/><g ' + DK + '><path d="M9.5 7.5l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z"/><path d="M14.5 12.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></g>',
+    // Chorus: three cards standing in unison, one shared pip.
+    chorus: '<rect x="2.5" y="5.5" width="5.6" height="13" rx="1.4"/><rect x="9.2" y="5.5" width="5.6" height="13" rx="1.4"/><rect x="15.9" y="5.5" width="5.6" height="13" rx="1.4"/><g ' + DK + '><circle cx="5.3" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.7" cy="12" r="1.2"/></g>',
+    // Diamond Boost: a ♦ with an up chevron (pile size up).
+    diamondBoost: '<path d="M12 2.5l5.4 6.5L12 15.5l-5.4-6.5z"/><path d="M7.5 21l4.5-3.8 4.5 3.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   function baseSymHtml(t) {
     if (!t) return "";
@@ -29525,6 +30399,12 @@ const UIRenderer = (() => {
     if (!res.ok) return;   // unaffordable / empty slot
     selectedMixedSlot = null;
     Sound.purchase();
+    // v6.76 ON-PURCHASE effects already fired inside buyMixedSlot — log them.
+    if (engine && engine.logAction) {
+      if (res.purgedCount != null) engine.logAction("Store: Rank Purge removed " + res.purgedCount + " card(s) of the rolled rank from the deck");
+      if (res.transmuted) engine.logAction("Store: Transmute set " + res.transmuted.count + " card(s) of the rolled rank to " + res.transmuted.suit);
+    }
+    if (res.purgedCount || res.transmuted) renderDeckStrip();   // the deck composition changed at the shelf
     if (kind === "samepower") {
       const prev = campaign.getSamePower && campaign.getSamePower();
       campaign.equipSamePower(id);
@@ -29783,6 +30663,12 @@ const UIRenderer = (() => {
     if (!res.ok) return;   // unaffordable / empty slot
     selectedMixedSlot = null;
     Sound.purchase();
+    // v6.76 ON-PURCHASE effects already fired inside buyMixedSlot — log them.
+    if (engine && engine.logAction) {
+      if (res.purgedCount != null) engine.logAction("Store: Rank Purge removed " + res.purgedCount + " card(s) of the rolled rank from the deck");
+      if (res.transmuted) engine.logAction("Store: Transmute set " + res.transmuted.count + " card(s) of the rolled rank to " + res.transmuted.suit);
+    }
+    if (res.purgedCount || res.transmuted) renderDeckStrip();   // the deck composition changed at the shelf
     if (res.kind === "pillar" || res.kind === "base") {
       try { if (!campaign.isExhibition()) { const rt = (res.kind === "pillar" ? PillarTypes : BaseTypes).get(s.id); Telem.purchase(res.kind, s.id, rt && rt.label); Telem.scheduleFlush(); } } catch (e) {}
     }
@@ -31273,11 +32159,14 @@ const UIRenderer = (() => {
     // prompt bar (lifted over the store via body.store-confirm), like the
     // sell confirm.
     if (campaign.getCoins() < campaign.storeRerollCost()) return;   // unaffordable (the button shows it)
+    // ON THE HOUSE (v6.76): a free first restock (storeRerollCost 0) still
+    // confirms, but says so instead of pricing it.
+    const freeRestock = campaign.storeRerollCost() === 0;
     document.body.classList.add("store-confirm");
-    showActionBar("Restock the whole shelf for " + COIN_SVG + " " + campaign.storeRerollCost() + "?", [
+    showActionBar(freeRestock ? "Restock the whole shelf — free (On the House)?" : "Restock the whole shelf for " + COIN_SVG + " " + campaign.storeRerollCost() + "?", [
       { label: "Cancel", cls: "no", onClick: closeRerollConfirm },
       { label: "Restock", cls: "primary", onClick: confirmReroll },
-    ], [], { help: "The price climbs with each Restock within a visit.", dismiss: closeRerollConfirm });
+    ], [], { help: freeRestock ? "The first Restock of each store is on the house. The price climbs with each Restock within a visit." : "The price climbs with each Restock within a visit.", dismiss: closeRerollConfirm });
   }
   function closeRerollConfirm() {
     if (!document.body.classList.contains("store-confirm")) return;   // not ours — leave any other bar alone
@@ -31588,14 +32477,17 @@ const UIRenderer = (() => {
      / Random Sticker / Sticker Harvest) arm a targeting mode — tap a highlighted
      pile to fire; whole-column Bases show a Yes/No confirm and fire on Yes. */
   /** Valid target piles for the Base on `col` (Kamikaze = any alive pile board-
-      wide; the other target Bases act only on an alive pile in their own column). */
+      wide; the other target Bases act only on an alive pile in their own column).
+      v6.76: Diamond Boost offers only ♦-topped piles (its activation rule). */
   function baseTargets(col) {
     const board = engine.getBoard();
+    const base = engine.baseForColumn(col);
     // Pile-target Bases (Sticker Harvest) pick an alive pile in their own column.
     const out = [];
     for (let i = 0; i < board.size; i++) {
       if (!board.isActive(i)) continue;
       if (engine.getRun().pileColumns[i] !== col) continue;
+      if (base && base.effect === "diamondBoost" && !cardMatchesSuit(board.top(i), "♦")) continue;
       out.push(i);
     }
     return out;
@@ -31604,6 +32496,8 @@ const UIRenderer = (() => {
   function baseTargetPrompt(base) {
     switch (base && base.effect) {
       case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
+      case "sacrifice":      return "Choose a pile — its top card is purged from your deck and the pile dies.";
+      case "diamondBoost":   return "Choose a ♦-topped pile in this column.";
       default:               return "Choose a target pile.";
     }
   }
@@ -31649,6 +32543,13 @@ const UIRenderer = (() => {
           help += "\n\nSet " + n + " card" + (n === 1 ? "" : "s") + " to " + (isRank ? src.label : src.suit);
         }
       }
+      if (base.effect === "emptyPurse") {
+        // v6.74: the yield AND the cost, live — the exact peek count and the
+        // exact number about to vanish.
+        const purse = campaign ? campaign.getCoins() : 0;
+        const peeks = 1 + Math.floor(purse / 10);
+        help += "\n\nPeek " + peeks + " card" + (peeks === 1 ? "" : "s") + " — spends ALL your coins: ◉ " + purse + ". Every one.";
+      }
       showActionBar("Activate " + escHtml(base.label) + "?", [
         { label: "Cancel", cls: "no", onClick: disarmBaseAct },
         { label: "Activate", cls: "primary", onClick: () => { const c = armedBaseAct.col; disarmBaseAct(); fireBase(c, null); } },
@@ -31676,7 +32577,9 @@ const UIRenderer = (() => {
   function fireBase(col, targetIndex) {
     if (!engine) return;
     const base = engine.baseForColumn(col);
-    const res = engine.baseActivate(col, targetIndex);
+    // purseCoins: Empty Purse (v6.74) prices its peeks off the campaign purse —
+    // threaded in here, drained again from the "base-fired" payload.
+    const res = engine.baseActivate(col, targetIndex, campaign ? campaign.getCoins() : 0);
     if (!res) { flashNotice("That Base can't activate right now."); return; }
     Sound.tap();
     el.hint.textContent = ((base && base.label) || "Base") + " activated.";

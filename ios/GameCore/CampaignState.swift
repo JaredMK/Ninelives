@@ -98,6 +98,18 @@ public final class CampaignState {
     /// Both reset with the climb, like the ladder itself.
     public internal(set) var purgeDiscount = 0
     public internal(set) var purgeStepBonus = 0
+    /// PURGE COUPON's ACCUMULATED cut (v6.76): every activation's discount
+    /// summed, subtracted from the ladder at price time and floored at the
+    /// Coupon def's `min` (the floor is DERIVED — never persisted). Resets
+    /// with the climb. Key name/shape shared with the web save.
+    public internal(set) var purgePriceCut = 0
+    /// SHOP-ROLLED climb locks (v6.76, R2): item id → the {rank}/{suit} the
+    /// item rolled at its FIRST shelf appearance this climb. rollUnifiedSlots
+    /// mutates it inline (first appearance draws, later appearances re-show);
+    /// the purchase transfers the slot's values here. Serialized as the web's
+    /// FLAT map (id / "id#2" → bare rank number or suit string). Resets with
+    /// the climb.
+    public internal(set) var shopRolls: [String: ShopRoll] = [:]
     /// THE OLD JOKER's outstanding marker, in coins. 0 = nothing owed. While
     /// this is positive every mystery node carries a hidden chance he is
     /// waiting to collect instead of dealing.
@@ -224,6 +236,32 @@ public final class CampaignState {
         pillarRankVariants[def.id] = tied[rng.index(tied.count)]
     }
 
+    // MARK: - Shop-rolled climb locks (v6.76, R2)
+
+    /// The climb-locked roll for a shopRoll item being PURCHASED (or otherwise
+    /// committed). Prefers the lock, then the shelf slot's rolled values; a
+    /// slot that never rolled (a forced/debug shelf, a gift) fills the axes
+    /// the def demands from the ACTION stream so the sale is never stranded.
+    /// Either way the value locks for the rest of the climb. (The store offer
+    /// itself locks inline in `StoreRoll.rollUnifiedSlots` — see its
+    /// applyShopRolls.)
+    @discardableResult
+    func lockShopRoll(for def: ItemDef, slot: StoreSlot?) -> ShopRoll {
+        if let lock = shopRolls[def.id] { return lock }
+        var roll = ShopRoll(rank: slot?.rollRank ?? nil, suit: slot?.rollSuit ?? nil)
+        let needsRank = def.shopRoll == "rank" || def.shopRoll2 == "rank"
+        let needsSuit = def.shopRoll == "suit" || def.shopRoll2 == "suit"
+        if (needsRank && roll.rank == nil) || (needsSuit && roll.suit == nil) {
+            let rng = actRng()
+            if needsRank && roll.rank == nil { roll.rank = minRank + rng.index(maxRank - minRank + 1) }
+            if needsSuit && roll.suit == nil {
+                roll.suit = DeckManager.suits[rng.index(DeckManager.suits.count)].symbol
+            }
+        }
+        shopRolls[def.id] = roll
+        return roll
+    }
+
     /// An item's description with its climb variant substituted in —
     /// `{suit}` / `{color}` / `{rank}` templates come from items.js.
     /// Non-templated descriptions pass through untouched.
@@ -242,6 +280,21 @@ public final class CampaignState {
             let words = def.effect == "rankBury" ? "your deck's scarcest rank"
                                                  : "your deck's most common rank"
             out = out.replacingOccurrences(of: "{rank}", with: words)
+        }
+        // SHOP-ROLLED items (v6.76): the climb-locked {rank}/{suit} from the
+        // item's first shelf appearance. Unlocked yet → generic wording, never
+        // a raw template.
+        if let lock = shopRolls[def.id] {
+            if let r = lock.rank {
+                let label = DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)"
+                out = out.replacingOccurrences(of: "{rank}", with: label)
+            }
+            if let s = lock.suit {
+                out = out.replacingOccurrences(of: "{suit}", with: s)
+            }
+        } else if def.shopRoll != nil {
+            out = out.replacingOccurrences(of: "{rank}", with: "a rolled rank")
+            out = out.replacingOccurrences(of: "{suit}", with: "a rolled suit")
         }
         return out
     }
@@ -640,13 +693,15 @@ public final class CampaignState {
     /// PACK CARD STICKERS (v6.73 — pack CONTENTS only). Nothing shown on the
     /// map dresses: +1 pickup faces and revealed +2 pairs ride bare, so the
     /// node always advertises exactly what it hands over. A SEALED pack's
-    /// cards roll as they are granted: 75% bare, 20% one sticker,
-    /// 4% two, 1% three (cumulative 0.75/0.95/0.99); each rolled sticker has
-    /// a 5% chance of being a CURSE (the shared weighted `rollCurse` pick,
-    /// path "map") instead of a normal grantable sticker (the startStickers
-    /// eligibility filter). Rolls on its OWN keyed substream — (runSeed,
-    /// "mapsticker", nodeId[, slot]) — so a reload shows the same stickers
-    /// and no existing seeded draw (draft, pack, badge replay) shifts.
+    /// cards roll as they are granted, off the items.js `packStickerOdds`
+    /// table (75% bare, 20% one sticker, 4% two, 1% three — Convention 1:
+    /// the shape is tuned in the data file, never hardcoded here, v6.74);
+    /// each rolled sticker has a 5% chance of being a CURSE (the shared
+    /// weighted `rollCurse` pick, path "map") instead of a normal grantable
+    /// sticker (the startStickers eligibility filter). Rolls on its OWN keyed
+    /// substream — (runSeed, "packsticker", nodeId, slot) — so a reload shows
+    /// the same stickers and no existing seeded draw (draft, pack, badge
+    /// replay) shifts.
     /// Deck gates: Rocko (noStickers) takes NO stickers of any kind from
     /// this feature — his only curse source stays Just a Two; Mr. Garden
     /// (stickerEverything) is skipped whole — his coat already dressed the
@@ -657,8 +712,9 @@ public final class CampaignState {
         guard let i = index(of: cardId) else { return }   // sentinel ids skip
         guard !baseDeck[i].joker, !baseDeck[i].blank else { return }
         let rng = runRng(seed: runSeed, keys)
-        let roll = rng.next()
-        let count = roll < 0.75 ? 0 : (roll < 0.95 ? 1 : (roll < 0.99 ? 2 : 3))
+        // v6.74: the count comes from the items.js table (same single draw,
+        // same 75/20/4/1 shape) — Convention 1, no hardcoded odds here.
+        let count = StoreRoll.stickerCount(rng.next(), odds: data.items.packStickerOdds)
         guard count > 0 else { return }
         for _ in 0..<count {
             if rng.next() < 0.05 {
@@ -839,6 +895,8 @@ public final class CampaignState {
         removalsBought = 0   // the removal price ladder is per climb
         purgeDiscount = 0
         purgeStepBonus = 0
+        purgePriceCut = 0    // the Purge Coupon's cuts die with the climb (v6.76)
+        shopRolls = [:]      // shop-rolled values re-roll on the next climb (v6.76)
         jokerDebt = 0        // …and no debt follows you into a new climb
         freeShopPending = false
         jokerThirstPending = false
@@ -1230,6 +1288,28 @@ public final class CampaignState {
         return true
     }
 
+    /// RANK PURGE (v6.76): permanently remove EVERY owned card of `rank` —
+    /// from the draft and the card universe — at purchase time. Goes through
+    /// the shared removal chokepoint but is NO LADDER CHARGE: `removalsBought`
+    /// (the store Purge's price ladder) is untouched.
+    @discardableResult
+    public func purgeRankFromDeck(_ rank: Int) -> Int {
+        let ids = getRunDeck().filter { !$0.joker && !$0.blank && $0.currentRank == rank }.map(\.id)
+        var n = 0
+        for id in ids where removeDeckCard(id) { n += 1 }
+        return n
+    }
+
+    /// TRANSMUTE (v6.76): every owned card of `rank` becomes `suit` at
+    /// purchase time (the changeSuit modification history records each one).
+    @discardableResult
+    public func transmuteRankToSuit(_ rank: Int, suit: String) -> Int {
+        let ids = getRunDeck().filter { !$0.joker && !$0.blank && $0.currentRank == rank && $0.suit != suit }.map(\.id)
+        var n = 0
+        for id in ids where setCardSuit(id, to: suit) { n += 1 }
+        return n
+    }
+
     // MARK: - Coins + score
 
     public func getCoins() -> Int { coins }
@@ -1333,6 +1413,12 @@ public final class CampaignState {
     /// this climb. The deck price multiplier applies on top, as for every item.
     public func removalPrice() -> Double {
         let cfg = data.items.store.removal
+        // FLAT PURGE (v6.76): an equipped Flat Purge pillar returns its
+        // `value` VERBATIM — no ladder, no multiplier, no coupon cut, no
+        // price twist (the web's removalPrice).
+        if let flat = equippedPillarDefs().first(where: { $0.effect == "purgeFlat" }) {
+            return flat.num("value", 5)
+        }
         // BULK RATE: each equipped copy flattens the ladder's step by its
         // value (never below 0). Derived live from the loadout + counters,
         // so save/restore needs nothing extra and unequipping restores the
@@ -1341,7 +1427,27 @@ public final class CampaignState {
             .reduce(0.0) { $0 + $1.value }
         let step = max(0, cfg.priceStep + Double(purgeStepBonus) - stepCut)
         let raw = cfg.price + step * Double(removalsBought)
-        return max(1, (shopPrice(raw) - Double(purgeDiscount)).rounded())
+        // PURGE COUPON (v6.76): the accumulated purgePriceCut comes off the
+        // ladder, floored at the Coupon def's `min` while any cut is banked
+        // (the floor is derived, never persisted — the web's formula). The
+        // Old Joker's bargain then rides on top, as before.
+        let couponMin = data.baseTypes.get("purgeDiscount")?.num("min", 0) ?? 0
+        let floor = purgePriceCut > 0 ? couponMin : 0
+        let cut = max(floor, raw - Double(purgePriceCut))
+        return max(1, (shopPrice(cut) - Double(purgeDiscount)).rounded())
+    }
+
+    /// PURGE COUPON base (v6.76): record one activation's discount — the
+    /// engine reports it (`BaseResult.purgePriceCut/purgePriceFloor`), the
+    /// flow applies it HERE. Permanent for the rest of the climb (documented
+    /// web choice: it survives even if the Base is later sold/unplaced; the
+    /// price floor re-derives from the def's `min` at price time). Returns
+    /// the new accumulated cut.
+    @discardableResult
+    public func addPurgeDiscount(_ n: Int) -> Int {
+        purgePriceCut += max(0, n)
+        DebugEventLog.shared.add("store: Purge Coupon — Purge cut \(purgePriceCut) total, floored at the Coupon's min, for the climb")
+        return purgePriceCut
     }
 
     /// The registry defs of every equipped Pillar (meta-effect checks).
@@ -1559,6 +1665,23 @@ public final class CampaignState {
     public func columnPillar(_ col: Int) -> String? { columnPillars[safe: col] ?? nil }
     public func pillarCount() -> Int { columnPillars.compactMap { $0 }.count }
     public func firstEmptyColumn() -> Int? { columnPillars.firstIndex { $0 == nil } }
+
+    /// SAME-TOLERANCE family guard (v6.76): at most ONE pillar of the
+    /// sameTolerance family per column, enforced at PLACEMENT. Engine-side so
+    /// every placement path (loadout UI, tests, future grants) shares the one
+    /// rule; the UI calls this to grey the slot and show `reason`. Swapping
+    /// the SAME pillar back onto its own column stays legal.
+    public func canPlacePillar(_ typeId: String, col: Int) -> (ok: Bool, reason: String?) {
+        guard col >= 0, col < columnPillars.count else { return (false, "No such column.") }
+        guard let def = data.pillarTypes.get(typeId) else { return (false, "Unknown pillar.") }
+        if def.family == "sameTolerance",
+           let existingId = columnPillars[col], existingId != typeId,
+           let existing = data.pillarTypes.get(existingId), existing.family == "sameTolerance" {
+            return (false, "Only one Same-Tolerance pillar fits a column — \(existing.label) is already here.")
+        }
+        return (true, nil)
+    }
+
     @discardableResult
     public func buyPillarToInventory(_ typeId: String, priceOverride: Double? = nil) -> Bool {
         guard data.pillarTypes.get(typeId) != nil else { return false }
@@ -1572,6 +1695,7 @@ public final class CampaignState {
     public func placePillar(_ typeId: String, col: Int) -> Bool {
         guard !rules().noPillarsBases else { return false }   // Mr. Garden (v6.67)
         guard col >= 0, col < columnPillars.count, (pillarInventory[typeId] ?? 0) > 0 else { return false }
+        guard canPlacePillar(typeId, col: col).ok else { return false }   // v6.76 family guard
         pillarInventory[typeId]! -= 1
         if pillarInventory[typeId] == 0 { pillarInventory[typeId] = nil }
         if !isExhibition() { stats.bump("pillarsPlaced") }
@@ -1678,6 +1802,16 @@ public final class CampaignState {
         return true
     }
 
+    /// ON THE HOUSE (v6.76), deal half: the FIRST reshuffle of each deal is
+    /// free while the pillar is equipped. The flow calls this as a deal boots
+    /// (the engine never sees the campaign); `consumeFreeRedeal` spends it.
+    /// Idempotent within a deal — arming twice is still one free reshuffle.
+    public func noteDealStarted() {
+        if equippedPillarDefs().contains(where: { $0.effect == "firstFree" }) {
+            freeRedealPending = true
+        }
+    }
+
     /// SCREENSHOT HOOK (EventCaptureUITests' `-storeFreeRefresh 1`): arm the
     /// Queen's Restock so the next `openStore` spends it through the real
     /// consumption path. Debug/demo only — never called by play code.
@@ -1716,7 +1850,8 @@ public final class CampaignState {
                                               return self.isEquipped(kind: kind, id: id)
                                           },
                                           tierWeights: effectiveTierWeights(),
-                                          genCard: { [weak self] rr in self?.genStoreCard(rr) })
+                                          genCard: { [weak self] rr in self?.genStoreCard(rr) },
+                                          shopRolls: &shopRolls)
         // Stamp the visit's owner node (v6.52) — the store screen rerolls on a
         // mismatch, so this shelf and this visit's price twist end with it.
         storeOffer!.offerNode = node ?? nodePos
@@ -1725,6 +1860,12 @@ public final class CampaignState {
         // The Queen's Restock spends itself on THIS visit's ladder: the first
         // refresh is free, used or not. And the cast's price twist arms for
         // exactly one shop — whatever was pending becomes this visit's rule.
+        // ON THE HOUSE (v6.76): the equipped pillar arms the same Restock
+        // flag at EVERY store opening — the first refresh of each store is
+        // free.
+        if equippedPillarDefs().contains(where: { $0.effect == "firstFree" }) {
+            freeRerollPending = true
+        }
         if freeRerollPending {
             storeOffer!.rerollCost = 0
             freeRerollPending = false
@@ -1824,7 +1965,8 @@ public final class CampaignState {
                                                      return self.isEquipped(kind: kind, id: id)
                                                  },
                                                  tierWeights: effectiveTierWeights(),
-                                                 genCard: { [weak self] rr in self?.genStoreCard(rr) })
+                                                 genCard: { [weak self] rr in self?.genStoreCard(rr) },
+                                                 shopRolls: &shopRolls)
         if removalSlotEnabled { offer.slots.append(StoreSlot(kind: "removal", id: "removal")) }
         // The rerolled shelf re-runs the meta effects: rank variants lock,
         // and FREEBIE re-gifts one slot from the same stream.
@@ -1943,6 +2085,10 @@ public final class CampaignState {
         public var keep: Int?
         /// MYSTERY SAME-POWER: the concrete Same-Power id the buy revealed.
         public var revealed: String?
+        /// RANK PURGE (v6.76): how many cards the on-purchase purge removed.
+        public var purgedCount: Int?
+        /// TRANSMUTE (v6.76): how many cards the on-purchase recolor touched.
+        public var transmutedCount: Int?
     }
 
     /// Buy shelf slot `i`, dispatching by its kind. Pillars/Bases/Same-Powers go
@@ -1966,8 +2112,43 @@ public final class CampaignState {
         switch s.kind {
         case "pillar":
             guard buyPillarToInventory(s.id, priceOverride: priceOfMixed(i)) else { return BuyResult(ok: false) }
+            // The purchase TRANSFERS the slot's shop-rolled values to the
+            // climb lock (v6.76, R2) — the deal engine reads them from there.
+            var shopRoll: ShopRoll? = nil
+            if let def = data.pillarTypes.get(s.id), def.shopRoll != nil {
+                shopRoll = lockShopRoll(for: def, slot: s)
+            }
+            // RANK PURGE (v6.76): an ON-PURCHASE effect — every full-deck card
+            // of the shop-rolled rank leaves the deck at buy time. NO ladder
+            // charge: removalsBought (and thus the Purge price) never moves.
+            if let def = data.pillarTypes.get(s.id), def.effect == "purgeRank", let rank = shopRoll?.rank {
+                let n = purgeRankFromDeck(rank)
+                DebugEventLog.shared.add("store: \(def.label) purged \(n) × \(DeckManager.ranks.first { $0.value == rank }?.label ?? "\(rank)") on purchase")
+                var r = BuyResult(ok: true, kind: s.kind)
+                r.purgedCount = n
+                offer.slots[i] = nil
+                storeOffer = offer
+                return r
+            }
         case "base":
             guard buyBaseToInventory(s.id, priceOverride: priceOfMixed(i)) else { return BuyResult(ok: false) }
+            var shopRoll: ShopRoll? = nil
+            if let def = data.baseTypes.get(s.id), def.shopRoll != nil {
+                shopRoll = lockShopRoll(for: def, slot: s)
+            }
+            // TRANSMUTE (v6.76): an ON-PURCHASE effect — every full-deck card
+            // of the rolled rank takes the rolled suit, at buy time. It never
+            // activates in a deal (baseCanActivate keeps it amber).
+            if let def = data.baseTypes.get(s.id), def.effect == "transmute",
+               let rank = shopRoll?.rank, let suit = shopRoll?.suit {
+                let n = transmuteRankToSuit(rank, suit: suit)
+                DebugEventLog.shared.add("store: \(def.label) set \(n) × rank \(rank) to \(suit) on purchase")
+                var r = BuyResult(ok: true, kind: s.kind)
+                r.transmutedCount = n
+                offer.slots[i] = nil
+                storeOffer = offer
+                return r
+            }
         case "samepower":
             if s.mystery {
                 // MYSTERY SAME-POWER (v6.51): charge the config price, empty

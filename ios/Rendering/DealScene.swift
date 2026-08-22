@@ -64,6 +64,10 @@ public final class DealScene: SKScene {
     /// Campaign/debug deals show the artifact slot rows (the web's `show-slots`
     /// stays on through play); Zen collapses them for bigger cards.
     public var slotsVisible = true
+    /// DAILY SUIT (v6.76): column → the suit its Daily Suit pillar shields this
+    /// deal. Set through `setPillars(_:bases:dailySuits:)`; read when a
+    /// suitShieldDaily plaque is drawn.
+    private var dailySuits: [Int: String]?
     /// Zen deals run the slim chrome (the web hides `#dealStatus`, the coins
     /// and the SCORE chip in Zen): no reward band, a compacted centred board.
     public var isZen = false
@@ -737,13 +741,17 @@ public final class DealScene: SKScene {
         sameBlockChip = plate
     }
 
-    public func setPillars(_ ids: [String?], bases: [String?]) {
+    public func setPillars(_ ids: [String?], bases: [String?], dailySuits: [Int: String]? = nil) {
+        // DAILY SUIT (v6.76): the suit each suitShieldDaily pillar shields THIS
+        // deal, read live off the engine run state by the caller at deal start
+        // / redeal (a redeal re-boots and re-calls this — no reset needed).
+        self.dailySuits = dailySuits
         pillarBadges.removeAll()   // the rebuild below drops the badge nodes too
         baseBadges.removeAll()
         for (c, node) in pillarPlaques.enumerated() {
             node.removeAllChildren()
             if c < ids.count, let id = ids[c], let def = GameData.shared.pillarTypes.get(id) {
-                node.addChild(pillarArtNode(def))
+                node.addChild(pillarArtNode(def, col: c))
             } else if slotsVisible {
                 node.addChild(emptyPillarSlot())   // the web's dashed empty slot
             }
@@ -768,11 +776,36 @@ public final class DealScene: SKScene {
     /// An equipped Pillar on the board: the web's pennant ART (rod + swallowtail
     /// cloth + the item's gold emblem), never text — a square filling the slot
     /// row's height, centred in the column. Pixel-crisp (nearest filter).
-    private func pillarArtNode(_ def: ItemDef) -> SKNode {
+    private func pillarArtNode(_ def: ItemDef, col: Int) -> SKNode {
         // Full column width, capped by the band so it never spills into the
         // first card row.
-        let img = ItemArt.pillar(def, width: cardScale.size.width,
+        var img = ItemArt.pillar(def, width: cardScale.size.width,
                                  height: DealScene.pillarRowH - 2)
+        // DAILY SUIT (v6.76): the plaque SHOWS this deal's shielded suit — the
+        // pixel suit pip replaces the item's generic emblem, inked over the
+        // same ink halo (geometry mirrors ItemArt.pillar's emblem spot).
+        if def.effect == "suitShieldDaily", let suit = dailySuits?[col] {
+            let h = img.size.height
+            let halo = (h * 0.46).rounded()
+            let hx = (img.size.width - halo) / 2
+            let hy = (h * 0.46 - halo / 2).rounded()
+            let inset = halo * 0.10
+            if let pip = PixelGlyph.suitImage(suit, size: (halo - inset * 2) * 0.75,
+                                              color: CRT.gold) {
+                let rect = CGRect(x: hx + inset, y: hy + inset,
+                                  width: halo - inset * 2, height: halo - inset * 2)
+                img = UIGraphicsImageRenderer(size: img.size).image { _ in
+                    img.draw(at: .zero)
+                    // Repaint the halo so the generic 📅 emblem doesn't ghost
+                    // through behind the suit pip.
+                    CRT.ink.setFill()
+                    UIRectFill(rect)
+                    pip.draw(in: CGRect(x: rect.midX - pip.size.width / 2,
+                                        y: rect.midY - pip.size.height / 2,
+                                        width: pip.size.width, height: pip.size.height))
+                }
+            }
+        }
         let s = SKSpriteNode(texture: PixelTexture.texture(from: img))
         s.size = img.size
         s.anchorPoint = CGPoint(x: 0.5, y: 1)
@@ -1403,21 +1436,72 @@ public final class DealScene: SKScene {
         floatCue(text, atPoint: c, color: color)
     }
 
-    public func floatCue(_ text: String, atPoint c: CGPoint, color: UIColor) {
+    public func floatCue(_ text: String, atPoint c: CGPoint, color: UIColor, dwell: Double = 0) {
         let n = PixelTexture.label(text, size: 18, color: color, glow: color == CRT.phosphor)
         n.position = c
         n.zPosition = Layer.float
         floatLayer.addChild(n)
         if reduceMotion {
-            n.run(.sequence([.wait(forDuration: 0.6), .removeFromParent()]))
+            n.run(.sequence([.wait(forDuration: 0.6 + dwell), .removeFromParent()]))
             return
         }
         n.setScale(0.8)
         n.run(.sequence([
             .scale(to: 1.0, duration: 0.10),
+            .wait(forDuration: dwell),          // the roll verdict's extra hold (v6.74)
             .group([.moveBy(x: 0, y: 30, duration: 0.9), .fadeOut(withDuration: 0.9)]),
             .removeFromParent(),
         ]))
+    }
+
+    // MARK: - Roll verdicts (v6.74)
+
+    /// THE roll verdict: one word — "HIT" (gold) / "MISS" (muted) — floated
+    /// ON the item that rolled, never on the landed card. Held a beat longer
+    /// than the coin float (a 0.5s dwell over the shared 0.9s rise/fade) so
+    /// the outcome registers. Transform/opacity only, self-terminating, and
+    /// it rides floatLayer — one-shot SKActions pause with the scene under
+    /// any overlay, so the overlay-pause contract holds by construction.
+    private static let rollDwell: Double = 0.5
+    private func floatRollVerdict(_ hit: Bool, atPoint c: CGPoint) {
+        floatCue(hit ? "HIT" : "MISS", atPoint: c,
+                 color: hit ? CRT.gold : CRT.muted, dwell: Self.rollDwell)
+    }
+
+    /// Pile-centre fallback for a roll whose item anchor is missing.
+    public func rollVerdict(hit: Bool, atPile pile: Int) {
+        guard let c = pileCenters[pile] else { return }
+        floatRollVerdict(hit, atPoint: c)
+    }
+
+    /// A PILLAR roll's verdict, centred ON the column's pillar plaque
+    /// (Second Wind, Static, Flypaper, Gambler).
+    public func rollVerdictAtPillar(hit: Bool, col: Int) {
+        guard col >= 0, col < pillarPlaques.count, let parent = pillarPlaques[col].parent else { return }
+        let f = pillarPlaques[col].calculateAccumulatedFrame()
+        let pt = parent.convert(CGPoint(x: f.midX, y: f.midY), to: self)
+        floatRollVerdict(hit, atPoint: pt)
+    }
+
+    /// A STICKER roll's verdict, just right of the sticker chip on the pile's
+    /// top card (Saboteur, Malfunction) — the pile centre when the card
+    /// somehow shows no chip.
+    public func rollVerdictAtSticker(hit: Bool, pile: Int) {
+        guard pile >= 0, pile < piles.count else { return }
+        let f = piles[pile].stickerBadgeFrame
+        if f.isNull || f.isEmpty { rollVerdict(hit: hit, atPile: pile); return }
+        let pt = piles[pile].convert(CGPoint(x: f.maxX + 12, y: f.midY), to: self)
+        floatRollVerdict(hit, atPoint: pt)
+    }
+
+    /// A SAME-POWER roll's verdict, beside the HUD's Same-Power chip (Long
+    /// Odds). False when no chip is showing (Zen) so the caller falls back.
+    @discardableResult
+    public func rollVerdictAtSamePower(hit: Bool) -> Bool {
+        guard let f = hud.chipFrame("samePower") else { return false }
+        let pt = CGPoint(x: hud.position.x + f.midX, y: hud.position.y + f.midY)
+        floatRollVerdict(hit, atPoint: pt)
+        return true
     }
 
     /// Pulse a column's Pillar/Base plaque when its effect fires.
@@ -2063,6 +2147,12 @@ final class DealTopBar: SKNode {
     func chipId(at p: CGPoint) -> String? {
         for c in chips where c.frame.insetBy(dx: -4, dy: -4).contains(p) { return c.id }
         return nil
+    }
+
+    /// A chip's frame in bar-local space (v6.74: the roll verdict anchors to
+    /// the Same-Power chip). nil when that chip isn't showing.
+    func chipFrame(_ id: String) -> CGRect? {
+        chips.first { $0.id == id }?.frame
     }
 
     func sync(phaseIndex: Int, altSuits: Bool, phasesTotal: Int, showTrack: Bool,

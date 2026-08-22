@@ -80,6 +80,31 @@ public enum CampaignLayout {
 public let minRank = 2    // 2 is the floor for Decrease
 public let maxRank = 14   // Ace is the ceiling for Increase
 
+/// A SHOP-ROLLED value, locked for the climb (v6.76 archetype batch). Items
+/// carrying `shopRoll: "rank"/"suit"` (and optionally `shopRoll2`) in items.js
+/// roll their {rank}/{suit} the FIRST time they show on a shelf, hold it all
+/// climb, and hand it to the engine at deal time. `rank` is a card value
+/// (2…14); `suit` a suit symbol.
+public struct ShopRoll: Sendable, Equatable {
+    public var rank: Int?
+    public var suit: String?
+    public init(rank: Int? = nil, suit: String? = nil) { self.rank = rank; self.suit = suit }
+}
+
+extension ItemDef {
+    /// v6.76: this entry's shop-rolled axis ("rank" / "suit"), rolled at its
+    /// first shelf appearance of the climb; `shopRoll2` is the second axis
+    /// (Transmute's suit). Nil when the entry rolls nothing.
+    public var shopRoll: String? { raw["shopRoll"]?.asString }
+    public var shopRoll2: String? { raw["shopRoll2"]?.asString }
+    /// v6.76: the placement family tag — "sameTolerance" pillars share a
+    /// one-per-column rule, enforced by `CampaignState.canPlacePillar`.
+    public var family: String? { raw["family"]?.asString }
+    /// v6.76: which tolerance rule a sameTolerance pillar runs
+    /// ("near" / "royalPair" / "sum10" / "sameSuit").
+    public var tol: String? { raw["tol"]?.asString }
+}
+
 /// One shelf slot in a store offer.
 public struct StoreSlot: Sendable, Equatable {
     /// "sticker" | "pillar" | "base" | "pack" | "samepower" | "card" | "removal"
@@ -91,10 +116,18 @@ public struct StoreSlot: Sendable, Equatable {
     public var mystery: Bool
     /// The generated playing card, for the "card" class only.
     public var card: CardSpec?
+    /// SHOP-ROLLED VALUES (v6.76): the {rank}/{suit} a shopRoll item rolled at
+    /// OFFER time off the seeded store stream. Ride the slot (persisted in the
+    /// offer save) and transfer to the climb lock on purchase. Nil for items
+    /// that roll nothing.
+    public var rollRank: Int?
+    public var rollSuit: String?
     /// The shelf id a mystery Same-Power slot carries (names no registry entry).
     public static let mysteryId = "mystery"
-    public init(kind: String, id: String, mystery: Bool = false, card: CardSpec? = nil) {
+    public init(kind: String, id: String, mystery: Bool = false, card: CardSpec? = nil,
+                rollRank: Int? = nil, rollSuit: String? = nil) {
         self.kind = kind; self.id = id; self.mystery = mystery; self.card = card
+        self.rollRank = rollRank; self.rollSuit = rollSuit
     }
 }
 
@@ -170,11 +203,14 @@ public enum StoreRoll {
     /// from the shelf — a second Guardian you can't hold is a wasted slot.
     /// It takes the class key because ids are only unique within a class
     /// (the Pillar "revive" and the Base "revive" are different items).
+    /// `shopRolls` is the campaign's climb-lock map (v6.76, R2), mutated as
+    /// first-time rolls lock.
     public static func rollUnifiedSlots(_ rng: RNG, count: Int, data: GameData,
                                         isUnlocked: (ItemDef) -> Bool,
                                         isEquipped: ((String, String) -> Bool)? = nil,
                                         tierWeights: [String: Double]? = nil,
-                                        genCard: ((RNG) -> CardSpec?)?) -> [StoreSlot?] {
+                                        genCard: ((RNG) -> CardSpec?)?,
+                                        shopRolls: inout [String: ShopRoll]) -> [StoreSlot?] {
         let effectiveTierWeights = tierWeights ?? data.items.store.tierWeights
         let CW = data.items.store.classWeights
         let cap = data.items.store.typeCap
@@ -228,7 +264,10 @@ public enum StoreRoll {
                     else { continue }
                     if seenIds.contains("\(chosen.key).\(id)") { continue }
                     if (perType[slotTypeKey(chosen.key, id, data: data)] ?? 0) >= cap { continue }
-                    pick = StoreSlot(kind: chosen.key, id: id)
+                    var slot = StoreSlot(kind: chosen.key, id: id)
+                    applyShopRolls(&slot, def: chosen.types.first { $0.id == id }, rng: rng,
+                                   shopRolls: &shopRolls)
+                    pick = slot
                 }
             }
             guard let p = pick else { slots.append(nil); continue }   // unreachable in practice
@@ -240,19 +279,73 @@ public enum StoreRoll {
         return slots
     }
 
+    /// UNLOCKED variant (legacy/test callers): like the web's map-less path,
+    /// every offer re-rolls — the scratch lock dies with the call.
+    public static func rollUnifiedSlots(_ rng: RNG, count: Int, data: GameData,
+                                        isUnlocked: (ItemDef) -> Bool,
+                                        isEquipped: ((String, String) -> Bool)? = nil,
+                                        tierWeights: [String: Double]? = nil,
+                                        genCard: ((RNG) -> CardSpec?)?) -> [StoreSlot?] {
+        var scratch: [String: ShopRoll] = [:]
+        return rollUnifiedSlots(rng, count: count, data: data, isUnlocked: isUnlocked,
+                                isEquipped: isEquipped, tierWeights: tierWeights,
+                                genCard: genCard, shopRolls: &scratch)
+    }
+
+    /// SHOP-ROLLED VALUES (v6.76, R2): an item def carrying `shopRoll` (and
+    /// maybe `shopRoll2`) locks its rolled rank/suit the FIRST time it shows
+    /// on a shelf this climb. The draw comes off THIS seeded store stream —
+    /// exactly one draw per axis, in slot order, `shopRoll` before
+    /// `shopRoll2` — and ONLY while that axis is still unlocked (a locked
+    /// re-shelf consumes NO draw — the web's `roll == null` check). Either
+    /// way the value rides the slot, so a saved offer restores it as-shown.
+    static func applyShopRolls(_ slot: inout StoreSlot, def: ItemDef?, rng: RNG,
+                               shopRolls: inout [String: ShopRoll]) {
+        guard let def, def.shopRoll != nil else { return }
+        var lock = shopRolls[def.id] ?? ShopRoll()
+        if def.shopRoll == "rank" {
+            if lock.rank == nil { lock.rank = minRank + rng.index(maxRank - minRank + 1) }
+            slot.rollRank = lock.rank
+        } else if def.shopRoll == "suit" {
+            if lock.suit == nil { lock.suit = DeckManager.suits[rng.index(DeckManager.suits.count)].symbol }
+            slot.rollSuit = lock.suit
+        }
+        if def.shopRoll2 == "rank" {
+            if lock.rank == nil { lock.rank = minRank + rng.index(maxRank - minRank + 1) }
+            slot.rollRank = lock.rank
+        } else if def.shopRoll2 == "suit" {
+            if lock.suit == nil { lock.suit = DeckManager.suits[rng.index(DeckManager.suits.count)].symbol }
+            slot.rollSuit = lock.suit
+        }
+        shopRolls[def.id] = lock
+    }
+
     /// A fresh offering: `store.slots` class-first slots, reroll at base cost.
     /// When the Removal slot is on it permanently occupies the LAST slot.
     public static func freshOffer(_ rng: RNG, data: GameData, removalOn: Bool,
                                   isUnlocked: (ItemDef) -> Bool,
                                   isEquipped: ((String, String) -> Bool)? = nil,
                                   tierWeights: [String: Double]? = nil,
-                                  genCard: ((RNG) -> CardSpec?)?) -> StoreOffer {
+                                  genCard: ((RNG) -> CardSpec?)?,
+                                  shopRolls: inout [String: ShopRoll]) -> StoreOffer {
         let rolled = removalOn ? data.items.store.slots - 1 : data.items.store.slots
         var slots = rollUnifiedSlots(rng, count: rolled, data: data, isUnlocked: isUnlocked,
                                      isEquipped: isEquipped, tierWeights: tierWeights,
-                                     genCard: genCard)
+                                     genCard: genCard, shopRolls: &shopRolls)
         if removalOn { slots.append(StoreSlot(kind: "removal", id: "removal")) }
         return StoreOffer(slots: slots, rerollCost: data.items.store.reroll.baseCost)
+    }
+
+    /// UNLOCKED variant — see the rollUnifiedSlots overload.
+    public static func freshOffer(_ rng: RNG, data: GameData, removalOn: Bool,
+                                  isUnlocked: (ItemDef) -> Bool,
+                                  isEquipped: ((String, String) -> Bool)? = nil,
+                                  tierWeights: [String: Double]? = nil,
+                                  genCard: ((RNG) -> CardSpec?)?) -> StoreOffer {
+        var scratch: [String: ShopRoll] = [:]
+        return freshOffer(rng, data: data, removalOn: removalOn, isUnlocked: isUnlocked,
+                          isEquipped: isEquipped, tierWeights: tierWeights,
+                          genCard: genCard, shopRolls: &scratch)
     }
 }
 

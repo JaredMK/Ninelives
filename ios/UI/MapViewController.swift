@@ -71,11 +71,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private var scrollLock: CGFloat = 0
     private var traveling = false
     private var layoutX: [Int: CGFloat] = [:]   // buildMapLayout cache
-    /// HINT ROTATION (v6.68): the egg line re-rolls on every reveal instead of
-    /// freezing on one line per app session (the old `static let eggSalt`
-    /// never changed while the app stayed alive, so one hint stuck for days).
-    /// `lastShownHintIndex` is static so "never the same hint twice in a row"
-    /// survives the per-run map rebuild.
+    /// ONE HINT PER CLIMB (v6.74): the egg line is rolled from the run seed,
+    /// so every rubber-band peek in a climb shows the SAME line and a new
+    /// climb deals a new one. `lastShownHintIndex` stays static so the new
+    /// climb's roll never repeats the line the previous climb showed.
     private static var lastShownHintIndex: Int?
     /// The hint currently loaded into the egg label.
     private var eggHintIndex = -1
@@ -227,17 +226,19 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                                 y: height + 16, width: eggW, height: eggH)
     }
 
-    /// Load the next egg hint: random, but never the one the player last
-    /// actually SAW (fully faded in) — so consecutive peeks always differ.
+    /// Load this climb's egg hint: seeded by `runSeed`, so it is stable for
+    /// the whole climb (every peek shows the same line) and a fresh climb —
+    /// a fresh seed — deals a fresh one. The +1 bump off the last climb's
+    /// line keeps "new climb → new hint" when the raw seeds collide.
     private func rollEggHint() {
         let hints = GameData.shared.tutorial.mapHints
         guard !hints.isEmpty else { eggLabel.text = ""; return }
-        var pool = Array(hints.indices)
-        if hints.count > 1, let last = MapViewController.lastShownHintIndex {
-            pool.removeAll { $0 == last }
+        var idx = Int(campaign.runSeed % UInt32(hints.count))
+        if hints.count > 1, idx == MapViewController.lastShownHintIndex {
+            idx = (idx + 1) % hints.count
         }
-        eggHintIndex = pool.randomElement() ?? 0
-        eggLabel.text = hints[eggHintIndex]
+        eggHintIndex = idx
+        eggLabel.text = hints[idx]
         frameEggLabel()
     }
 
@@ -717,8 +718,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         // UNLOCK2: finding the tip counts — but ONCE per climb, so the gate
         // rewards looking again on a new run rather than one long rubber-band.
         if eggLabel.alpha >= 1 {
-            // HINT ROTATION (v6.68): this hint is now SEEN — remember it so
-            // no roll ever repeats it back-to-back.
+            // ONE HINT PER CLIMB (v6.74): remember the shown line so the NEXT
+            // climb's seeded roll never repeats it back-to-back.
             MapViewController.lastShownHintIndex = eggHintIndex
             eggShownThisPeek = true
             if !tipCountedThisRun {
@@ -726,8 +727,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                 if !campaign.isExhibition() { campaign.stats.bump("pinkyTipsSeen") }
             }
         } else if over <= 0, eggShownThisPeek {
-            // The peek ended (egg fully hidden again): load a fresh hint while
-            // nobody's looking, so the NEXT rubber-band shows a different one.
+            // The peek ended (egg fully hidden again): reload while nobody's
+            // looking — the seeded roll returns this climb's SAME line.
             eggShownThisPeek = false
             rollEggHint()
         }

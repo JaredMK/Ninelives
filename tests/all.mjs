@@ -77,6 +77,7 @@ import { run as crt2 } from "./crt2.test.mjs";
 import { run as crt3 } from "./crt3.test.mjs";
 import { run as crt4 } from "./crt4.test.mjs";
 import { run as crt5 } from "./crt5.test.mjs";
+import { run as archetypeV676 } from "./archetype-v676.test.mjs";
 
 const SUITES = [
   ["tie-rule", tieRule],
@@ -154,6 +155,7 @@ const SUITES = [
   ["crt3", crt3],
   ["crt4", crt4],
   ["crt5", crt5],
+  ["archetype-v676", archetypeV676],
 ];
 
 let pass = 0,

@@ -275,8 +275,10 @@ public final class DealController {
                                  samePower: samePower,
                                  samePowerVariant: campaign.samePowerVariant(samePower),
                                  pillarRankVariants: campaign.pillarRankVariants,
+                                 shopRolls: campaign.shopRolls,
                                  noStickers: campaign.rules().noStickers))
         engine.on { [weak self] in self?.handle($0) }
+        engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
         DebugEventLog.shared.resetEngineCursor()
@@ -287,7 +289,7 @@ public final class DealController {
         scene.slotsVisible = true   // debug deals are campaign-shaped
         scene.isZen = false
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
-        scene.setPillars(pillars, bases: bases)
+        scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits)
         refreshAll()
         startCascade()
     }
@@ -316,12 +318,20 @@ public final class DealController {
                                  samePower: samePower,
                                  samePowerVariant: campaign.samePowerVariant(samePower),
                                  pillarRankVariants: campaign.pillarRankVariants,
+                                 // SHOP-ROLLED values (v6.76, R2): the climb-locked
+                                 // {rank}/{suit} every shopRoll item agreed on at the
+                                 // shelf — the deal reads them from here.
+                                 shopRolls: isZen ? [:] : campaign.shopRolls,
                                  noStickers: campaign.rules().noStickers,
                                  // Escape Hatch gates on this…
                                  isAmbush: p.isAmbush,
                                  // …and Last Resort seals itself on this.
                                  isBoss: p.isBoss))
         engine.on { [weak self] in self?.handle($0) }
+        // PAUPER family (v6.76): the engine reads the LIVE campaign purse through
+        // this closure — never a snapshot (captures the shared campaign, not self,
+        // so no retain cycle).
+        engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
         engine.start(seedOverride: p.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
         DebugEventLog.shared.resetEngineCursor()
@@ -351,7 +361,7 @@ public final class DealController {
         // here): hold the assist glow until the cascade lands.
         assistGate.dealOutStarted()
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
-        scene.setPillars(pillars, bases: bases)
+        scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits)
         refreshAll()
         onCheckpoint?(self)   // "run" durability point: a kill now resumes this deal
         if restoredMidDeal {
@@ -563,7 +573,8 @@ public final class DealController {
                 guard let self else { done(); return }
                 self.scene.floatCueAtPillar("DESTROYED", col: col, color: CRT.suitRed)
                 self.scene.setPillars(self.isZen ? [] : self.campaign.columnPillars,
-                                      bases: self.isZen ? [] : self.campaign.columnBases)
+                                      bases: self.isZen ? [] : self.campaign.columnBases,
+                                      dailySuits: self.engine?.run.dailySuits ?? nil)
                 done()
             }
 
@@ -671,6 +682,10 @@ public final class DealController {
             // Any sticker the power put on a board card is written through to
             // the CAMPAIGN card, so it survives the deal (Sticker Spray).
             for s in res.stickersApplied { _ = campaign.applySticker(s.cardId, s.typeId) }
+            // RANK FLOOD (v6.76): the permanent rank rewrites ride the same
+            // durable-write contract as a Base's valueApplied (Chorus, Rank
+            // Setter) — without this they vanished when the deal ended.
+            for r in res.rankApplied { _ = campaign.randomizeCard(r.cardId, to: r.value) }
             // A coin-granting power (linkCoins: +value per alive pile) carries
             // its total in res.amount — float the grant on the hub so it pops
             // like every other coin source (v6.57 resource pops).
@@ -695,11 +710,13 @@ public final class DealController {
             flySecondWindKiller(drawn: drawn, to: index)
 
         case .rollResult(let r):
-            // v6.57 probability feedback: every item %-roll announces its
-            // outcome AT the pile/column it concerned — a one-shot float, hit
-            // AND miss (on a hit the effect's own cue follows; on a miss this
-            // is the whole story). Priority 0 keeps the engine's emission
-            // order: the roll reports BEFORE its effect's cue.
+            // v6.57 probability feedback, relocated v6.74: every item %-roll
+            // announces its outcome ON THE ITEM that rolled (the pillar
+            // plaque / the sticker chip / the HUD power chip) — a one-shot
+            // one-word verdict, hit AND miss (on a hit the effect's own cue
+            // follows; on a miss this is the whole story). Priority 0 keeps
+            // the engine's emission order: the roll reports BEFORE its
+            // effect's cue.
             //
             // A COLUMN-ONLY roll (no pile) is a deal-end scoring flip
             // (Gambler). The live-bonus read recomputes the scoring payout on
@@ -897,7 +914,8 @@ public final class DealController {
             if isCampaign, let dcol = res.demolishedCol {
                 campaign.setColumnPillar(col: dcol, typeId: nil)
                 if let old = res.demolishedPillar { _ = campaign.discardPillarFromInventory(old) }
-                scene.setPillars(campaign.columnPillars, bases: campaign.columnBases)
+                scene.setPillars(campaign.columnPillars, bases: campaign.columnBases,
+                                 dailySuits: engine?.run.dailySuits ?? nil)
             }
         case "shuffleColumn", "evenOut":
             // A column being reshuffled is still a SHUFFLE — the riffle's
@@ -930,7 +948,9 @@ public final class DealController {
             }
         case "emptyPurse":
             // The purse is campaign state — drained here, shown draining.
-            let spent = campaign.getCoins()
+            // Drain EXACTLY what the engine counted with (v6.74), so the
+            // spend can never disagree with the peek count.
+            let spent = res.purseSpent ?? campaign.getCoins()
             if spent > 0 {
                 _ = campaign.spendCoins(spent)
                 Sound.shared.coinLoss()   // coins leaving must fall (sound audit)
@@ -946,15 +966,49 @@ public final class DealController {
                 for c in victims where campaign.columnBase(c) != nil {
                     campaign.setColumnBase(col: c, typeId: nil)
                 }
-                scene.setPillars(campaign.columnPillars, bases: campaign.columnBases)
+                scene.setPillars(campaign.columnPillars, bases: campaign.columnBases,
+                                 dailySuits: engine?.run.dailySuits ?? nil)
             }
             if let target = res.index {
                 Sound.shared.bury()
                 scene.buryTuck(at: target, count: min(8, res.buried ?? 0))
             }
-        case "setValue", "setSuit":
+        case "setValue", "setSuit", "chorus":
             for i in pilesInColumn(res.col) where engine.board.isActive(i) {
                 scene.goodPulse(at: i)
+            }
+        case "sacrifice":
+            // The pile dies WITH its top card purged from the deck for good —
+            // the same immediate-death idiom Kamikaze uses, then the durable
+            // write-back below strikes the identity from the campaign deck.
+            Sound.shared.pileDestroyed()
+            if let i = res.index { scene.playImmediateDeath(at: i) }
+        case "devilsDeal":
+            // The bonus doubling floats through the generic `gained` path
+            // above; here the curse's arrival gets its sticker cue + pulse.
+            if let s = res.stickerApplied {
+                Sound.shared.sticker()
+                scene.goodPulse(at: s.pileIndex)
+            }
+        case "cleanseColumn":
+            // Each peel already announced itself through `.cursePeeled` (the
+            // durable write-back rides that event) — the plaque pulse and the
+            // count are the whole summary.
+            if let n = res.cleansed, n > 0, let p = firstPile(inColumn: res.col) {
+                scene.floatCue("CLEANSED ×\(n)", at: p, color: CRT.phosphor)
+            }
+        case "diamondBoost":
+            if let i = res.index { scene.goodPulse(at: i) }
+        case "purgeDiscount":
+            // A store-side lever fired from a board plaque — nothing on the
+            // board changes, so say out loud what it did (the write-back
+            // below applies it to the campaign's Purge pricing).
+            if let cut = res.purgePriceCut, let floor = res.purgePriceFloor {
+                Sound.shared.coinBonus()
+                let desc = currentBaseId(res.col)
+                    .flatMap { GameData.shared.baseTypes.get($0) }?.description
+                onBaseNotice?("Purge Coupon: the store's Purge costs ◉ \(cut) less for the rest of the climb (never below ◉ \(floor)).",
+                              desc ?? "A store-side lever — nothing changes on this board.")
             }
         default:
             break
@@ -964,7 +1018,22 @@ public final class DealController {
         if isCampaign {
             for v in res.valueApplied ?? [] { _ = campaign.randomizeCard(v.cardId, to: v.value) }
             for s in res.suitApplied ?? [] { _ = campaign.setCardSuit(s.cardId, to: s.suit) }
-            if let s = res.stickerApplied { _ = campaign.applySticker(s.cardId, s.typeId) }
+            if let s = res.stickerApplied {
+                // DEVIL'S DEAL (v6.76): the curse is ENGINE-granted (rolled off
+                // the shared curse pool) — it never passed through the sticker
+                // inventory, so the write-back must not consume one
+                // (applyStickerDirect — the Flypaper contract, v6.55).
+                if res.effect == "devilsDeal" { _ = campaign.applyStickerDirect(s.cardId, s.typeId) }
+                else { _ = campaign.applySticker(s.cardId, s.typeId) }
+            }
+            // SACRIFICE (v6.76): the purged top card leaves the campaign deck
+            // permanently — the pile's death above was only the board half.
+            if let purged = res.purgedCardId { _ = campaign.removeDeckCard(purged) }
+            // PURGE COUPON (v6.76): the climb-permanent Purge price cut — the
+            // campaign owns all pricing; the floor re-derives from the def.
+            if let cut = res.purgePriceCut {
+                campaign.addPurgeDiscount(cut)
+            }
             onCheckpoint?(self)
         }
         // A Base that pays (Heart Tax, Heart Demolish …) has already folded its
@@ -1344,20 +1413,31 @@ public final class DealController {
         }
     }
 
-    // MARK: - Roll indicators (v6.57 probability feedback)
+    // MARK: - Roll indicators (v6.57 probability feedback, relocated v6.74)
 
-    /// "Label N% — HIT" (gold) / "…— MISS" (muted), floated one-shot at the
-    /// pile the roll concerned — or its column's Pillar plaque when the roll
-    /// is column-scoped (Second Wind's verdict, Gambler's end-of-deal flip).
-    /// Priority 0 preserves the engine's emission order through the animation
-    /// queue: the roll reports BEFORE its effect's own cue.
+    /// The verdict moved OFF the landed card/pile float and ONTO THE ITEM
+    /// that rolled (v6.74): a PILLAR roll centres on the column's pillar
+    /// plaque (Second Wind, Static, Flypaper, Gambler), a STICKER roll sits
+    /// beside the sticker chip on its card (Saboteur, Malfunction), a
+    /// SAME-POWER roll sits beside the HUD power chip (Long Odds). One word
+    /// — "HIT" (gold) / "MISS" (muted) — held a beat longer than the coin
+    /// float. Priority 0 preserves the engine's emission order through the
+    /// animation queue: the roll reports BEFORE its effect's own cue.
     private func floatRollIndicator(_ r: RollResult) {
-        let pct = Int((r.chance * 100).rounded())
-        let text = "\(r.label) \(pct)% — \(r.hit ? "HIT" : "MISS")"
-        let color = r.hit ? CRT.gold : CRT.muted
         animQueue.add(priority: 0) { [weak self] done in
-            if let i = r.index { self?.scene.floatCue(text, at: i, color: color) }
-            else if let c = r.col { self?.scene.floatCueAtPillar(text, col: c, color: color) }
+            guard let self else { done(); return }
+            switch r.klass {
+            case "sticker":
+                if let i = r.index { self.scene.rollVerdictAtSticker(hit: r.hit, pile: i) }
+                else if let c = r.col { self.scene.rollVerdictAtPillar(hit: r.hit, col: c) }
+            case "samePower":
+                if !self.scene.rollVerdictAtSamePower(hit: r.hit), let i = r.index {
+                    self.scene.rollVerdict(hit: r.hit, atPile: i)
+                }
+            default:   // "pillar"
+                if let c = r.col { self.scene.rollVerdictAtPillar(hit: r.hit, col: c) }
+                else if let i = r.index { self.scene.rollVerdict(hit: r.hit, atPile: i) }
+            }
             done()
         }
     }
@@ -1365,14 +1445,15 @@ public final class DealController {
     // MARK: - Screenshot staging (DealFeedbackUITests' hooks, v6.57)
 
     /// `-demoRollFX hit|miss`: ONE roll indicator through the real
-    /// presentation path (pile-scoped), since simctl can't make a genuine
-    /// 10%/50% roll land on cue — the `-demoCurseFX` precedent.
+    /// presentation path (v6.74: ON the item — the pillar plaque / the
+    /// sticker chip), since simctl can't make a genuine 10%/50% roll land on
+    /// cue — the `-demoCurseFX` precedent.
     public func debugStageRollIndicator(hit: Bool) {
         floatRollIndicator(hit
             ? RollResult(id: "static", label: "Static", klass: "pillar",
-                         chance: 0.5, hit: true, index: 1)
+                         chance: 0.5, hit: true, index: 1, col: 0)
             : RollResult(id: "saboteur", label: "Saboteur", klass: "sticker",
-                         chance: 0.1, hit: false, index: 2))
+                         chance: 0.1, hit: false, index: 2, col: 2))
     }
 
     /// `-demoSuitCounts 1`: push the WORST-CASE suit tallies ("13/27" —
@@ -1494,13 +1575,39 @@ public final class DealController {
         // random-picks a dead pile in its own column, so it takes the plain
         // confirm below. Demolish lost its pick in v6.51 (own column only).
         if def.target == "pile" {
-            let targets = baseTargetPiles(col: col)
+            var targets = baseTargetPiles(col: col)
+            // v6.76 archetype bases: the pick list offers only piles the engine
+            // itself would accept — a pile the effect can't touch is never
+            // highlighted (Diamond Boost's ♦-top gate is validated engine-side
+            // too; Devil's Deal would otherwise silently curse the FIRST
+            // eligible pile when the pick was a joker/blank top).
+            switch def.effect {
+            case "diamondBoost":
+                targets = targets.filter { engine.board.top($0)?.suit == "♦" }
+            case "devilsDeal":
+                targets = targets.filter {
+                    guard let t = engine.board.top($0) else { return false }
+                    return !t.joker && !t.blank
+                }
+            default: break
+            }
+            let prompt: String
+            switch def.effect {
+            case "sacrifice":
+                prompt = "Sacrifice: tap a pile — its top card leaves your deck for good, and the pile dies."
+            case "diamondBoost":
+                prompt = "Diamond Boost: tap a ♦-topped pile — +\(def.int("value", 3)) pile size."
+            case "devilsDeal":
+                prompt = "Devil's Deal: tap a top card to take the curse."
+            default:
+                prompt = "\(def.label): tap a pile in this column."
+            }
             guard !targets.isEmpty, let handler = onBaseTarget else {
                 onBaseNotice?("\(def.label) has nothing to target.", def.description)
                 return
             }
             promptActive = true
-            handler(targets, "\(def.label): tap a pile in this column.") { [weak self] target in
+            handler(targets, prompt) { [weak self] target in
                 guard let self else { return }
                 self.promptActive = false
                 if let target { _ = self.engine.baseActivate(col: col, targetIndex: target) }
@@ -1510,15 +1617,18 @@ public final class DealController {
         }
 
         guard let handler = onBasePrompt else {
-            _ = engine.baseActivate(col: col)
+            _ = engine.baseActivate(col: col, purseCoins: campaign.getCoins())
             refreshAll()
             return
         }
         promptActive = true
         var confirmDesc = def.description
         if def.effect == "emptyPurse" {
-            // The cost, brutally clear: the exact number about to vanish.
-            confirmDesc += "\nThis spends ALL your coins: ◉ \(campaign.getCoins()). Every one."
+            // v6.74: the yield AND the cost, brutally clear — the exact peek
+            // count and the exact number about to vanish, both computed live.
+            let purse = campaign.getCoins()
+            let peeks = 1 + purse / 10
+            confirmDesc += "\nPeek \(peeks) card\(peeks == 1 ? "" : "s"). This spends ALL your coins: ◉ \(purse). Every one."
         }
         if def.effect == "setValue" || def.effect == "setSuit" {
             // Live preview: the exact count about to change, and to what —
@@ -1539,7 +1649,7 @@ public final class DealController {
         handler(def.label, confirmDesc) { [weak self] in
             guard let self else { return }
             self.promptActive = false
-            _ = self.engine.baseActivate(col: col)
+            _ = self.engine.baseActivate(col: col, purseCoins: self.campaign.getCoins())
             self.refreshAll()
         }
     }
@@ -1636,7 +1746,13 @@ public final class DealController {
         guard let id = pillarId(for: col), let def = GameData.shared.pillarTypes.get(id) else { return nil }
         // The column rides the NAME (router batch) — "Applies to column N"
         // read like a second sentence of rules.
-        return ("\(def.label) · column \(col + 1)", campaign.itemDescription(def))
+        var body = campaign.itemDescription(def)
+        // DAILY SUIT (v6.76): the registry copy says a suit is rolled per
+        // deal — the hold names THIS deal's roll (the plaque shows it).
+        if def.effect == "suitShieldDaily", let suit = engine?.run.dailySuits?[col] {
+            body += "\nThis deal shields \(suit)."
+        }
+        return ("\(def.label) · column \(col + 1)", body)
     }
 
     /// The Base plaque's hold-help (the web's basePeekHtml): name + effect and

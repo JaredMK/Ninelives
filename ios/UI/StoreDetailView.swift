@@ -21,6 +21,9 @@ final class StoreDetailView: UIView {
     private let captionLabel = UILabel()
     private let tierLabel = UILabel()
     private let nameLabel = UILabel()
+    /// The SHOP-ROLLED line (v6.76, R2): the climb-locked {rank}/{suit} this
+    /// item carries, named BEFORE the buy — a shopRoll item is never blind.
+    private let rolledLabel = UILabel()
     private let descLabel = UILabel()
     private let placeDivider = UIView()
     private let placeHeader = UILabel()
@@ -50,6 +53,12 @@ final class StoreDetailView: UIView {
     /// REVEAL mode: the read-only answer to a mystery buy — no buy, no sell,
     /// no ✕; Keep/Discard rides the host's prompt bar.
     private let isReveal: Bool
+    /// The climb-locked shop roll this item carries (v6.76) — from the shelf
+    /// slot (offer view) or the campaign lock (equipped view).
+    private let shopRoll: ShopRoll?
+    /// A placement column the family rule (v6.76) rejects — the store shows
+    /// the engine's reason string.
+    var onBlocked: ((String) -> Void)?
 
     /// Offer detail.
     init(campaign: CampaignState, slot: Int, storeSlot s: StoreSlot) {
@@ -60,6 +69,10 @@ final class StoreDetailView: UIView {
         self.isEquippedView = false
         self.isMystery = s.mystery
         self.isReveal = false
+        // The slot's rolled values ARE the climb lock's (openStore reconciled
+        // them) — the detail quotes the same numbers the tile did.
+        self.shopRoll = (s.rollRank != nil || s.rollSuit != nil)
+            ? ShopRoll(rank: s.rollRank, suit: s.rollSuit) : nil
         super.init(frame: .zero)
         price = Int(campaign.priceOfMixed(slot))
         // There is only ONE Same slot, so asking which one to use was a step
@@ -80,6 +93,7 @@ final class StoreDetailView: UIView {
         self.isEquippedView = true
         self.isMystery = false
         self.isReveal = false
+        self.shopRoll = campaign.shopRolls[id]
         super.init(frame: .zero)
         common()
         refresh()
@@ -99,6 +113,7 @@ final class StoreDetailView: UIView {
         self.isEquippedView = false
         self.isMystery = false
         self.isReveal = true
+        self.shopRoll = nil
         super.init(frame: .zero)
         common()
         refresh()
@@ -129,7 +144,7 @@ final class StoreDetailView: UIView {
         objView.contentMode = .scaleAspectFit
         objView.layer.magnificationFilter = .nearest
         panel.addSubview(objView)
-        for l in [captionLabel, tierLabel, nameLabel, descLabel, placeHeader, questionLabel] {
+        for l in [captionLabel, tierLabel, nameLabel, rolledLabel, descLabel, placeHeader, questionLabel] {
             l.numberOfLines = 0
             l.textAlignment = .center
             panel.addSubview(l)
@@ -203,14 +218,18 @@ final class StoreDetailView: UIView {
 
     private func refresh() {
         let data = GameData.shared
+        // The SHOP-ROLLED line (v6.76, R2): one gold line under the name,
+        // whichever branch draws the rest — nil for anything that never
+        // rolls. Suits render as pixel pips through CRTKit's substitution.
+        rolledLabel.attributedText = shopRollLine()
         // Object + identity. The caption rides ONLY the objects whose web
         // component carries live name text (pack `.pf-name`, Removal `.ro-lab`).
         switch kind {
         case "card":
             // Drawn WITH its sticker chips (v6.72): the canonical top-right
             // corner fan (StickerChipLayout, master comment in
-            // PileNode.swift) — the description says "Comes with …", the
-            // face shows it.
+            // PileNode.swift) — and the text below names each one with its
+            // registry description (v6.74, the shared CardInfo grammar).
             objView.image = card.map {
                 $0.stickers.isEmpty
                     ? CardArt.image(CardArt.Face($0), scale: .three)
@@ -218,23 +237,20 @@ final class StoreDetailView: UIView {
             }
             let name: String
             if let c = card {
-                name = c.joker ? "★ Joker"
-                    : "\(DeckManager.ranks.first { r in r.value == c.currentRank }?.label ?? "?") \(c.suit)"
+                name = CardInfo.title(for: c)
             } else {
                 name = "Card"
             }
-            nameLabel.attributedText = CRTKit.attributed(name, size: 14, color: CRT.cardFace, display: true)
+            // RANK+SUIT LARGEST (v6.74): the card title sits on the heading
+            // step (20) — the one place the detail's name line grows.
+            nameLabel.attributedText = CardInfo.attributed(title: name, titleColor: CRT.cardFace)
             captionLabel.attributedText = nil
             tierLabel.attributedText = nil
-            var desc = card?.joker == true
+            let desc = card?.joker == true
                 ? "A Joker. Always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
                 : data.items.store.card.description
-            if let stks = card?.stickers, !stks.isEmpty {
-                let names = stks.compactMap { data.stickerTypes.get($0.type)?.label }.joined(separator: ", ")
-                desc += " Comes with \(names)."
-            }
-            descLabel.attributedText = CRTKit.attributed(desc, size: 14,
-                                                         color: CRT.cardFace.withAlphaComponent(0.86))
+            descLabel.attributedText = CardInfo.attributed(
+                body: desc, rows: card.map { CardInfo.rows(for: $0) } ?? [])
         case "samepower" where isMystery:
             // The MYSTERY slot: unknown-item art, the config label as the
             // name, the config description — no registry def exists yet.
@@ -302,8 +318,22 @@ final class StoreDetailView: UIView {
                     let cur = occ[c].flatMap { reg.get($0)?.label }
                     let b = ColButton(name: "COL \(c + 1)", occupant: cur, selected: placeCol == c,
                                       a11y: "C\(c + 1)·\(cur.map { String($0.prefix(6)) } ?? "empty")".uppercased())
-                    b.onTap = { [weak self] in self?.pick(col: c) }
-                    b.setAwaiting(awaiting)
+                    // SAME-TOLERANCE family (v6.76): ONE per column, enforced
+                    // engine-side at placement — the chooser greys a rejected
+                    // column (the same-id swap-back stays legal, per
+                    // canPlacePillar) and a tap says WHY instead of charging
+                    // the player and bouncing the placement.
+                    let blocked = kind == "pillar" && !campaign.canPlacePillar(itemId, col: c).ok
+                    if blocked {
+                        b.setBlocked(true)
+                        b.onTap = { [weak self] in
+                            let reason = self?.campaign.canPlacePillar(self?.itemId ?? "", col: c).reason
+                            self?.onBlocked?(reason ?? "That column can't take this pillar.")
+                        }
+                    } else {
+                        b.onTap = { [weak self] in self?.pick(col: c) }
+                    }
+                    b.setAwaiting(awaiting && !blocked)
                     panel.addSubview(b)
                     colButtons.append(b)
                 }
@@ -317,6 +347,19 @@ final class StoreDetailView: UIView {
     private func pick(col: Int) {
         placeCol = col
         refresh()
+    }
+
+    /// The climb-locked {rank}/{suit} as the detail's gold line: "Rolled this
+    /// climb: 9s" / "…: 9s → ♠". Rank labels come from the registry.
+    private func shopRollLine() -> NSAttributedString? {
+        guard let roll = shopRoll else { return nil }
+        var text = ""
+        if let r = roll.rank {
+            text = (DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)") + "s"
+        }
+        if let suit = roll.suit { text += text.isEmpty ? suit : " → \(suit)" }
+        guard !text.isEmpty else { return nil }
+        return CRTKit.attributed("Rolled this climb: \(text)", size: 14, color: CRT.gold)
     }
 
     /// The id the current pick would DISPLACE (occupied slot / equipped Same).
@@ -429,6 +472,10 @@ final class StoreDetailView: UIView {
         let nameH = max(18, heightOf(nameLabel, width: cw))
         nameLabel.frame = CGRect(x: m, y: y, width: cw, height: nameH)
         y += nameH + 3
+        if rolledLabel.attributedText != nil {
+            rolledLabel.frame = CGRect(x: m, y: y, width: cw, height: 16)
+            y += 19
+        }
         let descH = heightOf(descLabel, width: cw)
         descLabel.frame = CGRect(x: m, y: y, width: cw, height: descH)
         y += descH + 8
@@ -492,9 +539,11 @@ final class StoreDetailView: UIView {
     }
 
     private func heightOf(_ l: UILabel, width: CGFloat) -> CGFloat {
-        guard let t = l.attributedText, t.length > 0 else { return 0 }
-        return ceil(t.boundingRect(with: CGSize(width: width, height: 600),
-                                   options: .usesLineFragmentOrigin, context: nil).height)
+        guard l.attributedText != nil else { return 0 }
+        // sizeThatFits, never boundingRect: VT323's real line height runs
+        // taller than its measured fragments (v6.20), so a boundingRect-sized
+        // frame clips the last line.
+        return ceil(l.sizeThatFits(CGSize(width: width, height: 600)).height)
     }
 }
 
@@ -505,6 +554,7 @@ final class StoreDetailView: UIView {
 private final class ColButton: UIControl {
     private let nameL = UILabel()
     private let occL = UILabel()
+    private var occupant: String?
     /// The "pick me" ring shown while NO column is chosen yet — the same
     /// phosphor pulse the tutorial ring and the map's current node use, so the
     /// column step reads as the live affordance the way a sticker's PLACE bar
@@ -514,6 +564,7 @@ private final class ColButton: UIControl {
 
     init(name: String, occupant: String?, selected: Bool, a11y: String) {
         super.init(frame: .zero)
+        self.occupant = occupant
         layer.borderWidth = CRT.px
         ring.isUserInteractionEnabled = false
         ring.layer.borderWidth = 2
@@ -547,6 +598,15 @@ private final class ColButton: UIControl {
     func set(_ sel: Bool) {
         layer.borderColor = (sel ? CRT.phosphor : CRT.ink).cgColor
         backgroundColor = sel ? CRT.phosphor.withAlphaComponent(0.16) : CRT.feltDeep
+    }
+
+    /// Blocked by a placement rule (v6.76 sameTolerance family): dimmed, the
+    /// occupant named in suit-red — still tappable, so the tap can say WHY.
+    func setBlocked(_ on: Bool) {
+        alpha = on ? 0.55 : 1
+        if on {
+            occL.attributedText = CRTKit.attributed(occupant ?? "blocked", size: 14, color: CRT.suitRed)
+        }
     }
 
     /// Pulse while the placement is still waiting on a column. Compositor-only

@@ -1,14 +1,15 @@
 import XCTest
 @testable import GameCore
 
-/// MAP CARD STICKERS + the loot-badge geometry (v6.68).
+/// PACK CARD STICKERS + STARTING-DECK PURITY + the loot-badge geometry.
 ///
-/// Stickers: every FACE-UP card on the map — a +1 pickup node's locked card
-/// and each card of a revealed +2 pack's committed pair — rolls the map
-/// distribution the moment it locks: 75% bare / 20% one / 4% two / 1% three,
-/// and each rolled sticker is a CURSE 5% of the time (the shared weighted
+/// Stickers (v6.73): NOTHING on the map dresses — +1 pickup faces and
+/// revealed +2 pairs ride bare. Only a SEALED pack's contents roll as they
+/// are granted, off the items.js `packStickerOdds` table (75% bare / 20% one
+/// / 4% two / 1% three — v6.74: read from the data file, not hardcoded), and
+/// each rolled sticker is a CURSE 5% of the time (the shared weighted
 /// `rollCurse` pick, path "map"). The roll rides its own keyed substream
-/// (runSeed, "mapsticker", nodeId[, slot]) so a reload replays exactly.
+/// (runSeed, "packsticker", nodeId, slot) so a reload replays exactly.
 /// Deck overrides: Mr. Garden (stickerEverything) keeps his coat — the
 /// distribution never stacks on top; Rocko (noStickers) takes no stickers
 /// of any kind from this feature.
@@ -24,6 +25,12 @@ final class MapCardStickerTests: XCTestCase {
     private func climb(_ deck: String, seed: UInt32) -> CampaignState {
         let c = CampaignState(store: MemoryStore())
         c.setDeck(deck); c.setSeedOverride(seed); c.reset()
+        return c
+    }
+
+    private func climb(_ deck: String, tier: String, seed: UInt32) -> CampaignState {
+        let c = CampaignState(store: MemoryStore())
+        c.setDeck(deck); c.setTier(tier); c.setSeedOverride(seed); c.reset()
         return c
     }
 
@@ -171,6 +178,101 @@ final class MapCardStickerTests: XCTestCase {
             for (key, card) in cards {
                 XCTAssertTrue(card.stickers.isEmpty,
                               "seed \(seed) \(key): Rocko map card carries \(card.stickers.map(\.type))")
+            }
+        }
+    }
+
+    // MARK: - Starting-deck purity (v6.74) — per character, both tiers, seed sweep
+
+    /// The v6.73 map-card leak is gone: a FRESH climb's starting hand must
+    /// open exactly as the deck's rules say — and no deck's rules dress the
+    /// starting hand except Mr. Garden's coat. Swept per character × tier ×
+    /// seed so a leak that needs a specific roll can't slip through.
+    private let startingDeckSeeds: [UInt32] = [1, 7, 42, 555, 4242, 987_654, 20_260_820, 3_000_000_001]
+    private let bothTiers = ["regular", "legendary"]
+
+    func testPlainDecksStartWithZeroStickersAndZeroCurses() {
+        for deck in ["pink", "mamma", "slyrex", "rocko"] {
+            for tier in bothTiers {
+                for seed in startingDeckSeeds {
+                    let c = climb(deck, tier: tier, seed: seed)
+                    let hand = c.getRunDeck()
+                    XCTAssertFalse(hand.isEmpty, "\(deck)/\(tier) seed \(seed): no starting hand")
+                    for card in hand {
+                        XCTAssertTrue(card.stickers.isEmpty,
+                                      "\(deck)/\(tier) seed \(seed): starting card \(card.id) "
+                                      + "carries \(card.stickers.map(\.type))")
+                    }
+                    // The draft POOL behind the hand stays clean too — the
+                    // pre-v6.73 leak dressed unclaimed pool cards at
+                    // generation, which is how a stickered start happened.
+                    for card in c.baseDeck {
+                        XCTAssertTrue(card.stickers.isEmpty,
+                                      "\(deck)/\(tier) seed \(seed): pool card \(card.id) dressed at generation")
+                    }
+                }
+            }
+        }
+    }
+
+    /// MR. GARDEN's override: `stickerEverything` dresses the ENTIRE draft
+    /// pool at generation (v6.67, by design) — so every card of his starting
+    /// hand wears a sticker. The coat draws from grantableStickers only, so
+    /// a curse can never be part of it.
+    func testGardenStartsEveryCardStickeredNeverCursed() {
+        for tier in bothTiers {
+            for seed in startingDeckSeeds {
+                let c = climb("garden", tier: tier, seed: seed)
+                let hand = c.getRunDeck()
+                XCTAssertFalse(hand.isEmpty, "garden/\(tier) seed \(seed): no starting hand")
+                for card in hand {
+                    XCTAssertGreaterThanOrEqual(card.stickers.count, 1,
+                                                "garden/\(tier) seed \(seed): the coat left card \(card.id) bare")
+                    for s in card.stickers {
+                        XCTAssertNotEqual(GameData.shared.stickerTypes.get(s.type)?.cursed, true,
+                                          "garden/\(tier) seed \(seed): the coat inflicted a curse (\(s.type))")
+                    }
+                }
+            }
+        }
+    }
+
+    /// ROCKO vs the Two (v6.74 — pins the rule as it stands): `noStickers`
+    /// bars sticker ACQUISITION only (grants, packs, the store, his starting
+    /// hand) — an INFLICTED curse is not an acquisition. The mystery
+    /// "cursedSticker" outcome applies through the low-level applier by
+    /// design ("UNGATED … a curse is INFLICTED"), so Rocko CAN be cursed by
+    /// the Two; that is his only curse source.
+    func testRockoCanBeCursedByTheMysteryCurseOutcome() {
+        var successes = 0
+        for nodeId in 1...20 {
+            let c = climb("rocko", tier: "regular", seed: UInt32(9_001 + nodeId))
+            // Precondition: the starting hand is bare (the purity tests pin
+            // this sweep-wide; re-checked so this test stands alone).
+            XCTAssertTrue(c.getRunDeck().allSatisfy { $0.stickers.isEmpty })
+            guard let out = c.applyMysteryEvent("cursedSticker", nodeId: nodeId) else { continue }
+            XCTAssertEqual(out.key, "cursedSticker")
+            successes += 1
+            let cursed = c.getRunDeck().flatMap(\.stickers).filter {
+                GameData.shared.stickerTypes.get($0.type)?.cursed == true
+            }
+            XCTAssertFalse(cursed.isEmpty,
+                           "rocko node \(nodeId): the outcome reported a curse but no card wears one")
+        }
+        XCTAssertGreaterThan(successes, 0,
+                             "rocko: the mystery curse outcome never applied across 20 seeded nodes")
+    }
+
+    /// …but every ACQUISITION path stays shut for him: the grant pool he can
+    /// be offered is empty, and a direct buy refuses.
+    func testRockoCannotAcquireStickers() {
+        for tier in bothTiers {
+            let c = climb("rocko", tier: tier, seed: 4242)
+            XCTAssertTrue(c.grantableStickersWithTarget().isEmpty,
+                          "rocko/\(tier): the placeable-grant pool must be empty")
+            if let any = GameData.shared.stickerTypes.all().first {
+                XCTAssertFalse(c.buySticker(any.id),
+                               "rocko/\(tier): buying a sticker must refuse")
             }
         }
     }

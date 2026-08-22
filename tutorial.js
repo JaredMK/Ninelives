@@ -82,18 +82,17 @@ const NINELIVES_TUTORIAL = {
     // of free play.
     deal: [
       { anchor: "dealBoard",
-        text: "Choose a pile and guess if the next card dealt will be *higher* or *lower* than the card shown." },
+        text: "The easiest game ever! Just pick a pile and guess if the next card dealt will be *higher* or *lower* than the card shown." },
       { anchor: "dealPileFirst", advance: "tapPile",
         text: "Tap the *3*." },
       { anchor: "dealRailUp", advance: "higher",
-        text: "Tap the *higher* button to guess that the next card drawn will be higher than this 3." },
+        text: "Tap the *higher* button to guess that the next card will be higher than this 3." },
       { anchor: "dealPileFirst",
-        text: "You guessed correctly. *Aces count as high* in this game and *2s are low*." },
+        text: "You guessed correctly. *Aces are high* and *2s are low*." },
       { advance: "guess",
         text: "Pick another pile and make a *new guess*." },
       { anchor: "dealDeckChar",
         text: "Cards are drawn from *this deck*. The number on the deck is how many cards remain." },
-      { text: "Try to make *more guesses*." },
       // The wait cadence is budgeted against EASY's whole deal: 26 cards − 7
       // dealt = 19 draws, and the scripted opening spends 2. These waits sum
       // to 14, so the tour lands its GO with draws to spare — at 3s across
@@ -102,9 +101,9 @@ const NINELIVES_TUTORIAL = {
       { wait: 4, orWrong: true,
         text: "If you make a wrong guess, the *pile is killed*. Your goal is to get through the *entire deck* before all your piles are killed." },
       { wait: 2, anchor: "dealHistogram",
-        text: "This graph tells you how many cards of each rank *remain in the deck*. You can *hold* on a rank and it will tell you how many remaining cards are higher or lower than it." },
+        text: "This graph tells you how many cards of each rank *remain*. You can *hold* on a rank for more information." },
       { wait: 2, anchor: "sameShield",
-        text: "You can make a *Same* guess too! A correct Same guess charges this *shield*, protecting a pile from your next wrong guess." },
+        text: "You can make a *Same* guess too! A correct Same guess charges this *Same Shield*, protecting a pile from the next wrong guess." },
       { wait: 2, advance: "swipe",
         text: "You can also *swipe* on piles instead of tapping. It's faster!\nSwipe *up* to guess higher\nSwipe *down* to guess lower\nSwipe *to the side* to guess same" },
       { wait: 2, anchor: "pileCount",
@@ -123,9 +122,9 @@ const NINELIVES_TUTORIAL = {
 
   /* --------------------------------------------------------------------
      MAP HINTS — the scroll-past lines at the very bottom of the map.
-     Edit freely: any mix of flavor and real tips. One line shows per
-     climb, rotating with runs completed. Keep each under ~90 chars so it
-     fits the map's width without wrapping.
+     Edit freely: any mix of flavor and real tips. Exactly ONE line shows per
+     climb, picked from the run seed (v6.74 — a new climb deals a new line).
+     Keep each under ~90 chars so it fits the map's width without wrapping.
   -------------------------------------------------------------------- */
   mapHints: [
     "Up is home.",

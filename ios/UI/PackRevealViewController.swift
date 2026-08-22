@@ -41,8 +41,12 @@ public final class PackRevealViewController: UIViewController {
     private let confirmButton = PixelButtonView("Confirm", role: .cta, fontSize: 14)
     private let skipButton = UIButton(type: .custom)
     private let infoPanel = PixelPanelView(face: CRT.feltMid, border: CRT.ink)
-    private let infoTitle = UILabel()
-    private let infoBody = UILabel()
+    /// Fixed shell, scrolling content (v6.74): the shared CardInfoView measures
+    /// itself; whatever exceeds the panel scrolls inside it — the shell never
+    /// moves and nothing clips (the old fixed-height body label clipped long
+    /// sticker rows and the whole Joker paragraph silently).
+    private let infoScroll = UIScrollView()
+    private let infoView = CardInfoView(alignment: .left)
     private let crt = CRTOverlayUIView()
     /// The shared bottom prompt bar — the skip confirmation rides it
     /// (Convention 3: every confirmation, never a one-off dialog).
@@ -127,10 +131,9 @@ public final class PackRevealViewController: UIViewController {
         // bottom-anchored panel ABOVE the overlay; shown on select, hidden on
         // deselect or any off-item tap.
         infoPanel.isHidden = true
-        infoTitle.numberOfLines = 0
-        infoBody.numberOfLines = 0
-        infoPanel.addSubview(infoTitle)
-        infoPanel.addSubview(infoBody)
+        infoScroll.showsVerticalScrollIndicator = false
+        infoScroll.addSubview(infoView)
+        infoPanel.addSubview(infoScroll)
         view.addSubview(infoPanel)
 
         // Off-item taps close ONLY the info slot — never the reveal itself.
@@ -285,8 +288,14 @@ public final class PackRevealViewController: UIViewController {
         infoPanel.frame = CGRect(x: (b.width - iw) / 2,
                                  y: b.height - view.safeAreaInsets.bottom - 14 - 162,
                                  width: iw, height: 162)
-        infoTitle.frame = CGRect(x: 14, y: 12, width: iw - 28, height: 16)
-        infoBody.frame = CGRect(x: 14, y: 33, width: iw - 28, height: 162 - 33 - 10)
+        // The content scrolls INSIDE the fixed shell (stable containers): the
+        // view takes its measured height, the scroll clips nothing.
+        let contentW = iw - 28
+        infoScroll.frame = CGRect(x: 14, y: 10, width: contentW, height: 162 - 20)
+        let fit = infoView.sizeThatFits(CGSize(width: contentW, height: .greatestFiniteMagnitude))
+        infoView.frame = CGRect(x: 0, y: 0, width: contentW, height: fit.height)
+        infoScroll.contentSize = CGSize(width: contentW, height: fit.height)
+        infoScroll.setContentOffset(.zero, animated: false)
         crt.frame = b
         prompt.frame = b
     }
@@ -376,62 +385,38 @@ public final class PackRevealViewController: UIViewController {
     }
 
     private func showInfo(_ i: Int) {
-        var title = "", body = ""
-        // CANONICAL STICKER NAME (v6.72): wherever a sticker's name meets its
-        // description it reads description-SIZED (14), BOLD (display face)
-        // and COLORED — gold, suit-red for a curse. These override the plain
-        // title/body strings when set.
-        var titleAttr: NSAttributedString?
-        var bodyAttr: NSAttributedString?
+        // THE SHARED CARD-INFO GRAMMAR (v6.74 — see CardInfoView): the subject
+        // LARGEST on top (rank+suit / ★ Joker / ∅ Purge / the sticker's own
+        // name), then per sticker its bold colored name + registry description.
         switch content {
         case .cards(let cards):
             let c = cards[i]
             if c.joker {
-                title = "★ Joker"
                 // items.js has NO joker entry (the joker isn't a sellable
                 // item) — the web itself hardcodes this copy
                 // (index.html:29565), so the native mirrors it verbatim.
-                body = "A wild card. Any guess it's part of is SAFE: when it's drawn and placed on a pile, and when you guess on top of it (higher, lower, or same), it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power."
+                infoView.show(title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE: when it's drawn and placed on a pile, and when you guess on top of it (higher, lower, or same), it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power.")
             } else if c.blank {
-                title = "∅ Purge"
                 // The registry description (items.js store.removal) is the
                 // source of truth — never a hand-typed duplicate.
-                body = GameData.shared.items.store.removal.description
+                infoView.show(title: "∅ Purge",
+                              body: GameData.shared.items.store.removal.description)
             } else {
-                let r = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "?"
-                title = "\(r) \(c.suit)"
-                if c.stickers.isEmpty {
-                    body = "A plain card, no stickers."
-                } else {
-                    // One row per sticker, the deck inspector's grammar: the
-                    // NAME leads in the display font — gold, blood-red for a
-                    // curse — with the registry description in cream after it.
-                    let rows = NSMutableAttributedString()
-                    for (k, s) in c.stickers.enumerated() {
-                        guard let def = GameData.shared.stickerTypes.get(s.type) else { continue }
-                        if k > 0 { rows.append(NSAttributedString(string: "\n")) }
-                        rows.append(CRTKit.attributed(def.label, size: 14,
-                                                      color: def.cursed ? CRT.suitRed : CRT.gold,
-                                                      display: true))
-                        rows.append(CRTKit.attributed("  \(def.description)", size: 14,
-                                                      color: CRT.cardFace))
-                    }
-                    bodyAttr = rows
-                }
+                infoView.show(title: CardInfo.title(for: c),
+                              body: c.stickers.isEmpty ? "A plain card, no stickers." : nil,
+                              rows: CardInfo.rows(for: c))
             }
         case .stickers(let ids):
             if let t = GameData.shared.stickerTypes.get(ids[i]) {
-                // The sticker's NAME at its description's size — bold + colored,
-                // never the oversized plain-phosphor title (v6.72).
-                titleAttr = CRTKit.attributed(t.label, size: 14,
-                                              color: t.cursed ? CRT.suitRed : CRT.gold,
-                                              display: true)
-                body = t.description
+                // A lone sticker IS the subject: its name takes the title slot
+                // in its canonical colours — gold, suit-red for a curse (v6.72).
+                infoView.show(title: t.label,
+                              titleColor: t.cursed ? CRT.suitRed : CRT.gold,
+                              body: t.description)
             }
         }
         infoPanel.isHidden = false
-        infoTitle.attributedText = titleAttr ?? CRTKit.attributed(title, size: 16, color: CRT.phosphor)
-        infoBody.attributedText = bodyAttr ?? CRTKit.attributed(body, size: 14, color: CRT.cardFace)
+        view.setNeedsLayout()
     }
 
     @objc private func deckTapped() {

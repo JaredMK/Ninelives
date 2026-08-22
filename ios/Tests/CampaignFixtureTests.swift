@@ -349,6 +349,9 @@ final class CampaignFixtureTests: XCTestCase {
                 "storePriceModPending", // the cast's next-shop price twist, armed…
                 "storePriceModActive",  // …and live for the current shop
                 "pillarRankVariants",   // Underdog/Crowd Favorite's climb-locked ranks
+                // NOTE: `purgePriceCut` and `shopRolls` (v6.76) are SHARED
+                // keys — the web writes them with the exact same names and
+                // shapes, so they must never appear in this list.
             ]
             let mine = Set(blob.keys)
             XCTAssertTrue(webKeys.isSubset(of: mine),

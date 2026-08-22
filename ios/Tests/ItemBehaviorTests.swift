@@ -215,6 +215,25 @@ final class ItemBehaviorTests: XCTestCase {
     }
 
     func testQuickBuryBuriesFromTheDeckBottomWithoutRevealing() {
+        // PILE-TOP (v6.75): the carrier tops the pile; a card LANDING ON it
+        // buries 1 from the deck bottom beneath that pile.
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 10 }!
+        let e = engine(specs: specs)
+        let carrierTop = DeckManager.cardForValue(4)
+        carrierTop.stickers.append(StickerRecord(type: "quickBury"))
+        e.board.piles[0].cards = [carrierTop]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        let before = e.deck.remaining()
+        e.guess(0, .higher)
+        XCTAssertEqual(e.deck.remaining(), before - 1 - 1, "one draw + one burial")
+        XCTAssertEqual(e.board.piles[0].cards.count, 3, "the buried card sits UNDER the pile")
+        XCTAssertEqual(e.board.piles[0].cards.last?.value, 10, "the landing card is still the top")
+    }
+
+    func testQuickBuryDoesNotFireWhenTheCarrierItselfLands() {
+        // Regression (v6.75, the reported bug): a DRAWN carrier landing
+        // CORRECTLY must NOT bury — the trigger is the NEXT landing on it.
         var specs = DeckManager.buildStandardDeck()
         let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 10 }!
         specs[i].stickers.append(StickerRecord(type: "quickBury"))
@@ -223,9 +242,14 @@ final class ItemBehaviorTests: XCTestCase {
         e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
         let before = e.deck.remaining()
         e.guess(0, .higher)
-        XCTAssertEqual(e.deck.remaining(), before - 1 - 1, "one draw + one burial")
-        XCTAssertEqual(e.board.piles[0].cards.count, 3, "the buried card sits UNDER the pile")
-        XCTAssertEqual(e.board.piles[0].cards.last?.value, 10, "the landing card is still the top")
+        XCTAssertEqual(e.deck.remaining(), before - 1, "the carrier's own landing buries nothing")
+        XCTAssertEqual(e.board.piles[0].cards.count, 2, "just the landing")
+        // …and the NEXT card landing on the carrier (now the top) fires it.
+        let k = specs.firstIndex { $0.suit == "♠" && $0.currentRank == 13 }!
+        e.debug.setNextCardObj(DeckManager.toCard(specs[k], data: data))
+        e.guess(0, .higher)                                   // K on 10 → correct
+        XCTAssertEqual(e.board.piles[0].cards.count, 4, "the next landing on the carrier fires it (+1 buried)")
+        XCTAssertEqual(e.board.piles[0].cards.last?.value, 13, "the second landing is the top")
     }
 
     func testSnowballGrowsThenBuriesAndResetsOnAWrongPlacement() {
@@ -517,7 +541,11 @@ final class ItemBehaviorTests: XCTestCase {
     func testOnlyTheseBasesRequireAPlayerChosenTarget() {
         let targeted = data.items.bases.filter { $0.target != nil }
             .map { "\($0.id):\($0.target ?? "")" }.sorted()
-        XCTAssertEqual(targeted, ["stickerHarvest:pile"],
+        // v6.76: Sacrifice and Diamond Boost join Sticker Harvest as
+        // pile-target Bases — their pickers wire in DealController with the
+        // batch's UI pass. Devil's Deal carries NO target: its curse lands on
+        // a seeded in-column pick.
+        XCTAssertEqual(targeted, ["diamondBoost:pile", "sacrifice:pile", "stickerHarvest:pile"],
                        "a Base with a target needs a picker in DealController.basePlaqueTapped")
     }
 
@@ -737,15 +765,35 @@ final class ItemBehaviorTests: XCTestCase {
     }
 
     func testEmptyPurseAndSameTell() {
-        // Empty Purse: fires regardless of purse size, peeks one.
+        // Empty Purse (v6.74 rework): 1 peek BASELINE + 1 more per 10 coins
+        // in the purse — 0 coins still peeks 1. The purse is threaded in by
+        // the caller (`purseCoins`) and drained from `res.purseSpent`.
+        for (coins, want) in [(0, 1), (9, 1), (10, 2), (25, 3)] {
+            let e = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
+                               runConfig: RunConfig(cols: [3, 3, 3]))
+            e.start(seedOverride: 999)
+            e.startRun(pillars: [nil, nil, nil], bases: ["emptyPurse", nil, nil], samePower: nil)
+            XCTAssertTrue(e.baseAvailable(0), "no coin minimum — it fires broke too")
+            let res = e.baseActivate(col: 0, targetIndex: nil, purseCoins: coins)
+            XCTAssertEqual(res?.peekCount, want, "\(coins) coins → \(want) peek(s)")
+            XCTAssertEqual(res?.cards?.count, want, "\(coins) coins: the peek snapshot")
+            XCTAssertEqual(res?.purseSpent, coins, "\(coins) coins: the result reports the exact spend")
+            XCTAssertGreaterThanOrEqual(e.run.kamikazeRevealLeft, want,
+                                        "\(coins) coins: the peek window is armed")
+        }
+        // …and the purse EMPTIES: the flow drains exactly res.purseSpent
+        // (DealController's spend path — the same contract the web's
+        // "base-fired" handler runs).
+        let c = CampaignState()
+        _ = c.earnCoins(25)
         let e = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
                            runConfig: RunConfig(cols: [3, 3, 3]))
         e.start(seedOverride: 999)
         e.startRun(pillars: [nil, nil, nil], bases: ["emptyPurse", nil, nil], samePower: nil)
-        XCTAssertTrue(e.baseAvailable(0), "no coin minimum — it fires broke too")
-        let res = e.baseActivate(col: 0, targetIndex: nil)
-        XCTAssertEqual(res?.peekCount, 1)
-        XCTAssertEqual(res?.cards?.count, 1)
+        let res = e.baseActivate(col: 0, targetIndex: nil, purseCoins: c.getCoins())
+        XCTAssertEqual(res?.purseSpent, 25)
+        XCTAssertTrue(c.spendCoins(res?.purseSpent ?? 0), "the drain succeeds")
+        XCTAssertEqual(c.getCoins(), 0, "every coin spent")
         // Same Tell: the = mark only on a genuine rank match, board-wide (v6.62).
         let e2 = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
                             runConfig: RunConfig(cols: [3, 3, 3]))

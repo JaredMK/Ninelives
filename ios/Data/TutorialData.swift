@@ -34,8 +34,8 @@ public struct TutorialStep: Sendable, Equatable {
 public struct TutorialData: Sendable {
     /// The writer-owned groups and their EXACT step counts. The tour's
     /// choreography lives in code — tutorial.js may reword a bubble, never add
-    /// or remove one. (v6.19: the guided-deal rework — 12 interactive steps.)
-    public static let stepCounts: [(key: String, count: Int)] = [("deal", 13), ("zenEnd", 1)]
+    /// or remove one. (v6.74: the "more guesses" filler step retired — 12 steps.)
+    public static let stepCounts: [(key: String, count: Int)] = [("deal", 12), ("zenEnd", 1)]
     /// The Zen-first tour carries no live placeholders: any {token} is an error.
     public static let placeholders: [String] = []
 

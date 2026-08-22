@@ -409,7 +409,8 @@ export function run() {
 
   // (Momentum was removed from the roster — its per-card coin counter is gone.)
 
-  // ---- Quick Bury: buries 1 each correct land and NEVER peels -----------
+  // ---- Quick Bury (PILE-TOP, v6.75): fires when a card lands ON the pile
+  //      the carrier tops — 1 bury per instance per landing, never peels ----
   {
     const e = game();
     let buried = 0, peeled = 0;
@@ -417,8 +418,16 @@ export function run() {
       if (t === "buried" && p.source === "Quick Bury") buried += p.count;
       if (t === "sticker-peeled") peeled++;
     });
-    for (let k = 0; k < 12; k++) if (e.getBoard().isActive(0)) land(e, 0, ["quickBury"]);
-    r.eq(buried, 12, "Quick Bury buries 1 on every correct land");
+    // Regression: the carrier's OWN landing must NOT fire (the reported bug).
+    land(e, 0, ["quickBury"]);
+    r.eq(buried, 0, "the carrier's own landing does not fire Quick Bury");
+    // A card landing ON the carrier (now the pile top) fires it.
+    land(e, 0, []);
+    r.eq(buried, 1, "a landing on the carrier's pile buries 1");
+    // Multiple instances on the pile top fire per instance.
+    e.getBoard().top(1).stickers.push({ type: "quickBury" }, { type: "quickBury" });
+    land(e, 1, []);
+    r.eq(buried, 3, "two instances on the pile top bury 2 on one landing");
     r.eq(peeled, 0, "Quick Bury never peels — the sticker persists (peelChance gone)");
   }
 

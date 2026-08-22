@@ -55,12 +55,27 @@ final class SavedLandingTests: XCTestCase {
     }
 
     func testQuickBuryBuriesOnASameChargeSave() {
-        let e = savedEngine(drawnStickers: ["quickBury"])
+        // PILE-TOP (v6.75): the carrier is the pile's PRE-LANDING top. The
+        // saved landing physically lands on it, so it fires — the same rule
+        // as the pile-top snobs (a saved landing IS a landing).
+        let e = savedEngine(drawnStickers: [], topStickers: ["quickBury"])
         let deckBefore = e.deck.remaining()
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
         XCTAssertEqual(e.deck.remaining(), deckBefore - 2, "the draw + the burial both left the deck")
         XCTAssertEqual(e.board.piles[0].cards.count, 3, "9 + buried card + the landed 2")
+    }
+
+    func testQuickBuryCarrierDoesNotFireOnASameChargeSave() {
+        // The DRAWN card carrying Quick Bury fires NOTHING on its own landing
+        // — saved or not (v6.75 regression pin: the reported bug was a drawn
+        // carrier burying on its own correct landing).
+        let e = savedEngine(drawnStickers: ["quickBury"])
+        let deckBefore = e.deck.remaining()
+        e.guess(0, .higher)
+        XCTAssertTrue(e.board.isActive(0))
+        XCTAssertEqual(e.deck.remaining(), deckBefore - 1, "only the draw — the carrier's own landing never fires it")
+        XCTAssertEqual(e.board.piles[0].cards.count, 2, "9 + the landed 2, nothing buried")
     }
 
     func testSnowballGrowsFromZeroOnASameChargeSave() {

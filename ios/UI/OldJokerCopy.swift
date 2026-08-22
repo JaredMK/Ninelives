@@ -290,8 +290,9 @@ enum OldJokerCopy {
         var out: [OldJokerView.Option] = []
         switch offer {
         case .buyout(let cheap, let cheapCoins, let rich, let richCoins):
+            // v6.74: both SELL options render plain — neither is "the" pick.
             out.append(.init(label: "SELL \(c.label(rich).uppercased())", detail: "+\(richCoins) coins",
-                             role: .gold, choice: .takeRich))
+                             role: .plain, choice: .takeRich))
             // One item, one price. A second button naming the SAME item for
             // less is a choice nobody would ever take.
             if cheap != rich {

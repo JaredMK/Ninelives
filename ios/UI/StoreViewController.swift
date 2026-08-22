@@ -86,6 +86,7 @@ public final class StoreViewController: UIViewController {
             } else {
                 _ = campaign.openStore()
             }
+            logShopRolls()   // v6.76: the fresh shelf's rolled values hit the debug log
         }
 
         // The persistent top shell (HUD line + deck band), same as the map.
@@ -251,9 +252,14 @@ public final class StoreViewController: UIViewController {
                 // Same-Power carry a NAME on the web shelf — pillar/base/
                 // sticker tiles are art + price only. The label always comes
                 // from the registry (the store config for the mystery slot).
+                // EXCEPTION (v6.76, R2): a SHOP-ROLLED item is never a blind
+                // buy — its tile names the item AND the rolled {rank}/{suit}
+                // ("RANK SHIELD — 9S", "TRANSMUTE — 9S→♠"; suits render as
+                // pixel pips through CRTKit's substitution).
                 let caption = s.kind == "pack" ? GameData.shared.packTypes.get(s.id)?.label
                     : s.kind == "removal" ? GameData.shared.items.store.removal.label
-                    : s.mystery ? GameData.shared.items.store.mysterySamePower.label : nil
+                    : s.mystery ? GameData.shared.items.store.mysterySamePower.label
+                    : rolledCaption(s)
                 tile.configure(art: art, kind: s.kind, caption: caption,
                                restriction: s.kind == "sticker"
                                    ? GameData.shared.stickerTypes.get(s.id)
@@ -316,6 +322,48 @@ public final class StoreViewController: UIViewController {
         case "samepower": return data.samePowerTypes.get(s.id)?.tier ?? "common"
         case "sticker": return data.stickerTypes.get(s.id)?.tier ?? "common"
         default: return ""
+        }
+    }
+
+    /// A rank VALUE → its registry label ("9", "K", "A") — never a hand-mapped
+    /// string (a rank retune moves this with it).
+    private func rankLabel(_ value: Int?) -> String? {
+        guard let value else { return nil }
+        return DeckManager.ranks.first { $0.value == value }?.label ?? "\(value)"
+    }
+
+    /// The registry def behind a shop-rolled slot (only pillars and bases roll).
+    private func shopRolledDef(_ s: StoreSlot) -> ItemDef? {
+        s.kind == "pillar" ? GameData.shared.pillarTypes.get(s.id)
+            : s.kind == "base" ? GameData.shared.baseTypes.get(s.id) : nil
+    }
+
+    /// The rolled {rank}/{suit} as short shelf text: "9S", "♠", "9S→♠" (R2).
+    /// Reads the SLOT's rolled values — the climb lock has already reconciled
+    /// them (openStore), so the shelf, the detail and the purchase agree.
+    private func rolledText(_ s: StoreSlot) -> String? {
+        guard s.rollRank != nil || s.rollSuit != nil else { return nil }
+        var out = ""
+        if let r = rankLabel(s.rollRank) { out = r + "s" }
+        if let suit = s.rollSuit { out += out.isEmpty ? suit : "→" + suit }
+        return out
+    }
+
+    /// The shop-rolled tile's name-and-roll caption (v6.76, R2) — nil for
+    /// ordinary slots, which stay art + price only.
+    private func rolledCaption(_ s: StoreSlot) -> String? {
+        guard let rolled = rolledText(s), let def = shopRolledDef(s) else { return nil }
+        return "\(def.label) — \(rolled)"
+    }
+
+    /// SHOP-ROLLED values in the debug log (v6.76, R2): when a fresh shelf
+    /// rolls (open or restock), each rolled slot's locked {rank}/{suit} gets a
+    /// line — the same ground-truth the tile and detail show the player.
+    private func logShopRolls() {
+        guard let offer = campaign.getStoreOffer() else { return }
+        for s in offer.slots.compactMap({ $0 }) {
+            guard let rolled = rolledText(s), let def = shopRolledDef(s) else { continue }
+            DebugEventLog.shared.add("store: \(def.label) rolled \(rolled)")
         }
     }
 
@@ -496,6 +544,12 @@ public final class StoreViewController: UIViewController {
         let d = StoreDetailView(campaign: campaign, slot: slot, storeSlot: s)
         d.onClose = { [weak self] in self?.closeDetail() }
         d.onBuy = { [weak self] col in self?.buy(slot: slot, storeSlot: s, placeCol: col) }
+        // A family-blocked column (v6.76 sameTolerance) answers its tap with
+        // the engine's reason, on the shared prompt bar.
+        d.onBlocked = { [weak self] reason in
+            self?.prompt.show(reason, help: "Pick another column, or move the pillar that's there first.",
+                              actions: [.init("OK", role: .plain) { [weak self] in self?.prompt.hide() }])
+        }
         d.frame = view.bounds
         view.insertSubview(d, belowSubview: crt)
         detail = d
@@ -607,32 +661,41 @@ public final class StoreViewController: UIViewController {
 
         case "pillar", "base", "samepower":
             guard let col = placeCol else { return }
-            let res = campaign.buyMixedSlot(slot)
-            guard res.ok else { return }
-            let data = GameData.shared
-            if s.kind == "samepower" {
-                let prev = campaign.getSamePower()
-                _ = campaign.equipSamePower(s.id)
-                if let prev, prev != s.id {
-                    _ = campaign.discardSamePowerFromInventory(prev)
-                    _ = campaign.addCoins(sellValue(data.samePowerTypes.get(prev)))
-                }
-            } else {
-                // A displaced occupant is sold (coins back) and DESTROYED —
-                // placePillar/placeBase bounce it to inventory, so drop it there.
-                let old = s.kind == "pillar" ? campaign.columnPillar(col) : campaign.columnBase(col)
-                if s.kind == "pillar" { _ = campaign.placePillar(s.id, col: col) }
-                else { _ = campaign.placeBase(s.id, col: col) }
-                if let old, old != s.id {
-                    let reg = s.kind == "pillar" ? data.pillarTypes : data.baseTypes
-                    if s.kind == "pillar" { _ = campaign.discardPillarFromInventory(old) }
-                    else { _ = campaign.discardBaseFromInventory(old) }
-                    _ = campaign.addCoins(sellValue(reg.get(old)))
-                }
+            // ON-PURCHASE items (v6.76): Rank Purge and Transmute fire AT BUY
+            // TIME, on the whole deck — a blind BUY tap must never do that.
+            // The confirm rides the shared prompt bar and names the rolled
+            // rank (and suit), then the result notice says what happened.
+            if let pdef = s.kind == "pillar" ? GameData.shared.pillarTypes.get(s.id) : nil,
+               pdef.effect == "purgeRank" {
+                let rl = rankLabel(campaign.shopRolls[s.id]?.rank ?? s.rollRank) ?? "?"
+                prompt.show("Purge all \(rl)s from your deck?",
+                            help: "\(pdef.label) fires the moment you buy it — every \(rl) in your deck is gone for good. It does nothing during a deal.",
+                            actions: [
+                                .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+                                .init("Purge \(rl)s", role: .danger) { [weak self] in
+                                    self?.prompt.hide()
+                                    self?.completePlacementBuy(slot: slot, storeSlot: s, col: col)
+                                },
+                            ]) { [weak self] in self?.prompt.hide() }
+                return
             }
-            Haptics.purchase()
-            closeDetail()
-            render()
+            if let bdef = s.kind == "base" ? GameData.shared.baseTypes.get(s.id) : nil,
+               bdef.effect == "transmute" {
+                let lock = campaign.shopRolls[s.id]
+                let rl = rankLabel(lock?.rank ?? s.rollRank) ?? "?"
+                let suit = lock?.suit ?? s.rollSuit ?? "?"
+                prompt.show("Set all \(rl)s to \(suit)?",
+                            help: "\(bdef.label) fires the moment you buy it — every \(rl) in your deck becomes \(suit), for good. It never activates in a deal.",
+                            actions: [
+                                .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
+                                .init("Transmute", role: .danger) { [weak self] in
+                                    self?.prompt.hide()
+                                    self?.completePlacementBuy(slot: slot, storeSlot: s, col: col)
+                                },
+                            ]) { [weak self] in self?.prompt.hide() }
+                return
+            }
+            completePlacementBuy(slot: slot, storeSlot: s, col: col)
 
         case "pack":
             let res = campaign.buyMixedSlot(slot)
@@ -652,6 +715,55 @@ public final class StoreViewController: UIViewController {
 
         default:
             break
+        }
+    }
+
+    /// The pillar/base/Same-Power buy: charge, place (or equip), sell back the
+    /// displaced occupant — then, for an ON-PURCHASE item (v6.76), the prompt
+    /// bar reports what the buy already did to the deck (the counts ride the
+    /// BuyResult; the rolled values are the climb lock's by now).
+    private func completePlacementBuy(slot: Int, storeSlot s: StoreSlot, col: Int) {
+        let res = campaign.buyMixedSlot(slot)
+        guard res.ok else { return }
+        let data = GameData.shared
+        if s.kind == "samepower" {
+            let prev = campaign.getSamePower()
+            _ = campaign.equipSamePower(s.id)
+            if let prev, prev != s.id {
+                _ = campaign.discardSamePowerFromInventory(prev)
+                _ = campaign.addCoins(sellValue(data.samePowerTypes.get(prev)))
+            }
+        } else {
+            // A displaced occupant is sold (coins back) and DESTROYED —
+            // placePillar/placeBase bounce it to inventory, so drop it there.
+            let old = s.kind == "pillar" ? campaign.columnPillar(col) : campaign.columnBase(col)
+            if s.kind == "pillar" { _ = campaign.placePillar(s.id, col: col) }
+            else { _ = campaign.placeBase(s.id, col: col) }
+            if let old, old != s.id {
+                let reg = s.kind == "pillar" ? data.pillarTypes : data.baseTypes
+                if s.kind == "pillar" { _ = campaign.discardPillarFromInventory(old) }
+                else { _ = campaign.discardBaseFromInventory(old) }
+                _ = campaign.addCoins(sellValue(reg.get(old)))
+            }
+        }
+        Haptics.purchase()
+        closeDetail()
+        render()
+        if let n = res.purgedCount {
+            let rl = rankLabel(campaign.shopRolls[s.id]?.rank ?? s.rollRank) ?? "?"
+            let label = data.pillarTypes.get(s.id)?.label ?? "Rank Purge"
+            prompt.show("\(label): purged \(n) × \(rl)s from your deck.",
+                        help: n == 0 ? "No \(rl)s were in your deck — the slot is yours anyway."
+                                     : "Your deck is \(n) card\(n == 1 ? "" : "s") thinner, permanently.",
+                        actions: [.init("OK", role: .plain) { [weak self] in self?.prompt.hide() }])
+        } else if let n = res.transmutedCount {
+            let lock = campaign.shopRolls[s.id]
+            let rl = rankLabel(lock?.rank ?? s.rollRank) ?? "?"
+            let suit = lock?.suit ?? s.rollSuit ?? "?"
+            let label = data.baseTypes.get(s.id)?.label ?? "Transmute"
+            prompt.show("\(label): \(n) × \(rl)s became \(suit).",
+                        help: "Every \(rl) in your deck is now \(suit), permanently.",
+                        actions: [.init("OK", role: .plain) { [weak self] in self?.prompt.hide() }])
         }
     }
 
@@ -887,6 +999,7 @@ public final class StoreViewController: UIViewController {
                 if self.campaign.rerollStore() {
                     Sound.shared.refresh()
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    self.logShopRolls()   // the restocked shelf's rolls, climb-locked
                     self.render()
                 }
             },

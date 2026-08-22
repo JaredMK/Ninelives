@@ -31,7 +31,7 @@ Sorted by TYPE, then by AT (earliest unlock first). Ungated items sit at the end
 | Recharge Shield | When this card lands correctly → bank a Same Charge (max 1) | correctSames | 12 |  |
 | −2 Rank | -2 card rank (stops at 2) | dealsSurvived | 12 |  |
 | Pillar Scout | When this card lands → peek at the next card if this column has no pillar | pillarsPlaced | 12 |  |
-| Quick Bury | When this card lands → bury 1 deck card under the pile | cardsBuried | 15 |  |
+| Quick Bury | When a card lands on this card → bury 1 card under the pile | cardsBuried | 15 |  |
 | Tap Power | When this card lands correctly → fire your equipped Same-Power | correctSames | 30 |  |
 | Loose Change | When this card lands → +0–2 coins (random) | bestCoinsInClimb | 60 |  |
 | Club Snob | When a ♣ lands on this card → bury 1 deck card under the pile | clubsPlayed | 60 |  |

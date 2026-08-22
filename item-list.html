@@ -1,0 +1,336 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Ninelives — Item List (v6.75)</title>
+<style>
+body{background:#101410;color:#e8e4d5;font:16px/1.45 monospace;max-width:960px;margin:24px auto;padding:0 16px}
+h1{color:#ffd23f;font-size:22px} h2{color:#4ef08a;font-size:18px;margin:28px 0 6px;border-bottom:1px solid #2c3a2c;padding-bottom:4px}
+h3{color:#ffd23f;font-size:16px;margin:18px 0 4px}
+table{border-collapse:collapse;width:100%;margin:6px 0 14px}
+td,th{border:1px solid #2c3a2c;padding:4px 8px;text-align:left;vertical-align:top}
+th{color:#ffd23f;background:#18201a}
+.id{color:#5a6b5a;font-size:12px}
+.num{text-align:right}
+.common{color:#e8e4d5}.uncommon{color:#8ecae6}.rare{color:#ffd23f}
+.note{color:#8a9a8a;font-size:14px}
+code{color:#4ef08a}
+</style></head><body>
+<h1>NINELIVES — every item, by function and power (v6.75)</h1>
+<p class="note">Generated from <code>items.js</code> (v6.75 working tree) — 129 items: 58 stickers (13 of them cursed,
+listed in their own section), 36 pillars, 22 bases, 9 same-powers, 4 packs. Prices in coins at the Store.
+Sections are ordered Stickers · Pillars · Bases · Same-Powers · Packs · Cursed Stickers; inside each section
+items are grouped by what they DO, and inside each group sorted strongest-first by the power metric stated
+under the group heading (ties → higher price first). Every power figure is computed from the item's own
+tunable fields; "≈" marks a documented typical-case assumption, not a guess at the field.</p>
+<h2>Stickers <span class="note">(45 items)</span></h2>
+<h3>Deck Edits — rank, suit &amp; wild changes <span class="note">(11)</span></h3>
+<p class="note">Power = edit magnitude: |Δrank| steps for rank edits; suits matched for suit edits (fixed/random suit = 1, wild = 4). Ties → higher price, then controlled before random.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Wild Suit</b> <span class="id">wildSuit</span></td><td class="common">common</td><td class="num">1</td><td>Counts as every suit</td><td>4 suits matched at once</td></tr>
+<tr><td><b>+2 Rank</b> <span class="id">rankUp2</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>+2 card rank (stops at Ace)</td><td>2 rank steps (controlled)</td></tr>
+<tr><td><b>−2 Rank</b> <span class="id">rankDown2</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>-2 card rank (stops at 2)</td><td>2 rank steps (controlled)</td></tr>
+<tr><td><b>+1 Rank</b> <span class="id">rankUp</span></td><td class="common">common</td><td class="num">1</td><td>+1 card rank (stops at Ace)</td><td>1 rank step (controlled)</td></tr>
+<tr><td><b>−1 Rank</b> <span class="id">rankDown</span></td><td class="common">common</td><td class="num">1</td><td>-1 card rank (stops at 2)</td><td>1 rank step (controlled)</td></tr>
+<tr><td><b>Change to ♠</b> <span class="id">changeSuitSpade</span></td><td class="common">common</td><td class="num">1</td><td>Change suit to ♠</td><td>1 suit (controlled)</td></tr>
+<tr><td><b>Change to ♥</b> <span class="id">changeSuitHeart</span></td><td class="common">common</td><td class="num">1</td><td>Change suit to ♥</td><td>1 suit (controlled)</td></tr>
+<tr><td><b>Change to ♦</b> <span class="id">changeSuitDiamond</span></td><td class="common">common</td><td class="num">1</td><td>Change suit to ♦</td><td>1 suit (controlled)</td></tr>
+<tr><td><b>Change to ♣</b> <span class="id">changeSuitClub</span></td><td class="common">common</td><td class="num">1</td><td>Change suit to ♣</td><td>1 suit (controlled)</td></tr>
+<tr><td><b>Random Rank</b> <span class="id">randomFixedValue</span></td><td class="uncommon">uncommon</td><td class="num">1</td><td>Change to random rank</td><td>1 card's rank, random (uncontrolled)</td></tr>
+<tr><td><b>Random Suit</b> <span class="id">changeSuitRandom</span></td><td class="common">common</td><td class="num">1</td><td>Change to random suit</td><td>1 suit, random (uncontrolled)</td></tr>
+</table>
+<h3>Guards — landings that cannot kill <span class="note">(5)</span></h3>
+<p class="note">Power = matching cards among the 51 other deck cards that make a landing safe (suit = 12/51 ≈ 23.5%, same rank = 3/51 ≈ 5.9%).</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Spade Guard</b> <span class="id">suitImmunity</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>Safe if this card lands on a ♠, or a ♠ lands on this card</td><td>12/51 ≈ 23.5% of cards safe (♠)</td></tr>
+<tr><td><b>Heart Guard</b> <span class="id">heartGuard</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>Safe if this card lands on a ♥, or a ♥ lands on this card</td><td>12/51 ≈ 23.5% of cards safe (♥)</td></tr>
+<tr><td><b>Diamond Guard</b> <span class="id">diamondGuard</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>Safe if this card lands on a ♦, or a ♦ lands on this card</td><td>12/51 ≈ 23.5% of cards safe (♦)</td></tr>
+<tr><td><b>Club Guard</b> <span class="id">clubGuard</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>Safe if this card lands on a ♣, or a ♣ lands on this card</td><td>12/51 ≈ 23.5% of cards safe (♣)</td></tr>
+<tr><td><b>Same-Safe</b> <span class="id">tieSafe</span></td><td class="common">common</td><td class="num">2</td><td>Safe if this card lands on a card of the same rank, or a card of the same rank lands on this card</td><td>3/51 ≈ 5.9% of cards safe (same rank)</td></tr>
+</table>
+<h3>Bonus Coins <span class="note">(9)</span></h3>
+<p class="note">Power = expected coins per firing (value × chance; a 0–max range averages to max/2). Per-unit effects sort at value × a typical unit: pile size 5, stickers on one card 2, full deck 72, one streak 3. The unit is named.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Deep Pockets</b> <span class="id">deepPockets</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>+1 coin per 10 cards left in the deck</td><td>1 per 10 deck cards left (≈7 on a fresh 72-card deck)</td></tr>
+<tr><td><b>Compound</b> <span class="id">compound</span></td><td class="rare">rare</td><td class="num">6</td><td>+X coins. X starts at 0, grows by 1 each correct placement, resets to 0 on a wrong guess</td><td>+1 per correct, cumulative — ≈6 over a 3-streak, unbounded, resets on a wrong guess</td></tr>
+<tr><td><b>Payout</b> <span class="id">extraCoin</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>At deal end if this card tops its pile  → earn coins equal to pile size</td><td>1 × pile size at deal end (≈5)</td></tr>
+<tr><td><b>Last Coin</b> <span class="id">deathBounty</span></td><td class="common">common</td><td class="num">2</td><td>+3 coins if it kills a pile</td><td>3 flat, only if it kills the pile</td></tr>
+<tr><td><b>Heart Snob</b> <span class="id">heartSnob</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>When a ♥ lands on this card, or this card lands on a ♥ → +2 coins</td><td>2 per ♥ contact</td></tr>
+<tr><td><b>Collector</b> <span class="id">collector</span></td><td class="uncommon">uncommon</td><td class="num">1</td><td>+1 coin per other sticker on this card</td><td>1 per other sticker on the card (≈2)</td></tr>
+<tr><td><b>Loose Change</b> <span class="id">looseChange</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>+0–3 coins (random)</td><td>0–3 random, avg 1.5</td></tr>
+<tr><td><b>Heart Choir</b> <span class="id">heartChoir</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>+1 coin per each pile with a ♥ top card</td><td>1 per ♥-topped pile (≈1)</td></tr>
+<tr><td><b>Bonus Coin</b> <span class="id">gainCoin</span></td><td class="common">common</td><td class="num">2</td><td>+1 coin</td><td>1 flat, every landing</td></tr>
+</table>
+<h3>Peeks <span class="note">(5)</span></h3>
+<p class="note">Power = cards peeked per firing (every sticker peek shows exactly 1). Ties → higher price; the trigger condition is named.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Scout</b> <span class="id">revealNext</span></td><td class="rare">rare</td><td class="num">10</td><td>Peek at the next deck card</td><td>1 card, on each landing of the carrier</td></tr>
+<tr><td><b>Spade Snob</b> <span class="id">suitSnob</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>When a ♠ lands on this card, or this card lands on a ♠ → peek at the next card</td><td>1 card, per ♠ contact</td></tr>
+<tr><td><b>Twin Spark</b> <span class="id">twinSpark</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>Peek at the next card if another pile's top card matches this rank</td><td>1 card, if another pile's top matches this rank</td></tr>
+<tr><td><b>Pillar Scout</b> <span class="id">pillarScout</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>Peek the next card if this column has no pillar</td><td>1 card, if the column has no pillar</td></tr>
+<tr><td><b>Base Scout</b> <span class="id">baseScout</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>Peek at the next card if this column has no base</td><td>1 card, if the column has no base</td></tr>
+</table>
+<h3>Tells — higher/lower/same hints <span class="note">(2)</span></h3>
+<p class="note">Power = directional hints armed per firing.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Spade Whispers</b> <span class="id">spadeWhispers</span></td><td class="rare">rare</td><td class="num">8</td><td>The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card</td><td>X hints, X = other ♠-topped piles (≈2)</td></tr>
+<tr><td><b>Tell</b> <span class="id">tell</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>Shows if the next deck card is higher, lower, or same</td><td>1 hint for the next draw on this pile</td></tr>
+</table>
+<h3>Shuffles <span class="note">(3)</span></h3>
+<p class="note">Power = piles shuffled per firing (board max 9, column max 3).</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Diamond Snob</b> <span class="id">diamondSnob</span></td><td class="uncommon">uncommon</td><td class="num">6</td><td>When a ♦ lands on this card, or this card lands on a ♦ → shuffle every pile</td><td>every pile on the board, per ♦ contact</td></tr>
+<tr><td><b>Diamond Ripple</b> <span class="id">diamondRipple</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>Shuffle every other pile with a ♦ top card</td><td>every other ♦-topped pile (≈2)</td></tr>
+<tr><td><b>Shuffle</b> <span class="id">shuffle</span></td><td class="uncommon">uncommon</td><td class="num">1</td><td>Optionally shuffle the pile</td><td>1 pile, optional</td></tr>
+</table>
+<h3>Buries <span class="note">(4)</span></h3>
+<p class="note">Power = cards buried per firing (per-unit effects sort at a typical unit: streak 3, ♣-topped piles 2). Ties → higher price.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Snowball Bury</b> <span class="id">snowball</span></td><td class="rare">rare</td><td class="num">10</td><td>Bury X cards. X starts at 0, grows by 1 each correct placement, resets to 0 on a wrong guess</td><td>X = streak, +1 per correct (≈3), resets on a wrong guess</td></tr>
+<tr><td><b>Club Roots</b> <span class="id">clubRoots</span></td><td class="rare">rare</td><td class="num">8</td><td>Bury 1 card under each pile with a ♣ top card</td><td>1 per other ♣-topped pile (≈2)</td></tr>
+<tr><td><b>Club Snob</b> <span class="id">clubSnob</span></td><td class="uncommon">uncommon</td><td class="num">10</td><td>When a ♣ lands on this card, or this card lands on a ♣ → bury 1 deck card under the pile</td><td>1 card, per ♣ contact</td></tr>
+<tr><td><b>Quick Bury</b> <span class="id">quickBury</span></td><td class="uncommon">uncommon</td><td class="num">7</td><td>When a card lands on this card → bury 1 card under the pile</td><td>1 card, per landing on the carrier</td></tr>
+</table>
+<h3>Donates / Moves cards <span class="note">(1)</span></h3>
+<p class="note">Power = cards moved per firing.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Donate</b> <span class="id">donate</span></td><td class="common">common</td><td class="num">1</td><td>Move 1 buried card from this pile to the smallest pile</td><td>1 buried card to the smallest pile</td></tr>
+</table>
+<h3>Score Shaping — pile size &amp; the score product <span class="note">(3)</span></h3>
+<p class="note">Power = pile-size points added per card. Anchor has no numeric knob: excluding a pile from the smallest-pile product is variable, so it sorts last.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Massive</b> <span class="id">massive</span></td><td class="uncommon">uncommon</td><td class="num">2</td><td>+2 pile size</td><td>+2 pile size</td></tr>
+<tr><td><b>Heavy</b> <span class="id">heavy</span></td><td class="common">common</td><td class="num">1</td><td>+1 pile size</td><td>+1 pile size</td></tr>
+<tr><td><b>Anchor</b> <span class="id">anchor</span></td><td class="common">common</td><td class="num">2</td><td>At deal end → exclude pile from the smallest-pile score if this card is on top <span class="note">— hybrid: guard-like in effect but shapes the score, not survival</span></td><td>variable — excludes the pile from the smallest-pile score</td></tr>
+</table>
+<h3>Item &amp; Store Meta — charges and activations <span class="note">(2)</span></h3>
+<p class="note">Power = activations granted per use (both grant 1). Tie → higher price.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Recharge Shield</b> <span class="id">rechargeSameShield</span></td><td class="rare">rare</td><td class="num">8</td><td>Charge the Same Shield</td><td>1 Same-Shield charge</td></tr>
+<tr><td><b>Tap Power</b> <span class="id">activateSamePower</span></td><td class="rare">rare</td><td class="num">6</td><td>Fire your Same-Power</td><td>1 Same-Power firing</td></tr>
+</table>
+<h2>Pillars <span class="note">(36 items)</span></h2>
+<h3>Bonus Coins <span class="note">(13)</span></h3>
+<p class="note">Power = expected coins per deal. Deal-end scoring: flat value × chance. Live triggers: value × expected qualifying landings in the column (≈6 landings × rank/suit density: 1 suit = 1/4, 5 ranks = 5/13, 4 ranks = 4/13, 1 rank = 1/13). Variable payouts sort at max.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Highest Heart</b> <span class="id">highestEven</span></td><td class="rare">rare</td><td class="num">8</td><td>At deal end → earn coins equal to the highest numbered ♥ top card in this column (2–10 face value, Ace pays 1, royals pay 0)</td><td>highest numbered ♥ top card, 2–10 (max 10)</td></tr>
+<tr><td><b>Insurance</b> <span class="id">insurance</span></td><td class="rare">rare</td><td class="num">4</td><td>At deal end → +8 coins if only one pile is alive</td><td>8 flat, if exactly one pile survives</td></tr>
+<tr><td><b>Greedy</b> <span class="id">greedy</span></td><td class="common">common</td><td class="num">5</td><td>At deal end → +4 coins if this is the only equipped pillar</td><td>4 flat, if it is the only equipped pillar</td></tr>
+<tr><td><b>All Hearts</b> <span class="id">allHeartsCoin</span></td><td class="common">common</td><td class="num">4</td><td>At deal end → +4 coins if every surviving pile in this column has a ♥ top card</td><td>4 flat, if every surviving top is ♥</td></tr>
+<tr><td><b>Guardian</b> <span class="id">columnGuardian</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>At deal end → +4 coins if every pile in this column survived</td><td>4 flat, if every pile survives</td></tr>
+<tr><td><b>Last Licks</b> <span class="id">lastLicks</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>At deal end → +3 coins if no pile in this column survived</td><td>3 flat, if no pile survives</td></tr>
+<tr><td><b>Excavator</b> <span class="id">excavator</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>At deal end → +1 coin per buried card in this column's largest pile with a ♥ top card</td><td>1 × buried cards under the largest ♥-topped pile (≈3)</td></tr>
+<tr><td><b>Fibonacci</b> <span class="id">fibonacci</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>When a Fibonacci-rank card (A/2/3/5/8) lands correctly in this column → +1 coin</td><td>1 per A/2/3/5/8 landing (≈2.3/deal)</td></tr>
+<tr><td><b>Prime</b> <span class="id">prime</span></td><td class="rare">rare</td><td class="num">3</td><td>When a prime-rank card (2/3/5/7) lands correctly in this column → +1 coin</td><td>1 per 2/3/5/7 landing (≈1.8/deal)</td></tr>
+<tr><td><b>Gambler</b> <span class="id">gambler</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>At deal end → 50/50: +3 coins or nothing</td><td>3 × 0.5 = 1.5 expected</td></tr>
+<tr><td><b>Heart Bonus</b> <span class="id">heartBounty</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>When a ♥ lands in this column → +1 coin</td><td>1 per ♥ landing (≈1.5/deal)</td></tr>
+<tr><td><b>Envy</b> <span class="id">envy</span></td><td class="common">common</td><td class="num">4</td><td>At deal end → +2 coins per pile in this column with a ♥ top card</td><td>2 per ♥-topped pile at deal end (≈1.5)</td></tr>
+<tr><td><b>Crowd Favorite</b> <span class="id">crowdFavorite</span></td><td class="rare">rare</td><td class="num">6</td><td>When a locked rank lands correctly in this column → +2 coins</td><td>2 per locked-rank landing (≈0.9/deal)</td></tr>
+</table>
+<h3>Guards, Saves &amp; Revives — survival <span class="note">(4)</span></h3>
+<p class="note">Power = effective save strength: what is saved × how often it applies (per-draw safety %, or save chance on death). Revive saves a whole pile deterministically and tops the group.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Revive</b> <span class="id">revive</span></td><td class="rare">rare</td><td class="num">10</td><td>When a pile in this column reaches 10 cards → revive one dead pile</td><td>a whole dead pile, 100% when a pile reaches 10 cards</td></tr>
+<tr><td><b>Wild Aces</b> <span class="id">wildAces</span></td><td class="rare">rare</td><td class="num">10</td><td>Aces count as high or low in this column</td><td>every ace draw safe (≈7.7% of draws)</td></tr>
+<tr><td><b>Column Tie-Safe</b> <span class="id">columnTieSafe</span></td><td class="rare">rare</td><td class="num">10</td><td>Any tie is safe in this column</td><td>every tie safe (≈5.9% of draws)</td></tr>
+<tr><td><b>Second Wind</b> <span class="id">secondWind</span></td><td class="rare">rare</td><td class="num">6</td><td>Each pile that dies in this column has a 25% chance to be saved, but all the buried cards return to the deck</td><td>25% × ≈1 pile death/deal ≈ 0.25 saves/deal (buried cards return to the deck)</td></tr>
+</table>
+<h3>Peeks <span class="note">(3)</span></h3>
+<p class="note">Power = peeks per firing × trigger rate. Ties → higher price.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Last Rites</b> <span class="id">lastRites</span></td><td class="rare">rare</td><td class="num">10</td><td>When a pile in this column dies → peek the next card</td><td>1 card, per pile death</td></tr>
+<tr><td><b>Queen's Eye</b> <span class="id">queensEye</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>When a royal ♠ (J/Q/K) lands in this column → peek at the next card</td><td>1 card, per royal ♠ (J/Q/K) landing</td></tr>
+<tr><td><b>Static</b> <span class="id">static</span></td><td class="rare">rare</td><td class="num">3</td><td>When a ♠ lands in this column → 50% chance to peek at the next card</td><td>50% of 1 card, per ♠ landing</td></tr>
+</table>
+<h3>Buries <span class="note">(4)</span></h3>
+<p class="note">Power = digCount × trigger frequency (a streaking pillar fires every guess from the threshold on; single-rank and suit+condition triggers fire ≈0.5–1.5×/deal).</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Streak Bury</b> <span class="id">streakTribute</span></td><td class="rare">rare</td><td class="num">10</td><td>From the 4th consecutive correct guess in this column → bury 1 card per guess. Resets on a wrong guess or any guess in another column</td><td>1 per guess from the 4th consecutive correct — repeats while the streak holds</td></tr>
+<tr><td><b>Underdog</b> <span class="id">underdog</span></td><td class="rare">rare</td><td class="num">6</td><td>When a locked rank lands correctly in this column → bury 1 deck card under that pile</td><td>1 per landing of your deck's scarcest rank</td></tr>
+<tr><td><b>Clean Bury</b> <span class="id">clubTribute</span></td><td class="rare">rare</td><td class="num">10</td><td>When a ♣ with no stickers lands in this column → bury 1 card under that pile</td><td>1 per bare ♣ landing</td></tr>
+<tr><td><b>Dense Bury</b> <span class="id">denseBury</span></td><td class="rare">rare</td><td class="num">10</td><td>When a ♣ with 2+ stickers lands correctly in this column → bury 1 card under that pile</td><td>1 per ♣ landing with 2+ stickers</td></tr>
+</table>
+<h3>Score Shaping — pile size &amp; the score product <span class="note">(5)</span></h3>
+<p class="note">Power = pile-size points added per deal (per-card rate × typical count, or +1 whole pile). Anchor/equalize effects are variable and sort last.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Massive Diamond</b> <span class="id">stickerCount</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>♦ cards in this column count as +2 toward pile size</td><td>+2 per ♦ card in the column (≈3+)</td></tr>
+<tr><td><b>Streak Size</b> <span class="id">streakBank</span></td><td class="rare">rare</td><td class="num">4</td><td>From the 3rd consecutive correct guess in this column → +1 pile size per guess. Resets on a wrong guess or any guess in another column</td><td>+1 per guess from the 3th consecutive correct — grows with the streak</td></tr>
+<tr><td><b>Fourth Seat</b> <span class="id">fourthSeat</span></td><td class="rare">rare</td><td class="num">10</td><td>This column starts the deal with 1 extra pile (up to 4)</td><td>+1 whole pile (column starts with 3+1) all deal</td></tr>
+<tr><td><b>Diamond Anchor</b> <span class="id">diamondAnchor</span></td><td class="rare">rare</td><td class="num">6</td><td>At deal end → exclude any pile in this column with a ♦ top card from the smallest-pile score</td><td>variable — ♦-topped piles excluded from the smallest-pile score</td></tr>
+<tr><td><b>Diamond Distribution</b> <span class="id">diamondDistribution</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>When a ♦ lands in this column → make all piles in this column equal size</td><td>variable — equalizes pile sizes, lifting the smallest pile</td></tr>
+</table>
+<h3>Shuffles <span class="note">(1)</span></h3>
+<p class="note">Power = piles shuffled per firing.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Shuffler</b> <span class="id">royalCourt</span></td><td class="uncommon">uncommon</td><td class="num">3</td><td>When a ♦ lands in this column → shuffle the other piles in this column</td><td>the other piles in the column (≈2), per ♦ landing</td></tr>
+</table>
+<h3>Item &amp; Store Meta — prices, freebies, gear <span class="note">(6)</span></h3>
+<p class="note">Power = store/gear value granted: a mirrored pillar &gt; a free item per store &gt; 2× rare odds &gt; 30% event block &gt; 1 coin saved per purge &gt; a 5% sticker chance. Value units are named per row.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Ditto</b> <span class="id">ditto</span></td><td class="rare">rare</td><td class="num">5</td><td>Mirrors the center column's pillar</td><td>a free second pillar effect (mirrors the center column)</td></tr>
+<tr><td><b>Freebie</b> <span class="id">freebie</span></td><td class="rare">rare</td><td class="num">9</td><td>One random item in every store costs 0 coins. No effect during deal</td><td>1 free item per store (saves its price)</td></tr>
+<tr><td><b>Rare Hunter</b> <span class="id">rareHunter</span></td><td class="rare">rare</td><td class="num">8</td><td>Rare items appear in the store twice as often. No effect during deal</td><td>rare store offers ×2</td></tr>
+<tr><td><b>Bouncer</b> <span class="id">twoWard</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>30% chance to turn away a Just a Two mystery outcome. No effect during deal</td><td>30% chance to block a Just a Two outcome</td></tr>
+<tr><td><b>Bulk Rate</b> <span class="id">bulkRate</span></td><td class="uncommon">uncommon</td><td class="num">6</td><td>The store's Purge price climbs by 1 instead of 2. No effect during deal</td><td>purge price climbs +1 instead of +2 (saves 1/purge)</td></tr>
+<tr><td><b>Flypaper</b> <span class="id">flypaper</span></td><td class="uncommon">uncommon</td><td class="num">6</td><td>When a card lands correctly in this column → 5% chance it gains a random sticker <span class="note">— hybrid: the payoff is a card edit, but it fires as a free-item grant</span></td><td>5% chance of a random sticker per correct landing</td></tr>
+</table>
+<h2>Bases <span class="note">(22 items)</span></h2>
+<h3>Peeks <span class="note">(5)</span></h3>
+<p class="note">Power = cards peeked per use. Ties → higher price.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Demolish</b> <span class="id">demolish</span></td><td class="uncommon">uncommon</td><td class="num">8</td><td>Destroy this column's pillar permanently, then peek the next 3 cards <span class="note">— hybrid: permanently destroys the column's pillar as the cost</span></td><td>3 cards</td></tr>
+<tr><td><b>Kamikaze</b> <span class="id">kamikaze</span></td><td class="rare">rare</td><td class="num">8</td><td>Kill a random ♠-topped pile in this column, → peek the next 2 cards <span class="note">— hybrid: kills a random ♠-topped pile as the cost</span></td><td>2 cards</td></tr>
+<tr><td><b>Empty Purse</b> <span class="id">emptyPurse</span></td><td class="rare">rare</td><td class="num">5</td><td>Spend ALL your coins → peek 1 card, +1 more per 10 coins spent <span class="note">— hybrid: spends ALL your coins as the cost</span></td><td>1 + 1 per 10 coins in the purse</td></tr>
+<tr><td><b>Lone Eye</b> <span class="id">lonePeek</span></td><td class="rare">rare</td><td class="num">10</td><td>Peek the next card. Only works while no Same-Power is equipped</td><td>1 card, only while no Same-Power is equipped</td></tr>
+<tr><td><b>Spade Peeker</b> <span class="id">spadePeek</span></td><td class="uncommon">uncommon</td><td class="num">7</td><td>Peek the next card. Requires every pile in this column has a ♠ on top</td><td>1 card, only while every pile top is ♠</td></tr>
+</table>
+<h3>Tells — higher/lower/same hints <span class="note">(2)</span></h3>
+<p class="note">Power = tell markers armed per use.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Club Oracle</b> <span class="id">clubOracle</span></td><td class="uncommon">uncommon</td><td class="num">8</td><td>Put a tell marker on each ♣-topped pile in this column for the next draw. Tell marker shows if the next card is higher, lower, or same</td><td>1 per ♣-topped pile in the column (up to 3)</td></tr>
+<tr><td><b>Same Tell</b> <span class="id">sameTell</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card. No match, no word</td><td>1, and only on a same-rank match</td></tr>
+</table>
+<h3>Buries <span class="note">(2)</span></h3>
+<p class="note">Power = cards buried per use.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Sticker Harvest</b> <span class="id">stickerHarvest</span></td><td class="uncommon">uncommon</td><td class="num">6</td><td>Choose a pile → bury 2 cards per sticker on its top card, then peel all those stickers <span class="note">— hybrid: also peels those stickers — a deck edit</span></td><td>2 per sticker on the chosen top card (≈4)</td></tr>
+<tr><td><b>Club Dig</b> <span class="id">clubDig</span></td><td class="rare">rare</td><td class="num">8</td><td>Bury 1 card under each ♣-topped pile in this column</td><td>1 per ♣-topped pile in the column (≈2)</td></tr>
+</table>
+<h3>Saves, Revives &amp; Escapes — survival <span class="note">(3)</span></h3>
+<p class="note">Power = effective save strength: an instant deal win &gt; clearing an ambush &gt; reviving one pile.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Last Resort</b> <span class="id">lastResort</span></td><td class="rare">rare</td><td class="num">10</td><td>In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Any Base nearby is destroyed <span class="note">— hybrid: wins BY burying the whole deck; destroys nearby bases</span></td><td>instant win of a non-boss deal</td></tr>
+<tr><td><b>Escape Hatch</b> <span class="id">ambushOut</span></td><td class="rare">rare</td><td class="num">8</td><td>Only usable in an ambush → clear the deal instantly. No effect during deal</td><td>clears an ambush deal instantly</td></tr>
+<tr><td><b>Phoenix</b> <span class="id">revive</span></td><td class="uncommon">uncommon</td><td class="num">7</td><td>Revive a random dead pile in this column. Buried cards return to the deck</td><td>revives 1 random dead pile (buried cards return to the deck)</td></tr>
+</table>
+<h3>Bonus Coins <span class="note">(2)</span></h3>
+<p class="note">Power = coins per use = rate × typical qualifying count (♥-topped piles 2, ♥ cards in a column 3).</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Heart Demolish</b> <span class="id">heartDemolish</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>Destroy every ♥-topped pile in this column. +4 coins per pile destroyed <span class="note">— hybrid: destroys those piles as the cost</span></td><td>4 per ♥-topped pile destroyed (≈8)</td></tr>
+<tr><td><b>Heart Tax</b> <span class="id">tax</span></td><td class="uncommon">uncommon</td><td class="num">5</td><td>+1 coin per ♥ card in this column</td><td>1 per ♥ card in the column (≈3)</td></tr>
+</table>
+<h3>Deck Edits — rank, suit &amp; stickers <span class="note">(3)</span></h3>
+<p class="note">Power = scope: cards changed per use (column = up to 3 top cards vs 1 random card).</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Rank Setter</b> <span class="id">setValue</span></td><td class="rare">rare</td><td class="num">10</td><td>Permanently set every top card's rank in this column to the bottom pile's rank</td><td>every top card in the column (up to 3), rank set permanently</td></tr>
+<tr><td><b>Suit Setter</b> <span class="id">setSuit</span></td><td class="rare">rare</td><td class="num">5</td><td>Permanently set every top card's suit in this column to the bottom pile's suit</td><td>every top card in the column (up to 3), suit set permanently</td></tr>
+<tr><td><b>Wild Sticker</b> <span class="id">randomSticker</span></td><td class="uncommon">uncommon</td><td class="num">10</td><td>Apply a random sticker to a random top card in this column</td><td>1 random top card gains a random sticker</td></tr>
+</table>
+<h3>Shuffles <span class="note">(1)</span></h3>
+<p class="note">Power = piles shuffled per use.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Upheaval</b> <span class="id">shuffleColumn</span></td><td class="common">common</td><td class="num">5</td><td>Shuffle every pile in this column</td><td>every pile in the column (up to 3)</td></tr>
+</table>
+<h3>Score Shaping — pile size &amp; the score product <span class="note">(1)</span></h3>
+<p class="note">Power = variable: equalizing pile sizes lifts the smallest pile in the score product.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Ballast</b> <span class="id">evenOut</span></td><td class="common">common</td><td class="num">5</td><td>Make all piles in this column equal size</td><td>variable — all piles in the column made equal</td></tr>
+</table>
+<h3>Item &amp; Store Meta — recharges &amp; activations <span class="note">(3)</span></h3>
+<p class="note">Power = activations granted per use. Ties → higher price.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Reactor</b> <span class="id">refreshBases</span></td><td class="rare">rare</td><td class="num">9</td><td>Recharge your other two bases</td><td>recharges your other 2 bases</td></tr>
+<tr><td><b>Recharge Cell</b> <span class="id">rechargeSame</span></td><td class="rare">rare</td><td class="num">10</td><td>Charge the Same Shield</td><td>1 Same-Shield charge</td></tr>
+<tr><td><b>Power Surge</b> <span class="id">activateSame</span></td><td class="rare">rare</td><td class="num">10</td><td>Activate your Same-Power</td><td>1 Same-Power firing</td></tr>
+</table>
+<h2>Same-Powers <span class="note">(9 items)</span></h2>
+<h3>Bonus Coins <span class="note">(1)</span></h3>
+<p class="note">Power = coins per firing = value × alive piles.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Dividend</b> <span class="id">linkCoins</span></td><td class="rare">rare</td><td class="num">9</td><td>Gain 1 coin for each alive pile</td><td>1 × alive piles (≈6)</td></tr>
+</table>
+<h3>Peeks <span class="note">(1)</span></h3>
+<p class="note">Power = cards peeked per firing.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Same Peeker</b> <span class="id">samePeek</span></td><td class="rare">rare</td><td class="num">9</td><td>Peek the next card</td><td>1 card</td></tr>
+</table>
+<h3>Tells — higher/lower/same hints <span class="note">(1)</span></h3>
+<p class="note">Power = draws covered = alive {color}-topped piles.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Second Sight</b> <span class="id">linkTell</span></td><td class="rare">rare</td><td class="num">9</td><td>For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a its color top card</td><td>X draws of tells, X = alive {color}-topped piles (≈3)</td></tr>
+</table>
+<h3>Shuffles <span class="note">(1)</span></h3>
+<p class="note">Power = piles shuffled per firing.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Link Shuffler</b> <span class="id">linkShuffle</span></td><td class="rare">rare</td><td class="num">9</td><td>Shuffle every alive pile</td><td>every alive pile (≈6)</td></tr>
+</table>
+<h3>Buries <span class="note">(1)</span></h3>
+<p class="note">Power = cards buried per firing = value × {suit}-topped piles.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Burrow</b> <span class="id">linkBury</span></td><td class="rare">rare</td><td class="num">9</td><td>Bury 1 card under every pile with a its suit top card</td><td>1 per {suit}-topped pile (≈2)</td></tr>
+</table>
+<h3>Saves &amp; Revives — survival <span class="note">(1)</span></h3>
+<p class="note">Power = what is saved: one whole dead pile.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Rekindle</b> <span class="id">linkRevive</span></td><td class="rare">rare</td><td class="num">9</td><td>Revive a dead pile</td><td>revives 1 dead pile</td></tr>
+</table>
+<h3>Deck Edits — stickers &amp; purges <span class="note">(2)</span></h3>
+<p class="note">Power = scope (column-wide &gt; 1 card), then permanence. A 25% permanent purge sorts below a guaranteed column-wide sticker spray.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Sticker Spray</b> <span class="id">linkSticker</span></td><td class="rare">rare</td><td class="num">9</td><td>Apply a random sticker to every top card in this column</td><td>every top card in the column gains a random sticker (up to 3)</td></tr>
+<tr><td><b>Long Odds</b> <span class="id">linkPurge</span></td><td class="rare">rare</td><td class="num">9</td><td>25% chance to permanently purge a card from the deck</td><td>25% chance to permanently purge 1 deck card</td></tr>
+</table>
+<h3>Score Shaping — pile size &amp; the score product <span class="note">(1)</span></h3>
+<p class="note">Power = pile-size points added per firing = value × piles + hub bonus.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Same Heavy</b> <span class="id">linkHeavy</span></td><td class="rare">rare</td><td class="num">9</td><td>Add +1 pile size to every pile, and +3 to the pile you called Same on</td><td>+1 to every pile, +3 to the Same-called pile (≈9 total)</td></tr>
+</table>
+<h2>Packs <span class="note">(4 items)</span></h2>
+<h3>Pack Contents — cards &amp; stickers gained <span class="note">(4)</span></h3>
+<p class="note">Power = cards/stickers revealed × kept. Ties → higher price.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Large Sticker Pack</b> <span class="id">largeStickerPack</span></td><td class="common">common</td><td class="num">6</td><td>Reveals 5 random stickers. Keep 2</td><td>5 stickers revealed, keep 2</td></tr>
+<tr><td><b>Large Card Pack</b> <span class="id">cardPack</span></td><td class="uncommon">uncommon</td><td class="num">4</td><td>Reveals 5 random cards. Keep 2 to swap into your deck</td><td>5 cards revealed, keep 2</td></tr>
+<tr><td><b>Small Sticker Pack</b> <span class="id">stickerPack</span></td><td class="common">common</td><td class="num">3</td><td>Reveals 3 random stickers. Keep 1</td><td>3 stickers revealed, keep 1</td></tr>
+<tr><td><b>Small Card Pack</b> <span class="id">smallCardPack</span></td><td class="common">common</td><td class="num">2</td><td>Reveals 3 random cards. Keep 1 to swap into your deck</td><td>3 cards revealed, keep 1</td></tr>
+</table>
+<h2>Cursed Stickers <span class="note">(13 items)</span></h2>
+<h3>Coin Drains <span class="note">(2)</span></h3>
+<p class="note">Power = coins lost per firing. Spoiler wipes the whole deal's bonus (variable, usually &gt; 3), so it tops Leech's flat 3.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Spoiler</b> <span class="id">spoiler</span></td><td class="common">common</td><td class="num">0</td><td>Reset bonus coins earned this deal to 0</td><td>ALL bonus coins earned this deal (variable)</td></tr>
+<tr><td><b>Leech</b> <span class="id">leech</span></td><td class="common">common</td><td class="num">0</td><td>−3 coins</td><td>3 coins per landing</td></tr>
+</table>
+<h3>Pile-Size Harm <span class="note">(2)</span></h3>
+<p class="note">Power = pile-size points removed: pinning a pile to 1 &gt; −1 per card.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Flatline</b> <span class="id">flatline</span></td><td class="common">common</td><td class="num">0</td><td>While this card is a pile's top card, that pile size is 1</td><td>pile size pinned to 1 while it tops the pile</td></tr>
+<tr><td><b>Shrink</b> <span class="id">shrink</span></td><td class="common">common</td><td class="num">0</td><td>This card counts −1 toward pile size</td><td>−1 pile size</td></tr>
+</table>
+<h3>Gear Sabotage — pillars, bases, shields, stickers <span class="note">(5)</span></h3>
+<p class="note">Power = permanence × breadth of the damage: a 10% destroy &gt; permanent sticker stripping &gt; a drained base &gt; a suppressed pillar &gt; a drained shield.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Saboteur</b> <span class="id">saboteur</span></td><td class="common">common</td><td class="num">0</td><td>10% chance the column's Base or Pillar is destroyed</td><td>10% chance to DESTROY the column's base or pillar</td></tr>
+<tr><td><b>Peeler</b> <span class="id">peeler</span></td><td class="common">common</td><td class="num">0</td><td>Any card this card touches loses ALL of its stickers</td><td>strips ALL stickers off any card it touches</td></tr>
+<tr><td><b>Base Drain</b> <span class="id">drainBase</span></td><td class="common">common</td><td class="num">0</td><td>The column's Base is drained</td><td>the column's base is drained</td></tr>
+<tr><td><b>Jammer</b> <span class="id">jammer</span></td><td class="common">common</td><td class="num">0</td><td>While this is a pile's top card, the column's Pillar does not work</td><td>the column's pillar stops working while it tops the pile</td></tr>
+<tr><td><b>Shield Drain</b> <span class="id">drainShield</span></td><td class="common">common</td><td class="num">0</td><td>Drain the Same Shield</td><td>drains the Same Shield</td></tr>
+</table>
+<h3>Play Restriction <span class="note">(2)</span></h3>
+<p class="note">Power = how much choice is removed: forcing the next guess's pile &gt; blocking the Same call.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Magnet</b> <span class="id">magnet</span></td><td class="common">common</td><td class="num">0</td><td>While this is a pile's top card, your next guess must be played there</td><td>your next guess must be played on its pile</td></tr>
+<tr><td><b>Mute</b> <span class="id">mute</span></td><td class="common">common</td><td class="num">0</td><td>While this is a pile's top card, Same cannot be called there</td><td>Same cannot be called on its pile while it tops it</td></tr>
+</table>
+<h3>Deck Harm <span class="note">(1)</span></h3>
+<p class="note">Power = cards moved against you per firing.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Trapdoor</b> <span class="id">trapdoor</span></td><td class="common">common</td><td class="num">0</td><td>When it lands, the card at the BOTTOM of the pile returns to the deck</td><td>the pile's BOTTOM card returns to the deck on landing</td></tr>
+</table>
+<h3>Kill Risk <span class="note">(1)</span></h3>
+<p class="note">Power = chance a correct guess still kills the pile.</p>
+<table><tr><th>Item</th><th>Rarity</th><th>Cost</th><th>What it does</th><th>Power (sort metric)</th></tr>
+<tr><td><b>Malfunction</b> <span class="id">malfunction</span></td><td class="common">common</td><td class="num">0</td><td>10% chance this card kills the pile anyway, even if the guess is correct</td><td>10% chance a correct guess kills the pile anyway</td></tr>
+</table>
+
+<h2>How to read the power column</h2>
+<ul class="note">
+<li><b>Bonus Coins</b> — expected coins per firing/deal: value × chance, or a per-unit rate with the unit named (typical units: pile size 5, 6 landings per column per deal, 72-card deck, streak 3).</li>
+<li><b>Coin Drains</b> — coins lost per firing.</li>
+<li><b>Peeks</b> — cards peeked per firing/use.</li>
+<li><b>Tells</b> — higher/lower/same hints armed per firing/use.</li>
+<li><b>Shuffles / Buries / Donates</b> — piles or cards affected per firing/use.</li>
+<li><b>Guards / Saves / Revives</b> — effective save strength: chance × what is saved (share of draws made safe, or save chance on death).</li>
+<li><b>Deck Edits</b> — scope and control: rank steps / suits matched, 1 card vs a column; controlled before random, guaranteed before chance-based.</li>
+<li><b>Score Shaping</b> — pile-size points added (or variable product effects, which sort last).</li>
+<li><b>Item &amp; Store Meta</b> — activations granted or store value per use, units named per row.</li>
+<li><b>Packs</b> — revealed × kept.</li>
+</ul>
+<p class="note">Generated from <code>items.js</code> v6.75 — the live source of truth. Sibling doc: <code>item-pathways.html</code> (how to unlock each item).</p>
+</body></html>

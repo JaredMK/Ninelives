@@ -193,7 +193,7 @@ const NINELIVES_ITEMS = {
     // × cards in that pile; Economy multiplies units by this value).
     { id: "extraCoin",  unlock: { type: "behavior", stat: "perfectDeals", count: 1 }, label: "Payout",      icon: "💰", kind: "behavior", behavior: "extraCoin", value: 1, tier: "uncommon", price: 3,
       description: "At deal end if this card tops its pile  → earn coins equal to pile size", suits: ["♥"] },
-    { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 1,
+    { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "common", price: 2,
       description: "+1 coin", suits: ["♥"] },
     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor", tier: "common", price: 2,
       description: "At deal end → exclude pile from the smallest-pile score if this card is on top", suits: ["♦"] },
@@ -213,15 +213,15 @@ const NINELIVES_ITEMS = {
       description: "Peek at the next deck card", suits: ["♠"]  },
     { id: "wildSuit",   label: "Wild Suit",   icon: "♠♥♦♣", kind: "behavior", behavior: "wildSuit", tier: "common", price: 1,
       description: "Counts as every suit" },
-    { id: "shuffle", unlock: { type: "milestone", stat: "runsPlayed", count: 5 }, label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 1,
+    { id: "shuffle", label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 1,
       description: "Optionally shuffle the pile", suits: ["♦"]  },
     // count = buried cards moved to the smallest pile per accepted Donate.
     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", count: 1, tier: "common", price: 1,
       description: "Move 1 buried card from this pile to the smallest pile", suits: ["♦"]  },
     // UNGATED on purpose: with Bury 1 retired, Quick Bury is the cardsBuried
     // unlock ladder's only seed source (chicken-and-egg otherwise).
-    { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "rare", price: 7,
-      description: "Bury 1 card under the pile", suits: ["♣"]  },
+    { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 7,
+      description: "When a card lands on this card → bury 1 card under the pile", suits: ["♣"]  },
     { id: "twinSpark", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 4 }, label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "uncommon", price: 3,
       description: "Peek at the next card if another pile's top card matches this rank", suits: ["♠"]  },
     // max = the top of the random 0–max coin roll.
@@ -263,7 +263,7 @@ const NINELIVES_ITEMS = {
     { id: "spadeWhispers", unlock: { type: "behavior", stat: "spadesPlayed", count: 200 }, label: "Spade Whispers", icon: "🌬️", kind: "behavior", behavior: "spadeWhispers", tier: "rare", price: 8,
       description: "The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card", suits: ["♠"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
-    { id: "tell", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 3 }, label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 4,
+    { id: "tell", label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 4,
       description: "Shows if the next deck card is higher, lower, or same", suits: ["♠"] },
     // ---- Same-charge / Same-power stickers (fire on correct placement) ----
     { id: "rechargeSameShield", unlock: { type: "behavior", stat: "correctSames", count: 10 }, label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "rare", price: 8,
@@ -339,11 +339,11 @@ const NINELIVES_ITEMS = {
     { id: "clubTribute", unlock: { type: "behavior", stat: "clubsPlayed", count: 150 }, label: "Clean Bury", icon: "🧹",
       kind: "composition", effect: "clubTribute", digCount: 1, tier: "rare", price: 10,
       description: "When a ♣ with no stickers lands in this column → bury 1 card under that pile" },
-    { id: "allHeartsCoin", label: "All Hearts", icon: "💗",
+    { id: "allHeartsCoin", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 60 }, label: "All Hearts", icon: "💗",
       kind: "scoring", effect: "allSuitTop", suit: "♥", value: 4, tier: "common", price: 4,
       description: "At deal end → +4 coins if every surviving pile in this column has a ♥ top card" },
     // value = coins per alive ♥-topped pile in this column at end of deal.
-    { id: "envy", label: "Envy", icon: "💚",
+    { id: "envy", unlock: { type: "milestone", stat: "runsPlayed", count: 5 }, label: "Envy", icon: "💚",
       kind: "scoring", effect: "heartPiles", value: 2, tier: "common", price: 4,
       description: "At deal end → +2 coins per pile in this column with a ♥ top card" },
     // threshold = the in-column streak step the bonus starts at (+1 size per
@@ -363,9 +363,9 @@ const NINELIVES_ITEMS = {
     { id: "fourthSeat", unlock: { type: "milestone", stat: "endlessStagesReached", count: 1 }, label: "Fourth Seat", icon: "🪑",
       kind: "composition", effect: "columnPiles", value: 4, tier: "rare", price: 10,
       description: "This column starts the deal with 1 extra pile (up to 4)" },
-    { id: "secondWind", unlock: { type: "behavior", stat: "pilesLost", count: 30 }, label: "Second Wind", icon: "🌬️",
+    { id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 6, saveChance: 0.25,
-      description: "Each pile that dies in this column has a 25% chance to offer its rescue: take it and all the pile's cards return to the deck, or refuse and let it die" },
+      description: "Each pile that dies in this column has a 25% chance to be saved, but all the buried cards return to the deck" },
     { id: "greedy", unlock: { type: "milestone", stat: "dealsSurvived", count: 6 }, label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 4, tier: "common", price: 5,
       description: "At deal end → +4 coins if this is the only equipped pillar" },
@@ -435,7 +435,7 @@ const NINELIVES_ITEMS = {
     { id: "prime", unlock: { type: "milestone", stat: "bossesBeaten", count: 20 }, label: "Prime", icon: "🔢",
       kind: "live", effect: "prime", value: 1, tier: "rare", price: 3,
       description: "When a prime-rank card (2/3/5/7) lands correctly in this column → +1 coin" },
-    { id: "queensEye", unlock: { type: "behavior", stat: "zenEasyWon", count: 3 }, label: "Queen's Eye", icon: "👁️",
+    { id: "queensEye", label: "Queen's Eye", icon: "👁️",
       kind: "live", effect: "queensEye", tier: "uncommon", price: 4,
       description: "When a royal ♠ (J/Q/K) lands in this column → peek at the next card" },
     { id: "royalCourt", label: "Shuffler", icon: "👑",
@@ -446,7 +446,7 @@ const NINELIVES_ITEMS = {
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 3,
       description: "At deal end → +1 coin per buried card in this column's largest pile with a ♥ top card" },
     // chance = probability (0–1) the flip pays `value` (no suit requirement).
-    { id: "gambler", label: "Gambler", icon: "🎲",
+    { id: "gambler", unlock: { type: "behavior", stat: "jokersPlayed", count: 12 }, label: "Gambler", icon: "🎲",
       kind: "scoring", effect: "gambler", value: 3, chance: 0.5, tier: "uncommon", price: 5,
       description: "At deal end → 50/50: +3 coins or nothing" },
     { id: "lastRites", unlock: { type: "behavior", stat: "dealsWonLegendary", count: 1 }, label: "Last Rites", icon: "🕯️",
@@ -466,6 +466,169 @@ const NINELIVES_ITEMS = {
     { id: "diamondDistribution", unlock: { type: "behavior", stat: "removalsUsed", count: 10 }, label: "Diamond Distribution", icon: "⚖️",
       kind: "guess", effect: "diamondDistribution", tier: "uncommon", price: 3,
       description: "When a ♦ lands in this column → make all piles in this column equal size" },
+
+    /* ====================== ARCHETYPE BATCH v6.76 =======================
+       NEW pillars — DATA ONLY: the engine does not implement these effects
+       yet. Every entry in this batch is deliberately UNGATED (no `unlock`
+       field — a starting item, always rollable); the user will add gates
+       later. Every price below is an R4 PROPOSAL, marked TUNE. Icons are
+       single-emoji placeholders — pixel art comes later. */
+
+    // ---- Deck-composition Pillars — every condition below evaluates against
+    //      the FULL deck (board + buried + remaining), LIVE, at each landing.
+    // EMPTY RANKS: the bury count is DERIVED — 1 card per rank that has zero
+    // copies anywhere in the full deck — so there is no count knob.
+    // TUNE: price 8 proposed (R4).
+    { id: "zeroRanksBury", label: "Empty Ranks", icon: "🈳",
+      kind: "live", effect: "clubZeroRanksBury", tier: "rare", price: 8,
+      description: "When a ♣ lands in this column → bury 1 card under that pile per rank with zero copies in your full deck" },
+    // CRAZY EIGHTS: a composition condition (8s the most common rank in the
+    // full deck) changes the column's STARTING pile size. The target size 8
+    // is the mechanic itself — no knob.
+    // TUNE: price 10 proposed (R4); deliberately huge vs normal starting size — flagged for balance.
+    { id: "eightStart", label: "Crazy Eights", icon: "8️⃣",
+      kind: "composition", effect: "startPileSizeEight", tier: "rare", price: 10,
+      description: "If 8s are the most common rank in your full deck → this column's piles start at pile size 8" },
+    // ROYAL SANCTUARY: composition-gated guess safety — the no-2s condition
+    // is the whole knob.
+    // TUNE: price 6 proposed (R4).
+    { id: "royalSanctuary", label: "Royal Sanctuary", icon: "🏰",
+      kind: "guess", effect: "royalSafeNoTwos", tier: "uncommon", price: 6,
+      description: "If your full deck contains no 2s → royals (J/Q/K) are always safe in this column" },
+    // VOID TRIBUTE: {suit} pillar — the suit locks the FIRST time the pillar
+    // shows in a shop this climb and holds all climb (shopRoll: "suit").
+    // buryCount = cards buried per qualifying ♣ landing.
+    // TUNE: price 8 proposed (R4).
+    { id: "absentSuitClubBury", label: "Void Tribute", icon: "🌫️",
+      kind: "live", effect: "absentSuitClubBury", shopRoll: "suit", buryCount: 2, tier: "rare", price: 8,
+      description: "If your full deck contains no {suit} → when a ♣ lands in this column, bury 2 cards under that pile" },
+    // MAJORITY RULE: {suit} pillar (shopRoll: "suit", same first-shop lock).
+    // The 50% majority threshold is the mechanic itself — no knob.
+    // TUNE: price 8 proposed (R4).
+    { id: "suitMajoritySafe", label: "Majority Rule", icon: "🗳️",
+      kind: "guess", effect: "suitMajoritySafe", shopRoll: "suit", tier: "rare", price: 8,
+      description: "If half or more of your full deck is {suit} → {suit} cards are safe when they land in this column" },
+    // DIAMOND ECHO: the size bonus is DERIVED — +1 per duplicate of the
+    // landing card's rank in the full deck — so there is no count knob.
+    // TUNE: price 6 proposed (R4).
+    { id: "diamondDupeSize", label: "Diamond Echo", icon: "👯",
+      kind: "live", effect: "diamondDupeSize", tier: "uncommon", price: 6,
+      description: "When a ♦ lands in this column → +1 pile size per duplicate of that card's rank in your full deck" },
+
+    // ---- SAME-TOLERANCE family (family: "sameTolerance") -----------------
+    // Four relaxations of what survives a SAME call in this column; `tol`
+    // selects the rule. ONE same-tolerance pillar per column MAX, enforced
+    // at placement (engine work to come — the data carries the family tag
+    // now). Every description states the family rule: a survived Same counts
+    // as a FULL correct Same — it charges the Same Shield and fires the
+    // equipped Same-Power.
+    // TUNE: price 9 proposed (R4).
+    { id: "sameTolNear", label: "Close Call", icon: "🤏",
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "near", tier: "rare", price: 9,
+      description: "Same calls are safe on cards ±1 in value in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
+    // TUNE: price 7 proposed (R4).
+    { id: "sameTolRoyal", label: "Royal Pair", icon: "🤴",
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "royalPair", tier: "uncommon", price: 7,
+      description: "A royal landing on a royal survives a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
+    // TUNE: price 7 proposed (R4).
+    { id: "sameTolSum10", label: "Perfect Ten", icon: "🔟",
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sum10", tier: "uncommon", price: 7,
+      description: "Ranks summing to 10 survive a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
+    // TUNE: price 6 proposed (R4).
+    { id: "sameTolSuit", label: "Suit Match", icon: "🧥",
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sameSuit", tier: "uncommon", price: 6,
+      description: "A suit landing on its own suit is safe in this column, including Same calls. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
+
+    // ---- SHIELDS ----------------------------------------------------------
+    // RANK SHIELD: {rank} pillar — the rank rolls the FIRST time the pillar
+    // shows in a shop this climb, is SHOWN before purchase, and is permanent
+    // (shopRoll: "rank").
+    // TUNE: price 5 proposed (R4).
+    { id: "rankShield", label: "Rank Shield", icon: "🔰",
+      kind: "guess", effect: "rankShield", shopRoll: "rank", tier: "uncommon", price: 5,
+      description: "Any {rank} landing in this column is safe. The rank is rolled at the shop and shown before purchase" },
+    // DAILY SUIT: the shielded suit re-rolls at the START of each deal (and
+    // on redeal); the current suit shows on the pillar's plaque.
+    // TUNE: price 6 proposed (R4).
+    { id: "suitShield", label: "Daily Suit", icon: "📅",
+      kind: "guess", effect: "suitShieldDaily", tier: "uncommon", price: 6,
+      description: "A suit rolled at the start of each deal (re-rolled on redeal, shown on the plaque) is safe when it lands in this column" },
+
+    // ---- ECONOMY / STORE --------------------------------------------------
+    // FLAT PURGE: value = the fixed Purge price while equipped (overrides the
+    // climbing ladder). Pure derived pricing — no saved state of its own.
+    // TUNE: price 8 proposed (R4).
+    { id: "purgeFlatFive", label: "Flat Purge", icon: "✋",
+      kind: "meta", effect: "purgeFlat", value: 5, tier: "rare", price: 8,
+      description: "The store's Purge always costs 5 coins. No effect during deal" },
+    // ON THE HOUSE: covers the FIRST restock per store visit AND the FIRST
+    // reshuffle per deal. No knobs — the two freebies are the mechanic.
+    // TUNE: price 7 proposed (R4).
+    { id: "firstFree", label: "On the House", icon: "🆓",
+      kind: "meta", effect: "firstFree", tier: "rare", price: 7,
+      description: "The first restock in each store and the first reshuffle of each deal are free" },
+    // EIGHT BALL: a plain peek trigger on an 8 landing. No knobs.
+    // TUNE: price 3 proposed (R4).
+    { id: "eightPeek", label: "Eight Ball", icon: "🎱",
+      kind: "live", effect: "eightPeek", tier: "common", price: 3,
+      description: "When an 8 lands in this column → peek at the next card" },
+
+    // ---- PAUPER family -----------------------------------------------------
+    // PAUPER: all four gate on a LIGHT purse — purseBelow = the exclusive
+    // coin ceiling, evaluated LIVE at every landing (drop below it mid-deal
+    // and the pillar wakes; climb back above and it sleeps). Common + cheap
+    // by design: the broke player's comeback kit.
+    // value = coins paid per qualifying ♥ landing.
+    // TUNE: price 2 proposed (R4).
+    { id: "pauperHeart", label: "Pauper's Heart", icon: "❤️‍🩹",
+      kind: "live", effect: "pauperHeart", purseBelow: 10, value: 3, tier: "common", price: 2,
+      description: "While your purse holds under 10 coins → when a ♥ lands in this column, +3 coins" },
+    // value = the pile size a ♦ counts toward (board-wide) while broke,
+    // replacing the normal +1.
+    // TUNE: price 3 proposed (R4).
+    { id: "pauperDiamond", label: "Pauper's Diamond", icon: "💎",
+      kind: "live", effect: "pauperDiamondSize", purseBelow: 10, value: 2, tier: "common", price: 3,
+      description: "While your purse holds under 10 coins → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1" },
+    // No knobs — the tell (higher/lower/same) is the mechanic.
+    // TUNE: price 2 proposed (R4).
+    { id: "pauperSpade", label: "Pauper's Spade", icon: "🥄",
+      kind: "live", effect: "pauperSpadeTell", purseBelow: 10, tier: "common", price: 2,
+      description: "While your purse holds under 10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)" },
+    // digCount = cards buried per qualifying ♣ landing.
+    // TUNE: price 2 proposed (R4).
+    { id: "pauperClub", label: "Pauper's Club", icon: "🍀",
+      kind: "live", effect: "pauperClubBury", purseBelow: 10, digCount: 1, tier: "common", price: 2,
+      description: "While your purse holds under 10 coins → when a ♣ lands in this column, bury 1 card under that pile" },
+
+    // ---- CURSE + THINNING ---------------------------------------------------
+    // CURSE HARVEST: turns a cursed landing into value. digCount = cards
+    // buried per cursed landing; the peek after is fixed (the mechanic).
+    // TUNE: price 7 proposed (R4).
+    { id: "curseHarvest", label: "Curse Harvest", icon: "🧺",
+      kind: "live", effect: "curseBuryPeek", digCount: 1, tier: "rare", price: 7,
+      description: "When a cursed card lands in this column → bury 1 card under that pile, then peek at the next card" },
+    // CLUB THIN: per = the deck-remaining step the bury scales on;
+    // digCount = cards buried per full step.
+    // TUNE: price 6 proposed (R4).
+    { id: "clubThin", label: "Club Thin", icon: "✂️",
+      kind: "live", effect: "clubThin", per: 25, digCount: 1, tier: "uncommon", price: 6,
+      description: "When a ♣ lands in this column → bury 1 card per 25 cards remaining in the deck" },
+    // RANK PURGE: an ON-PURCHASE purge — {rank} rolls the first time the
+    // pillar shows in a shop this climb (shopRoll: "rank"), is shown before
+    // purchase, and every copy leaves the deck at buy time. Fires once, at
+    // the shop; nothing in-deal.
+    // Price 10 is USER-SPECIFIED (not an R4 proposal).
+    { id: "purgeRank", label: "Rank Purge", icon: "🗑️",
+      kind: "meta", effect: "purgeRank", shopRoll: "rank", tier: "rare", price: 10,
+      description: "On purchase → purge every {rank} from your deck. No effect during deal" },
+
+    // SIZE-ONE DIAMONDS (archetype batch v6.76 — ungated, data only):
+    // value = the pile size a ♦ counts toward (board-wide) while the column
+    // holds a size-1 pile, replacing the normal +1.
+    // TUNE: price 5 proposed (R4).
+    { id: "sizeOneDiamonds", label: "Diamond Lifeline", icon: "🔷",
+      kind: "live", effect: "sizeOneDiamonds", value: 2, tier: "uncommon", price: 5,
+      description: "While any pile in this column has pile size 1 → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1" },
   ],
 
   /* --------------------------------------------------------------------
@@ -486,7 +649,7 @@ const NINELIVES_ITEMS = {
     { id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", tier: "common", price: 5,
       description: "Shuffle every pile in this column" },
-    { id: "revive", unlock: { type: "behavior", stat: "earlyLosses", count: 1 }, label: "Phoenix", icon: "🔥",
+    { id: "revive", label: "Phoenix", icon: "🔥",
       kind: "active", effect: "reviveBase", tier: "uncommon", price: 7,
       description: "Revive a random dead pile in this column. Buried cards return to the deck" },
     { id: "randomSticker", unlock: { type: "behavior", stat: "stickersApplied", count: 30 }, label: "Wild Sticker", icon: "🎲",
@@ -539,14 +702,15 @@ const NINELIVES_ITEMS = {
     { id: "lastResort", unlock: { type: "behavior", stat: "pilesLost", count: 75 }, label: "Last Resort", icon: "🧨",
       kind: "active", effect: "lastResort", tier: "rare", price: 10,
       description: "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Any Base nearby is destroyed" },
-    // EMPTY PURSE: every coin you hold, for one peek.
+    // EMPTY PURSE: every coin you hold, for peeks — 1 baseline + 1 more per
+    // 10 coins spent (v6.74 rework; was a flat single peek).
     { id: "emptyPurse", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 150 }, label: "Empty Purse", icon: "👛",
       kind: "active", effect: "emptyPurse", tier: "rare", price: 5,
-      description: "Spend ALL your coins and peek the next card" },
+      description: "Spend ALL your coins → peek 1 card, +1 more per 10 coins spent" },
     // SAME TELL: answers exactly one question — is the next card the same
     // rank as a top card ANYWHERE on the board? A match gets the = mark;
     // no match, no word. (v6.62: board-wide, was this-column-only.)
-    { id: "sameTell", unlock: { type: "behavior", stat: "correctSames", count: 6 }, label: "Same Tell", icon: "🪞",
+    { id: "sameTell", label: "Same Tell", icon: "🪞",
       kind: "active", effect: "sameTell", tier: "uncommon", price: 5,
       description: "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card. No match, no word" },
     // LONE EYE: the no-Same-Power build's consolation — a plain peek that
@@ -563,6 +727,58 @@ const NINELIVES_ITEMS = {
     { id: "ambushOut", unlock: { type: "behavior", stat: "ambushesWon", count: 3 }, label: "Escape Hatch", icon: "🚪",
       kind: "active", effect: "ambushWin", tier: "rare", price: 8,
       description: "Only usable in an ambush → clear the deal instantly. No effect during deal" },
+
+    /* ====================== ARCHETYPE BATCH v6.76 =======================
+       NEW bases — DATA ONLY: the engine does not implement these effects
+       yet. Every entry in this batch is deliberately UNGATED (no `unlock`
+       field — a starting item, always rollable); the user will add gates
+       later. Every price below is an R4 PROPOSAL, marked TUNE. Icons are
+       single-emoji placeholders — pixel art comes later. */
+
+    // PURGE COUPON: value = coins knocked off the store's Purge price per
+    // activation; min = the floor the price never drops below. A store-side
+    // lever carried on a base — nothing happens in-deal.
+    // TUNE: price 5 proposed (R4).
+    { id: "purgeDiscount", label: "Purge Coupon", icon: "🎟️",
+      kind: "active", effect: "purgeDiscount", value: 3, min: 5, tier: "uncommon", price: 5,
+      description: "Activate → the store's Purge costs 3 less (minimum 5). No effect during deal" },
+    // TRANSMUTE: an ON-PURCHASE base — it fires at BUY time and never in a
+    // deal. {rank}/{suit} roll the first time the base shows in a shop this
+    // climb (shopRoll / shopRoll2), shown before purchase.
+    // TUNE: price 8 proposed (R4).
+    { id: "transmute", label: "Transmute", icon: "⚗️",
+      kind: "active", effect: "transmute", shopRoll: "rank", shopRoll2: "suit", tier: "rare", price: 8,
+      description: "On purchase → set all {rank} cards in your deck to {suit}. No effect during deal" },
+    // SACRIFICE: target: "pile" — the player picks the pile whose top card
+    // is purged from the deck; the pile then dies. Thinning at a blood price.
+    // TUNE: price 6 proposed (R4).
+    { id: "sacrifice", label: "Sacrifice", icon: "🩸",
+      kind: "active", effect: "sacrifice", target: "pile", tier: "uncommon", price: 6,
+      description: "Choose a pile → purge its top card from your deck, then kill that pile" },
+    // DEVIL'S DEAL: doubles run.bonusCoins (this deal's bonus tally), then
+    // inflicts a curse on a top card in this column. No knobs — the trade is
+    // the mechanic.
+    // TUNE: price 8 proposed (R4).
+    { id: "devilsDeal", label: "Devil's Deal", icon: "😈",
+      kind: "active", effect: "devilsDeal", tier: "rare", price: 8,
+      description: "Double your bonus coins earned this deal, then add a curse to a top card in this column" },
+    // CLEANSE: strips every curse off this column's top cards. No knobs.
+    // TUNE: price 5 proposed (R4).
+    { id: "cleanseColumn", label: "Cleanse", icon: "🧼",
+      kind: "active", effect: "cleanseColumn", tier: "uncommon", price: 5,
+      description: "Remove all curses from the top cards in this column" },
+    // CHORUS: the target rank is DERIVED — the rank your full deck holds the
+    // most copies of — so there is no rank knob.
+    // TUNE: price 8 proposed (R4).
+    { id: "chorus", label: "Chorus", icon: "🎼",
+      kind: "active", effect: "chorus", tier: "rare", price: 8,
+      description: "Set every top card in this column to the rank your full deck holds the most copies of" },
+    // DIAMOND BOOST: target: "pile" — the player picks one of this column's
+    // ♦-topped piles; value = the pile size added.
+    // TUNE: price 3 proposed (R4).
+    { id: "diamondBoost", label: "Diamond Boost", icon: "💠",
+      kind: "active", effect: "diamondBoost", target: "pile", value: 3, tier: "common", price: 3,
+      description: "Choose a pile with a ♦ top card in this column → +3 pile size" },
   ],
 
   /* --------------------------------------------------------------------
@@ -584,7 +800,7 @@ const NINELIVES_ITEMS = {
     { id: "linkCoins", label: "Dividend", icon: "💰",
       effect: "linkCoins", value: 1, tier: "rare", price: 9,
       description: "Gain 1 coin for each alive pile" },
-    { id: "linkShuffle", unlock: { type: "behavior", stat: "samesCalled", count: 40 }, label: "Link Shuffler", icon: "🔀",
+    { id: "linkShuffle", label: "Link Shuffler", icon: "🔀",
       effect: "linkShuffle", tier: "rare", price: 9,
       description: "Shuffle every alive pile" },
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
@@ -611,6 +827,19 @@ const NINELIVES_ITEMS = {
     { id: "linkHeavy", unlock: { type: "behavior", stat: "perfectDeals", count: 4 }, label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 1, hubValue: 3, tier: "rare", price: 9,
       description: "Add +1 pile size to every pile, and +3 to the pile you called Same on" },
+
+    /* ====================== ARCHETYPE BATCH v6.76 =======================
+       NEW same-power — DATA ONLY: the engine does not implement this effect
+       yet. Deliberately UNGATED (no `unlock` field — always rollable); the
+       user will add gates later. Price is an R4 PROPOSAL, marked TUNE.
+       Icon is a single-emoji placeholder — pixel art comes later. */
+    // RANK FLOOD: board-wide rank rewrite off a correct Same. No knobs — the
+    // Joker edge cases (Joker on either side ranks piles by the ranked card;
+    // Joker-on-Joker makes Aces) are the mechanic.
+    // TUNE: price 9 proposed (R4) — the flat same-power price point.
+    { id: "rankFlood", label: "Rank Flood", icon: "🌊",
+      effect: "rankFlood", tier: "rare", price: 9,
+      description: "A correct Same sets the top card of every alive pile to this card's rank. A Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces" },
   ],
 
   /* --------------------------------------------------------------------
@@ -623,8 +852,9 @@ const NINELIVES_ITEMS = {
   -------------------------------------------------------------------- */
   // v6.73: ONE pack distribution everywhere — 75% bare, 20% one sticker,
   // 4% two, 1% three (checked in order: roll < cap → that many stickers).
-  // Sealed map packs roll the same shape in CampaignState.applyPackCardStickers,
-  // which also gives each rolled sticker a 5% chance of being a curse.
+  // Sealed map packs roll THIS table in CampaignState.applyPackCardStickers
+  // (v6.74 — no hardcoded copy), which also gives each rolled sticker a 5%
+  // chance of being a curse.
   packStickerOdds: [[0.01, 3], [0.05, 2], [0.25, 1]],
 
   /* --------------------------------------------------------------------

@@ -27,12 +27,17 @@ enum IV {
     /// Build an engine over a FORCED layout. `tops` become single-card pile
     /// tops in order (nil = dead pile with one card); `deckOrder` is the draw
     /// deck, first card = next draw. 3 columns of 1 pile each by default.
+    /// `shopRolls` threads the v6.76 climb-locked shop rolls in (Rank Shield,
+    /// Void Tribute, Majority Rule); `purse` wires the Pauper family's live
+    /// coin provider to a fixed purse.
     static func engine(tops: [CardSpec?], deckOrder: [CardSpec],
                        cols: [Int]? = nil,
                        pillars: [String?]? = nil, bases: [String?]? = nil,
                        samePower: String? = nil, samePowerVariant: String? = nil,
                        sameCharge: Bool = false,
                        pillarRankVariants: [String: Int] = [:],
+                       shopRolls: [String: ShopRoll] = [:],
+                       purse: Int? = nil,
                        isBoss: Bool = false, isAmbush: Bool = false,
                        seed: UInt32 = 7) -> GameEngine {
         let n = tops.count
@@ -43,12 +48,14 @@ enum IV {
                                                samePower: samePower,
                                                samePowerVariant: samePowerVariant,
                                                pillarRankVariants: pillarRankVariants,
+                                               shopRolls: shopRolls,
                                                isAmbush: isAmbush, isBoss: isBoss))
         e.start(seedOverride: seed)
         let colCount = layoutCols.count
         e.startRun(pillars: pillars ?? Array(repeating: nil, count: colCount),
                    bases: bases ?? Array(repeating: nil, count: colCount),
                    samePower: .some(samePower))
+        if let purse { e.purseCoinsProvider = { purse } }
         let live = tops.map { $0.map { DeckManager.toCard($0, data: GameData.shared) } }
         for i in 0..<n {
             if let c = live[i] {

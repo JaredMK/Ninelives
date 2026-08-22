@@ -85,6 +85,17 @@ public final class RunState {
     public var samePowerVariant: String?
     /// The rank-variant pillars' locked ranks, by pillar id.
     public var pillarRankVariants: [String: Int] = [:]
+    /// SHOP-ROLLED pillar/base values (v6.76): item id → its climb-locked
+    /// {rank}/{suit} (Rank Shield, Void Tribute, Majority Rule…). Threaded
+    /// from the campaign at deal creation via RunConfig; round-trips the
+    /// mid-deal snapshot.
+    public var shopRolls: [String: ShopRoll] = [:]
+    /// DAILY SUIT (v6.76): column → the suit its Daily Suit pillar shields
+    /// THIS deal, rolled at Start Run off the deal's seeded stream. A redeal
+    /// re-creates the engine with a fresh seed, which re-rolls it — no reset
+    /// needed. Nil for column-agnostic legacy/test runs. Round-trips the
+    /// mid-deal snapshot.
+    public var dailySuits: [Int: String]?
     /// Synapse-link adjacency the UI pushes in (pile → directly linked piles).
     public var links: [Int: [Int]] = [:]
 
@@ -182,6 +193,7 @@ public final class RunState {
             colStreak = Array(repeating: 0, count: n)
             secondWindUsed = Array(repeating: false, count: n)
             gamblerFlips = [:]
+            dailySuits = [:]
         }
     }
 }
@@ -200,6 +212,8 @@ public struct RunConfig {
     public var samePowerVariant: String?
     /// The rank-variant pillars' locked ranks, by pillar id.
     public var pillarRankVariants: [String: Int] = [:]
+    /// The shop-rolled items' climb-locked {rank}/{suit}, by item id (v6.76).
+    public var shopRolls: [String: ShopRoll] = [:]
     /// Rocko: stickers unusable — no effect may sticker a card.
     public var noStickers = false
     /// This deal is an AMBUSH. The engine is otherwise blind to it (an ambush
@@ -209,10 +223,12 @@ public struct RunConfig {
     public var isBoss = false
     public init(cols: [Int]? = nil, sameCharge: Bool = false, samePower: String? = nil,
                 samePowerVariant: String? = nil, pillarRankVariants: [String: Int] = [:],
+                shopRolls: [String: ShopRoll] = [:],
                 noStickers: Bool = false, isAmbush: Bool = false, isBoss: Bool = false) {
         self.cols = cols; self.sameCharge = sameCharge
         self.samePower = samePower; self.samePowerVariant = samePowerVariant
         self.pillarRankVariants = pillarRankVariants
+        self.shopRolls = shopRolls
         self.noStickers = noStickers
         self.isAmbush = isAmbush
         self.isBoss = isBoss
@@ -350,6 +366,20 @@ public struct BaseResult {
     public var tells: [(pile: Int, direction: Guess)]?
     /// Net coins this Base moved (for the UI float).
     public var coins: Double = 0
+    /// EMPTY PURSE (v6.74): the purse size the activation counted with — the
+    /// caller drains EXACTLY this from the campaign purse, so the spend can
+    /// never disagree with the peek count.
+    public var purseSpent: Int?
+    /// SACRIFICE (v6.76): the purged top card's identity — the flow removes
+    /// it from the campaign deck permanently (removeDeckCard).
+    public var purgedCardId: Int?
+    /// PURGE COUPON (v6.76): the store Purge price cut (and its floor) the
+    /// flow applies via `CampaignState.addPurgeDiscount` — the engine never
+    /// touches the campaign purse/pricing itself.
+    public var purgePriceCut: Int?
+    public var purgePriceFloor: Int?
+    /// CLEANSE (v6.76): how many curses came off the column's top cards.
+    public var cleansed: Int?
 }
 
 public struct SamePowerResult: Sendable, Equatable {
@@ -364,11 +394,17 @@ public struct SamePowerResult: Sendable, Equatable {
     /// the flow, exactly as a Base's `stickerApplied` is — without this the
     /// stickers vanished the moment the deal ended.
     public var stickersApplied: [(cardId: Int, typeId: String)] = []
+    /// RANK FLOOD (v6.76): the permanent rank rewrites, as (cardId, value) —
+    /// same durable-write contract as a Base's `valueApplied`: the flow
+    /// writes them onto the campaign cards.
+    public var rankApplied: [(cardId: Int, value: Int)] = []
 
     public static func == (a: SamePowerResult, b: SamePowerResult) -> Bool {
         a.power == b.power && a.label == b.label && a.hub == b.hub && a.effect == b.effect
             && a.targets == b.targets && a.amount == b.amount
             && a.stickersApplied.map(\.cardId) == b.stickersApplied.map(\.cardId)
             && a.stickersApplied.map(\.typeId) == b.stickersApplied.map(\.typeId)
+            && a.rankApplied.map(\.cardId) == b.rankApplied.map(\.cardId)
+            && a.rankApplied.map(\.value) == b.rankApplied.map(\.value)
     }
 }

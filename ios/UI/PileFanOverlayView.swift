@@ -31,6 +31,7 @@ public final class PileFanOverlayView: UIView {
     /// finger holds a fanned card, hidden on release.
     private let infoPanel = PixelPanelView(face: CRT.feltDeep, border: CRT.phosphor)
     private let infoTitle = UILabel()
+    private let infoScroll = UIScrollView()
     private let infoBody = UILabel()
 
     /// `.three` (72×100) — big enough to READ the ranks, small enough that a
@@ -77,7 +78,11 @@ public final class PileFanOverlayView: UIView {
         infoBody.numberOfLines = 0
         infoBody.lineBreakMode = .byWordWrapping
         infoPanel.addSubview(infoTitle)
-        infoPanel.addSubview(infoBody)
+        // v6.74: the body rides a scroll view — a long effect line scrolls
+        // instead of clipping at the 55% cap (stable shell, scrolling content).
+        infoScroll.showsVerticalScrollIndicator = true
+        infoScroll.addSubview(infoBody)
+        infoPanel.addSubview(infoScroll)
         addSubview(infoPanel)
 
         buildCards()
@@ -180,8 +185,9 @@ public final class PileFanOverlayView: UIView {
 
     private func showInfo(for card: LiveCard) {
         let info = CardInfoText.make(card)
-        infoTitle.attributedText = CRTKit.attributed(info.title, size: 14, color: CRT.phosphor)
-        infoBody.attributedText = CRTKit.attributed(info.body, size: 14, color: CRT.cardFace)
+        // v6.74: the shared CardInfo scale (title one display step up).
+        infoTitle.attributedText = CRTKit.attributed(info.title, size: 20, color: CRT.phosphor, display: true)
+        infoBody.attributedText = CRTKit.attributed(info.body, size: 16, color: CRT.cardFace)
         infoPanel.isHidden = false
         setNeedsLayout()
     }
@@ -249,16 +255,18 @@ public final class PileFanOverlayView: UIView {
                                      options: .usesLineFragmentOrigin, context: nil).height ?? 0)
             }
             let titleH = max(18, measure(infoTitle.attributedText))
-            // The plaque may take over half the overlay before the body has to
-            // scroll-clip: an effect line that doesn't finish is worse than a
-            // tall plaque over a fan the player is already reading past.
-            let bodyH = min(measure(infoBody.attributedText), floor(bounds.height * 0.55))
+            // The plaque may take over half the overlay; the body SCROLLS
+            // inside its capped band rather than clipping (v6.74).
+            let fullBodyH = measure(infoBody.attributedText)
+            let bodyH = min(fullBodyH, floor(bounds.height * 0.55))
             let h = 8 + titleH + 2 + bodyH + 8
             infoPanel.frame = CGRect(x: (bounds.width - w) / 2,
                                      y: (bounds.height - h) / 2,
                                      width: w, height: h)
             infoTitle.frame = CGRect(x: 10, y: 8, width: textW, height: titleH)
-            infoBody.frame = CGRect(x: 10, y: 8 + titleH + 2, width: textW, height: bodyH)
+            infoScroll.frame = CGRect(x: 10, y: 8 + titleH + 2, width: textW, height: bodyH)
+            infoBody.frame = CGRect(x: 0, y: 0, width: textW, height: fullBodyH)
+            infoScroll.contentSize = CGSize(width: textW, height: fullBodyH)
         }
         if !built {
             built = true

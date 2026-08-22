@@ -386,7 +386,9 @@ enum IVStickers {
                 })
 
         case "quickBury":
-            return landingFamily(def, allowed: [.board, .deck],
+            // PILE-TOP (v6.75): the carrier sits on the pile top and fires
+            // when a card LANDS ON it — never on the carrier's own landing.
+            return landingFamily(def, onTop: true, allowed: [.board, .deck],
                 expect: { e, f, c in
                     XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 2,
                                    "\(c): the landing + 1 buried beneath")
@@ -402,6 +404,14 @@ enum IVStickers {
                     XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
                                    "\(c): an empty deck buries nothing, the landing is fine")
                 })
+                + [IV.Scenario("mustNotFire-carrierLanding", allowed: [.guesses, .deck, .board],
+                        build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                           deckOrder: [IV.spec(50, 9, "♠", ["quickBury"]), IV.spec(51, 2)]) },
+                        fire: { $0.guess(0, .higher) },
+                        expect: { e, f, c in
+                            XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
+                                           "\(c): the carrier's OWN landing does not fire it (v6.75 regression pin)")
+                        })]
 
         case "snowball":
             let step = def.int("step", 1)

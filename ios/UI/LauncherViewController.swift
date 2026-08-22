@@ -251,6 +251,12 @@ public final class LauncherViewController: UIViewController {
         campaign.setTier(tiers[tierIndex])
         if let s = UInt32(seedText) { campaign.setSeedOverride(s) }
         campaign.startNewRun()
+        // The demo campaign rides a fresh MemoryStore, so pref overrides from
+        // launch args never reach it — stamp them explicitly (the auto-help
+        // legend would otherwise open over every demo store and eat the taps).
+        if UserDefaults.standard.string(forKey: "ninelives.pref.storeHelpSeen") == "1" {
+            campaign.saveStore.setPref("storeHelpSeen", "1")
+        }
         _ = campaign.addCoins(UserDefaults.standard.object(forKey: "coins") != nil
                               ? UserDefaults.standard.integer(forKey: "coins") : 30)
         campaign.setRemovalSlot(true)

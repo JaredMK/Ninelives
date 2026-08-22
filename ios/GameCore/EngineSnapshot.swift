@@ -77,6 +77,17 @@ extension GameEngine {
             "gamblerFlips": r.gamblerFlips.map { flips in
                 .object(flips.reduce(into: [:]) { $0["\($1.key)"] = .bool($1.value) })
             } ?? .null,
+            // v6.76: the shop-rolled climb locks handed in at deal creation
+            // (item id → {"r"/"s"}) and each Daily Suit column's rolled suit.
+            "shopRolls": .object(r.shopRolls.reduce(into: [:]) { out, kv in
+                var d: [String: JSONValue] = [:]
+                if let rank = kv.value.rank { d["r"] = .number(Double(rank)) }
+                if let suit = kv.value.suit { d["s"] = .string(suit) }
+                out[kv.key] = .object(d)
+            }),
+            "dailySuits": r.dailySuits.map { suits in
+                .object(suits.reduce(into: [:]) { $0["\($1.key)"] = .string($1.value) })
+            } ?? .null,
             "kamikazeRevealLeft": .number(Double(r.kamikazeRevealLeft)),
             "bonusCoins": .number(r.bonusCoins),
             "bonusEvents": .array(r.bonusEvents.pairs.map {
@@ -235,6 +246,20 @@ extension GameEngine {
         r.colStreak = ints(rd["colStreak"])
         r.secondWindUsed = bools(rd["secondWindUsed"])
         r.gamblerFlips = boolDict(rd["gamblerFlips"])
+        // v6.76: absent in older blobs — keep what RunConfig handed in at deal
+        // creation rather than wiping to empty (the dailySuits guard below
+        // follows the same rule).
+        if let sr = rd["shopRolls"]?.asObject {
+            r.shopRolls = sr.reduce(into: [:]) { out, kv in
+                guard let d = kv.value.asObject else { return }
+                out[kv.key] = ShopRoll(rank: d["r"]?.asNumber.map(Int.init), suit: d["s"]?.asString)
+            }
+        }
+        if let ds = rd["dailySuits"]?.asObject {
+            r.dailySuits = ds.reduce(into: [:]) { out, kv in
+                if let k = Int(kv.key), let s = kv.value.asString { out[k] = s }
+            }
+        }
         r.kamikazeRevealLeft = Int(rd["kamikazeRevealLeft"]?.asNumber ?? 0)
         r.bonusCoins = rd["bonusCoins"]?.asNumber ?? 0
         r.bonusEvents = OrderedTally()

@@ -631,6 +631,26 @@ enum IVPillarsBases {
              "greedy", "highestHeart", "insurance", "excavator", "gambler":
             return scoringScenarios(def)
 
+        // ── v6.76 archetype batch ─────────────────────────────────────────
+        case "sameTolerance":            return sameToleranceScenarios(def)
+        case "royalSafeNoTwos":          return royalSanctuaryScenarios(def)
+        case "rankShield":               return rankShieldScenarios(def)
+        case "suitShieldDaily":          return dailySuitScenarios(def)
+        case "suitMajoritySafe":         return suitMajorityScenarios(def)
+        case "absentSuitClubBury":       return absentSuitScenarios(def)
+        case "clubZeroRanksBury":        return zeroRanksScenarios(def)
+        case "startPileSizeEight":       return eightStartScenarios(def)
+        case "diamondDupeSize":          return diamondDupeScenarios(def)
+        case "eightPeek":                return eightPeekScenarios(def)
+        case "pauperHeart":              return pauperHeartScenarios(def)
+        case "pauperDiamondSize":        return pauperDiamondScenarios(def)
+        case "pauperSpadeTell":          return pauperSpadeScenarios(def)
+        case "pauperClubBury":           return pauperClubScenarios(def)
+        case "curseBuryPeek":            return curseHarvestScenarios(def)
+        case "clubThin":                 return clubThinScenarios(def)
+        case "sizeOneDiamonds":          return sizeOneDiamondsScenarios(def)
+        // purgeFlatFive / firstFree / purgeRank run their CampaignCheck.
+
         // ── campaign/store pillars (validated in the campaign checks) ───────
         case "freebie", "purgeStepDiscount", "rareHunter", "twoWard":
             return []   // driver runs their CampaignCheck instead
@@ -820,5 +840,595 @@ enum IVPillarsBases {
         default:
             return []
         }
+    }
+
+    // MARK: - v6.76 archetype batch scenario builders
+
+    /// SAME-TOLERANCE family (R1): a Same call that would be WRONG SURVIVES,
+    /// counting as a FULL correct Same — Same Shield charged, Same-Power
+    /// fired, guess counted correct. One builder per `tol` rule.
+    static func sameToleranceScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        // (top rank/suit, tolerated drawn rank/suit, non-qualifying drawn rank/suit)
+        let top: CardSpec
+        let tolerated: CardSpec
+        let rejected: CardSpec
+        switch def.tol {
+        case "near":                           // ±1 in value
+            top = IV.spec(1, 5, "♠"); tolerated = IV.spec(50, 6, "♥"); rejected = IV.spec(50, 9, "♥")
+        case "royalPair":                      // royal on royal
+            top = IV.spec(1, 11, "♠"); tolerated = IV.spec(50, 12, "♥"); rejected = IV.spec(50, 12, "♥")
+            // (rejected uses a non-royal top below)
+        case "sum10":                          // ranks summing to 10
+            top = IV.spec(1, 4, "♠"); tolerated = IV.spec(50, 6, "♥"); rejected = IV.spec(50, 9, "♥")
+        default:                               // sameSuit
+            top = IV.spec(1, 5, "♠"); tolerated = IV.spec(50, 9, "♠"); rejected = IV.spec(50, 9, "♥")
+        }
+        let filler = IV.spec(51, 3, "♦")
+        let power = data.samePowerTypes.get("linkCoins")!
+        let per = power.num("value", 1) == 0 ? 1 : power.value
+        let tops = [top, IV.spec(2, 6, "♦"), IV.spec(3, 7, "♣")]
+        let trigger = IV.Scenario("trigger-toleratedSameIsFullSame", allowed: [.guesses, .deck, .board, .coins, .charge],
+            build: { IV.engine(tops: tops, deckOrder: [tolerated, filler],
+                               pillars: [def.id, nil, nil], samePower: power.id) },
+            fire: { $0.guess(0, .same) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.top(0)?.id, tolerated.id, "\(c): the tolerated card landed")
+                XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c): it COUNTS as correct")
+                XCTAssertTrue(e.sameCharge, "\(c): it charges the Same Shield")
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + per * 3,
+                               "\(c): it fires the equipped Same-Power (Dividend × 3 alive piles)")
+            })
+        let rejectedTop: CardSpec = def.tol == "royalPair" ? IV.spec(1, 5, "♠") : top
+        let mustNot = IV.Scenario("mustNotFire-outsideTolerance", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [rejectedTop, IV.spec(2, 6, "♦"), IV.spec(3, 7, "♣")],
+                               deckOrder: [rejected, filler],
+                               pillars: [def.id, nil, nil], samePower: power.id) },
+            fire: { $0.guess(0, .same) },
+            expect: { e, f, c in
+                XCTAssertFalse(e.board.isActive(0), "\(c): a Same outside the tolerance still kills")
+                XCTAssertFalse(e.sameCharge, "\(c)")
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): no power fired")
+            })
+        let edge: IV.Scenario
+        if def.tol == "sameSuit" {
+            // The sameSuit tolerance shields ANY call on a same-suit landing —
+            // a wrong DIRECTIONAL call survives too (and banks no charge).
+            edge = IV.Scenario("edge-directionalSameSuitSurvives", allowed: [.guesses, .deck, .board],
+                build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 7, "♣")],
+                                   deckOrder: [IV.spec(50, 3, "♠"), filler],
+                                   pillars: [def.id, nil, nil]) },
+                fire: { $0.guess(0, .higher) },     // 3 on 5 called higher: wrong…
+                expect: { e, f, c in
+                    XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): …but the same-suit landing is safe")
+                    XCTAssertFalse(e.sameCharge, "\(c): only a SAME call banks the charge")
+                    XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c)")
+                })
+        } else {
+            // No Same-Power equipped: the tolerance still charges the shield.
+            edge = IV.Scenario("edge-noPowerStillCharges", allowed: [.guesses, .deck, .board, .charge],
+                build: { IV.engine(tops: tops, deckOrder: [tolerated, filler],
+                                   pillars: [def.id, nil, nil]) },
+                fire: { $0.guess(0, .same) },
+                expect: { e, f, c in
+                    XCTAssertTrue(e.sameCharge, "\(c)")
+                    XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): no power to fire")
+                })
+        }
+        return [trigger, edge, mustNot]
+    }
+
+    /// ROYAL SANCTUARY: no 2s in the full deck → royals landing here are safe.
+    static func royalSanctuaryScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let trigger = IV.Scenario("trigger-royalSafeWithoutTwos", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, 11, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .lower) },          // J(11) on 5 called lower: wrong
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): the royal landing survived")
+                XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c)")
+            })
+        let edge = IV.Scenario("edge-aTwoAnywhereClosesIt", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 2, "♣")],
+                               deckOrder: [IV.spec(50, 11, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in
+                XCTAssertFalse(e.board.isActive(0), "\(c): a single 2 in the FULL deck voids the sanctuary")
+            })
+        let mustNot = IV.Scenario("mustNotFire-commonerLanding", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c): a 9 is no royal") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// RANK SHIELD: the shop-rolled rank landing here is always safe.
+    static func rankShieldScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let rolled = 9
+        let rolls: [String: ShopRoll] = [def.id: ShopRoll(rank: rolled)]
+        let trigger = IV.Scenario("trigger-rolledRankSafe", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, rolled, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .lower) },          // 9 on 5 called lower: wrong
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): the shielded rank survived")
+                XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c)")
+            })
+        let edge = IV.Scenario("edge-otherColumnDies", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, rolled, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [nil, def.id, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c): the shield is column-scoped") })
+        let mustNot = IV.Scenario("mustNotFire-otherRank", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, 8, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c): an unrolled rank is unshielded") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// DAILY SUIT: the shielded suit rolls at Start Run; the scenarios recraft
+    /// the next draw to (not) match the REAL roll after the build.
+    static func dailySuitScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        func built(match: Bool, pillar: Bool = true) -> () -> GameEngine {
+            return {
+                let e = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                                  deckOrder: [IV.spec(50, 9, "♠"), IV.spec(51, 3, "♥")],
+                                  pillars: pillar ? [def.id, nil, nil] : [nil, nil, nil])
+                let rolled = e.run.dailySuits?[0] ?? "♠"
+                let suit = match ? rolled : (DeckManager.suits.first { $0.symbol != rolled }?.symbol ?? "♥")
+                var cards = e.deck.snapshotCards()
+                cards[0] = DeckManager.toCard(IV.spec(50, 9, suit), data: GameData.shared)
+                e.deck.restoreSnapshot(cards: cards, drawn: e.deck.drawn())
+                return e
+            }
+        }
+        let trigger = IV.Scenario("trigger-rolledSuitSafe", allowed: [.guesses, .deck, .board],
+            build: built(match: true),
+            fire: { $0.guess(0, .lower) },          // 9 on 5 called lower: wrong
+            expect: { e, f, c in
+                XCTAssertNotNil(e.run.dailySuits?[0], "\(c): the suit rolled at Start Run")
+                XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): the rolled suit's landing survived")
+                XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c)")
+            })
+        let edge = IV.Scenario("edge-otherSuitDies", allowed: [.guesses, .deck, .board, .deaths],
+            build: built(match: false),
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c): only the rolled suit is safe") })
+        let mustNot = IV.Scenario("mustNotFire-noPillar", allowed: [.guesses, .deck, .board, .deaths],
+            build: built(match: true, pillar: false),
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c)") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// MAJORITY RULE: ≥50% of the full deck is the rolled suit → that suit's
+    /// landings here are safe.
+    static func suitMajorityScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let rolls: [String: ShopRoll] = [def.id: ShopRoll(suit: "♥")]
+        let trigger = IV.Scenario("trigger-majoritySuitSafe", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♠")],
+                               deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3, "♥"), IV.spec(52, 4, "♠")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .lower) },          // 9 on 5 called lower: wrong
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): 4 of 6 ♥ → safe")
+                XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c)")
+            })
+        let edge = IV.Scenario("edge-exactlyHalfIsSafe", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♠")],
+                               deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3, "♠"), IV.spec(52, 4, "♠")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): 3 of 6 ♥ — ≥50% is inclusive") })
+        let mustNot = IV.Scenario("mustNotFire-minority", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♠"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3, "♠"), IV.spec(52, 4, "♣")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c): 1 of 6 ♥ is no majority") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// VOID TRIBUTE: no rolled-suit card in the full deck → a ♣ landing buries
+    /// buryCount under the pile.
+    static func absentSuitScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let bury = def.int("buryCount", 2)
+        let rolls: [String: ShopRoll] = [def.id: ShopRoll(suit: "♦")]
+        let trigger = IV.Scenario("trigger-absentSuitBuries", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♠")],
+                               deckOrder: [IV.spec(50, 7, "♣"), IV.spec(51, 3, "♥"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1 - bury,
+                               "\(c): a ♣ landing buried \(bury) with no ♦ anywhere")
+                XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1 + bury, "\(c)")
+            })
+        let edge = IV.Scenario("edge-suitPresentStays", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♠")],
+                               deckOrder: [IV.spec(50, 7, "♣"), IV.spec(51, 3, "♦"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c): one ♦ in the deck voids it")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonClub", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♠")],
+                               deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♥"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil], shopRolls: rolls) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c): only a ♣ landing buries")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// EMPTY RANKS: a ♣ landing buries 1 per rank with zero full-deck copies.
+    static func zeroRanksScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♣")]
+        // Ranks present: 5–14 → the empty ranks are 2, 3, 4.
+        let fillers = [9, 10, 11, 12, 13, 14, 14, 13, 12, 11].enumerated().map {
+            IV.spec(51 + $0.offset, $0.element, "♥")
+        }
+        let trigger = IV.Scenario("trigger-buriesPerEmptyRank", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♣")] + fillers,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                let empties = (minRank...maxRank).filter { r in
+                    !(tops + [IV.spec(50, 8, "♣")] + fillers).contains { $0.currentRank == r }
+                }.count
+                XCTAssertEqual(empties, 3, "\(c): the constructed deck has exactly 3 empty ranks")
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1 - empties,
+                               "\(c): buried 1 per empty rank")
+                XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1 + empties, "\(c)")
+            })
+        let allTops = [IV.spec(1, 2, "♠"), IV.spec(2, 3, "♥"), IV.spec(3, 4, "♣")]
+        let allFill = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14].enumerated().map {
+            IV.spec(51 + $0.offset, $0.element, "♥")
+        }
+        let edge = IV.Scenario("edge-noEmptyRanks", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: allTops, deckOrder: [IV.spec(50, 5, "♣")] + allFill,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1,
+                               "\(c): every rank present → nothing buried")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonClub", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♥")] + fillers,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c): only ♣ lands trigger it")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// CRAZY EIGHTS: 8s the most common full-deck rank (ties → lowest) → this
+    /// column's piles START at pile size 8. Built WITHOUT IV.engine's
+    /// post-start pile forcing, which would wipe the latched size bonus.
+    static func eightStartScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        func build(_ specs: [CardSpec], pillar: Bool = true) -> GameEngine {
+            let e = GameEngine(deckSpecs: specs, pileCount: 3,
+                               runConfig: RunConfig(cols: [1, 1, 1]))
+            e.start(seedOverride: 7)
+            e.startRun(pillars: pillar ? [def.id, nil, nil] : [nil, nil, nil],
+                       bases: [nil, nil, nil], samePower: .some(nil))
+            return e
+        }
+        let leading = [IV.spec(1, 8, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 8, "♦"),
+                       IV.spec(4, 5, "♣"), IV.spec(5, 9, "♠")]
+        let trigger = IV.Scenario("trigger-columnOpensAtSize8", allowed: [],
+            build: { build(leading) },
+            fire: { _ in },
+            expect: { e, _, c in
+                XCTAssertEqual(e.board.pileSize(0), 8, "\(c): the pillar's column opens at pile SIZE 8")
+                XCTAssertEqual(e.board.pileSize(1), 1, "\(c): other columns open normally")
+                XCTAssertEqual(e.board.pileSize(2), 1, "\(c)")
+            })
+        let tied = [IV.spec(1, 8, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 5, "♣"),
+                    IV.spec(4, 5, "♦"), IV.spec(5, 9, "♠")]
+        let edge = IV.Scenario("edge-tieBreaksToLowestRank", allowed: [],
+            build: { build(tied) },
+            fire: { _ in },
+            expect: { e, _, c in
+                XCTAssertEqual(e.board.pileSize(0), 1,
+                               "\(c): 8s tie with 5s → the LOWER rank leads → no Crazy Eights")
+            })
+        let mustNot = IV.Scenario("mustNotFire-eightsNotLeading", allowed: [],
+            build: { build([IV.spec(1, 8, "♠"), IV.spec(2, 5, "♥"), IV.spec(3, 5, "♣"),
+                            IV.spec(4, 5, "♦"), IV.spec(5, 9, "♠")]) },
+            fire: { _ in },
+            expect: { e, _, c in
+                XCTAssertEqual(e.board.pileSize(0), 1, "\(c): 5s outnumber the 8s")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// DIAMOND ECHO: a ♦ landing → +1 pile size per duplicate of its rank in
+    /// the full deck.
+    static func diamondDupeScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-sizePerDuplicate", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops,
+                               deckOrder: [IV.spec(50, 7, "♦"), IV.spec(51, 7, "♥"), IV.spec(52, 7, "♠")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1 + 2,
+                               "\(c): two other 7s in the full deck → +2 pile size")
+            })
+        let edge = IV.Scenario("edge-noDuplicates", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops,
+                               deckOrder: [IV.spec(50, 7, "♦"), IV.spec(51, 3, "♥"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1, "\(c): the only 7 — no echo")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonDiamond", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops,
+                               deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 7, "♦"), IV.spec(52, 7, "♠")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1, "\(c): only ♦ lands echo")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// EIGHT BALL: an 8 landing here peeks the next card.
+    static func eightPeekScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-eightPeeks", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in
+                XCTAssertTrue(e.run.revealNextActive, "\(c): the next card is revealed")
+                XCTAssertEqual(e.revealedNextCard()?.id, 51, "\(c): and it is the REAL next draw")
+            })
+        let edge = IV.Scenario("edge-otherColumn", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [nil, def.id, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c): column-scoped") })
+        let mustNot = IV.Scenario("mustNotFire-nonEight", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// PAUPER'S HEART: while the purse is under purseBelow, a ♥ landing pays.
+    static func pauperHeartScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let ceiling = def.int("purseBelow", 10)
+        let value = def.num("value", 3)
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-brokeHeartPays", allowed: [.guesses, .deck, .board, .coins],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + value,
+                               "\(c): under \(ceiling) coins the ♥ pays +\(jsNum(value))")
+            })
+        let edge = IV.Scenario("edge-atCeilingSleeps", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins,
+                               "\(c): purseBelow is EXCLUSIVE — at \(ceiling) it sleeps")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonHeart", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// PAUPER'S DIAMOND: while broke, a ♦ landing ANYWHERE counts `value`
+    /// toward pile size instead of 1.
+    static func pauperDiamondScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let ceiling = def.int("purseBelow", 10)
+        let value = max(1, def.int("value", 2))
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 4, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-brokeDiamondCountsMore", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♦"), IV.spec(51, 3, "♠")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(1, .higher) },          // the ♦ lands in ANOTHER column
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(1), f.pileCounts[1] + value,
+                               "\(c): the ♦ counts \(value) board-wide, not 1")
+            })
+        let edge = IV.Scenario("edge-atCeilingCountsOne", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♦"), IV.spec(51, 3, "♠")],
+                               pillars: [def.id, nil, nil], purse: ceiling) },
+            fire: { $0.guess(1, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(1), f.pileCounts[1] + 1, "\(c): flush purse → plain +1")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonDiamond", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(1, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(1), f.pileCounts[1] + 1, "\(c)")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// PAUPER'S SPADE: while broke, a ♠ landing arms a tell on its pile.
+    static func pauperSpadeScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let ceiling = def.int("purseBelow", 10)
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-brokeSpadeTells", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in
+                XCTAssertTrue(e.run.tellPiles.contains(0), "\(c): the tell armed on the landing pile")
+                XCTAssertEqual(e.pileHint(0), .lower, "\(c): the next card (3 on 7) reads LOWER")
+            })
+        let edge = IV.Scenario("edge-atCeilingNoTell", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in XCTAssertNil(e.pileHint(0), "\(c)") })
+        let mustNot = IV.Scenario("mustNotFire-nonSpade", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in XCTAssertNil(e.pileHint(0), "\(c)") })
+        return [trigger, edge, mustNot]
+    }
+
+    /// PAUPER'S CLUB: while broke, a ♣ landing buries digCount.
+    static func pauperClubScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let ceiling = def.int("purseBelow", 10)
+        let dig = def.int("digCount", 1)
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-brokeClubBuries", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♣"), IV.spec(51, 3, "♦"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1 - dig, "\(c): buried \(dig)")
+            })
+        let edge = IV.Scenario("edge-atCeilingNoBury", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♣"), IV.spec(51, 3, "♦"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil], purse: ceiling) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c)")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonClub", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil], purse: ceiling - 1) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c)")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// CURSE HARVEST: a cursed card landing here buries digCount, then peeks.
+    static func curseHarvestScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let dig = def.int("digCount", 1)
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        let trigger = IV.Scenario("trigger-cursedLandingBuriesAndPeeks", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops,
+                               deckOrder: [IV.spec(50, 7, "♥", ["mute"]), IV.spec(51, 3, "♦"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1 - dig, "\(c): buried \(dig)")
+                XCTAssertTrue(e.run.revealNextActive, "\(c): …then peeked the next card")
+            })
+        let edge = IV.Scenario("edge-otherColumn", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops,
+                               deckOrder: [IV.spec(50, 7, "♥", ["mute"]), IV.spec(51, 3, "♦")],
+                               pillars: [nil, def.id, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c): column-scoped")
+                XCTAssertFalse(e.run.revealNextActive, "\(c)")
+            })
+        let mustNot = IV.Scenario("mustNotFire-cleanCard", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops,
+                               deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦"), IV.spec(52, 9, "♠")],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c): no curse, no harvest")
+                XCTAssertFalse(e.run.revealNextActive, "\(c)")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// CLUB THIN: a ♣ landing buries digCount per full `per`-card step of the
+    /// REMAINING deck.
+    static func clubThinScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let per = max(1, def.int("per", 25))
+        let dig = max(1, def.int("digCount", 1))
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
+        func fillers(_ n: Int) -> [CardSpec] {
+            (0..<n).map { IV.spec(60 + $0, minRank + $0 % (maxRank - minRank + 1), "♠") }
+        }
+        let trigger = IV.Scenario("trigger-buriesPerFullStep", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♣")] + fillers(per),
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                // After the draw, `per` cards remain → exactly dig buried.
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1 - dig,
+                               "\(c): \(per) remaining → \(dig) buried")
+            })
+        let edge = IV.Scenario("edge-belowOneStep", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♣")] + fillers(per - 1),
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1,
+                               "\(c): \(per - 1) remaining is under a step → nothing buried")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonClub", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥")] + fillers(per),
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1, "\(c)")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// DIAMOND LIFELINE: while any pile in this column is size 1, a ♦ landing
+    /// ANYWHERE counts `value` toward pile size instead of 1.
+    static func sizeOneDiamondsScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let value = max(1, def.int("value", 2))
+        let trigger = IV.Scenario("trigger-sizeOneColumnBoostsDiamonds", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 4, "♣")],
+                               deckOrder: [IV.spec(50, 7, "♦"), IV.spec(51, 3, "♠")],
+                               cols: [2, 1], pillars: [def.id, nil]) },
+            fire: { $0.guess(2, .higher) },          // the ♦ lands in the OTHER column
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(2), f.pileCounts[2] + value,
+                               "\(c): a size-1 pile in the column → the ♦ counts \(value) board-wide")
+            })
+        let edge = IV.Scenario("edge-noSizeOneNoBoost", allowed: [.guesses, .deck, .board],
+            build: {
+                let e = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 4, "♣")],
+                                  deckOrder: [IV.spec(50, 7, "♦"), IV.spec(51, 3, "♠")],
+                                  cols: [2, 1], pillars: [def.id, nil])
+                // Bulk BOTH column-0 piles past size 1.
+                e.board.piles[0].cards.insert(DeckManager.toCard(IV.spec(70, 3), data: data), at: 0)
+                e.board.piles[1].cards.insert(DeckManager.toCard(IV.spec(71, 9), data: data), at: 0)
+                return e
+            },
+            fire: { $0.guess(2, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(2), f.pileCounts[2] + 1,
+                               "\(c): no size-1 pile here → plain +1")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonDiamond", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 4, "♣")],
+                               deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
+                               cols: [2, 1], pillars: [def.id, nil]) },
+            fire: { $0.guess(2, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(2), f.pileCounts[2] + 1, "\(c)")
+            })
+        return [trigger, edge, mustNot]
     }
 }

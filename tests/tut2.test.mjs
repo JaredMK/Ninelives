@@ -83,7 +83,7 @@ export function run() {
     r.ok(onStart.includes("if (!shouldRun()) return;"), "onZenDealStart fires only when the tour should run");
     r.ok(onStart.includes("replayArmed = false;"), "…and consumes the replay one-shot (exactly one replay)");
     r.ok(onStart.includes('group("deal")'), "onZenDealStart fires the deal group");
-    // v6.51 interactive tour: completing ALL 13 guided-deal steps earns the
+    // v6.74: completing ALL 12 guided-deal steps earns the
     // deal-end beat (advance() stamps finalCompleted when the "deal" group
     // exhausts); every completion path ends stamped via end().
     r.ok(tut.includes('currentGroup === "deal"') && /finalCompleted = true/.test(tut),
@@ -174,7 +174,7 @@ export function run() {
 
   // --- tutorial.js data: shape + fail-loud validation ------------------------
   {
-    r.eq(TutorialData.stepCounts.deal, 13, "the deal group is exactly 13 steps (v6.51 interactive tour)");
+    r.eq(TutorialData.stepCounts.deal, 12, "the deal group is exactly 12 steps (v6.74: 'more guesses' filler retired)");
     r.eq(TutorialData.stepCounts.zenEnd, 1, "the zenEnd group is exactly 1 step");
     r.eq(Object.keys(TutorialData.stepCounts).length, 2, "…and those are the ONLY groups");
     r.eq(TutorialData.problems.length, 0, "the live tutorial.js validates with zero problems");

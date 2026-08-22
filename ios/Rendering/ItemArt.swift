@@ -2094,6 +2094,340 @@ public enum ItemArt {
             ".....XX.....",
             "....XXXX....",
             "............"],
+        // ---- ARCHETYPE BATCH v6.76 (mirrors the web GLYPHS emblems) --------
+        // SAME-TOLERANCE family — ONE shared silhouette: the Same "=" up top,
+        // the family's tolerance mark below, so the four read as siblings.
+        // Close Call (±1): the = + two chevrons closing in on each other.
+        "sameTolNear": [
+            "............",
+            ".XXXXXXXXXX.",
+            "............",
+            ".XXXXXXXXXX.",
+            "............",
+            "............",
+            "..X......X..",
+            "...X....X...",
+            "....X..X....",
+            ".....XX.....",
+            "............",
+            "............"],
+        // Royal Pair: the = + a small crown.
+        "sameTolRoyal": [
+            "............",
+            ".XXXXXXXXXX.",
+            "............",
+            ".XXXXXXXXXX.",
+            "............",
+            "..X..X..X...",
+            "..X..X..X...",
+            "..XX.X.XX...",
+            "..XXXXXXX...",
+            "............",
+            "............",
+            "............"],
+        // Perfect Ten: the = drawn as two bars of five pips (ten pips total).
+        "sameTolSum10": [
+            "............",
+            "............",
+            ".X.X.X.X.X..",
+            ".X.X.X.X.X..",
+            "............",
+            "............",
+            ".X.X.X.X.X..",
+            ".X.X.X.X.X..",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Suit Match: the = + two matching suit pips.
+        "sameTolSuit": [
+            "............",
+            ".XXXXXXXXXX.",
+            "............",
+            ".XXXXXXXXXX.",
+            "............",
+            "............",
+            "..X....X....",
+            ".XXX..XXX...",
+            "..X....X....",
+            "............",
+            "............",
+            "............"],
+        // SHIELDS — the guardian shield silhouette with the guarded thing
+        // inside (Rank Shield a pip card, Daily Suit a suit pip).
+        "rankShield": [
+            "..XXXXXXXX..",
+            ".XXXXXXXXXX.",
+            ".XX......XX.",
+            ".XX.XXXX.XX.",
+            ".XX.X..X.XX.",
+            ".XX.X.XX.XX.",
+            ".XX.X..X.XX.",
+            ".XX.XXXX.XX.",
+            "..XX....XX..",
+            "...XX..XX...",
+            "....XXXX....",
+            ".....XX....."],
+        "suitShield": [
+            "..XXXXXXXX..",
+            ".XXXXXXXXXX.",
+            ".XX......XX.",
+            ".XX..XX..XX.",
+            ".XX.XXXX.XX.",
+            ".XX.XXXX.XX.",
+            ".XX..XX..XX.",
+            ".XX......XX.",
+            "..XX....XX..",
+            "...XX..XX...",
+            "....XXXX....",
+            ".....XX....."],
+        // Royal Sanctuary: a crenellated keep with a doorway (the sanctuary;
+        // columnGuardian's tower has slit windows and no door).
+        "royalSanctuary": [
+            "............",
+            "..X..X..X...",
+            "..XX.X.XX...",
+            "..XXXXXXX...",
+            "..XXXXXXX...",
+            "..XXXXXXX...",
+            "..XXX.XXX...",
+            "..XXX.XXX...",
+            "..XXX.XXX...",
+            "..XXXXXXX...",
+            "............",
+            "............"],
+        // Empty Ranks: a tall EMPTY card outline (the zero-copy ranks)
+        // standing on the ground line — the bury read.
+        "zeroRanksBury": [
+            "............",
+            "..XXXXXX....",
+            "..X....X....",
+            "..X....X....",
+            "..X....X....",
+            "..X....X....",
+            "..X....X....",
+            "..X....X....",
+            "..XXXXXX....",
+            "............",
+            "XXXXXXXXXXXX",
+            "............"],
+        // Crazy Eights: a TALL stack of cards, separated bars (piles that
+        // start big). Gaps are TWO matrix rows — a 1px gap anti-aliases shut
+        // at emblem scale.
+        "eightStart": [
+            "............",
+            "..XXXXXXXX..",
+            "............",
+            "............",
+            "..XXXXXXXX..",
+            "............",
+            "............",
+            "..XXXXXXXX..",
+            "............",
+            "............",
+            "..XXXXXXXX..",
+            "............"],
+        // Void Tribute: a ♣ sinking toward a wide hole (the absent suit's
+        // void).
+        "absentSuitClubBury": [
+            "............",
+            "....XXX.....",
+            "...XXXXX....",
+            "..XXXXXXX...",
+            "...XX.XX....",
+            ".....X......",
+            ".....X......",
+            ".XXXXXXXX...",
+            ".X......X...",
+            ".XXXXXXXX...",
+            "............",
+            "............"],
+        // Majority Rule: one BIG spade pip outvoting three small ones.
+        "suitMajoritySafe": [
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "..XXXXXX....",
+            "...X..X.....",
+            "............",
+            "..X..X..X...",
+            ".XX.XX.XX...",
+            "..X..X..X...",
+            "............",
+            "............"],
+        // Diamond Echo: two red ♦ (the duplicates) + a size-up arrow.
+        "diamondDupeSize": [
+            "............",
+            "..RR..RR....",
+            ".RRRR.RRRR..",
+            "..RRR.RRR...",
+            "...R...R....",
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            "..XXXXXX....",
+            "....XX......",
+            "....XX......",
+            "............"],
+        // Flat Purge: a price tag with a LEVEL bar (the price never climbs).
+        "purgeFlatFive": [
+            "............",
+            ".XXXXXXXX...",
+            ".X......XX..",
+            ".X.XX....XX.",
+            ".X.XX.....X.",
+            ".X........X.",
+            ".X...XX...X.",
+            ".X...XX...X.",
+            ".XXXXXXXXXX.",
+            "............",
+            "............",
+            "............"],
+        // On the House: a house (big roof, square body) with a gold coin
+        // inside.
+        "firstFree": [
+            "............",
+            "....XXXX....",
+            "...XXXXXX...",
+            "..XXXXXXXX..",
+            "..X......X..",
+            "..X......X..",
+            "..X..GG..X..",
+            "..X.G..G.X..",
+            "..X..GG..X..",
+            "..XXXXXXXX..",
+            "............",
+            "............"],
+        // Eight Ball: the billiard ball — a cream ball whose ink-ringed
+        // phosphor iris keeps it in the peek family.
+        "eightPeek": [
+            "............",
+            "...CCCCCC...",
+            "..CCCCCCCC..",
+            "..CCKKKKCC..",
+            "..CCKPPKCC..",
+            "..CCKKKKCC..",
+            "..CCCCCCCC..",
+            "...CCCCCC...",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // PAUPER family — ONE shared motif: the broke player's empty open
+        // pouch, with the family's own suit dropping toward it (red suits in
+        // R, black suits in cream so they read against the gold pouch).
+        "pauperHeart": [
+            "............",
+            "...RR.RR....",
+            "..RRRRRRR...",
+            "..RRRRRRR...",
+            "...RRRRR....",
+            "....RRR.....",
+            "...XXXXXX...",
+            "..X......X..",
+            "..X......X..",
+            "...X....X...",
+            "....XXXX....",
+            "............"],
+        "pauperDiamond": [
+            "............",
+            "....RR......",
+            "...RRRR.....",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR......",
+            "...XXXXXX...",
+            "..X......X..",
+            "..X......X..",
+            "...X....X...",
+            "....XXXX....",
+            "............"],
+        "pauperSpade": [
+            "............",
+            "....CC......",
+            "...CCCC.....",
+            "..CCCCCC....",
+            "..CCCCCC....",
+            "....CC......",
+            "...XXXXXX...",
+            "..X......X..",
+            "..X......X..",
+            "...X....X...",
+            "....XXXX....",
+            "............"],
+        "pauperClub": [
+            "............",
+            "....CC......",
+            "...CCCC.....",
+            "..CCCCCC....",
+            "..CC..CC....",
+            "....CC......",
+            "...XXXXXX...",
+            "..X......X..",
+            "..X......X..",
+            "...X....X...",
+            "....XXXX....",
+            "............"],
+        // Curse Harvest: a red leech coil sinking into the ground (the bury
+        // family's composition; the curse is the red worm).
+        "curseHarvest": [
+            "............",
+            "...RRR......",
+            "..RR.RR.....",
+            "..RR.RR.....",
+            "...RRR......",
+            "............",
+            "....XXX.....",
+            ".....X......",
+            ".....X......",
+            "XXXXXXXXXXXX",
+            "............",
+            "............"],
+        // Club Thin: a ♣ over a shrinking stack (the deck thins out).
+        "clubThin": [
+            "............",
+            "....XXX.....",
+            "...XXXXX....",
+            "..XXXXXXX...",
+            "...XX.XX....",
+            ".....X......",
+            ".....X......",
+            "..XXXXXX....",
+            "...XXXX.....",
+            "....XX......",
+            "............",
+            "............"],
+        // Rank Purge: a card dropping into the trash bin (the on-purchase
+        // purge).
+        "purgeRank": [
+            "............",
+            "...XXXXX....",
+            "...X...X....",
+            "...X.X.X....",
+            "...X...X....",
+            "...XXXXX....",
+            ".....X......",
+            "..XXXXXXXX..",
+            "...X.XX.X...",
+            "...X.XX.X...",
+            "...XXXXXX...",
+            "............"],
+        // Diamond Lifeline: a red ♦ raised on a line above a lone (size-1)
+        // pile.
+        "sizeOneDiamonds": [
+            "............",
+            "....RR......",
+            "...RRRR.....",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR......",
+            "....XX......",
+            "....XX......",
+            "..XXXXXX....",
+            "..X....X....",
+            "..XXXXXX....",
+            "............"],
     ]
 
     /// The bases' own 12×12 symbols (same "X" = accent convention).
@@ -2410,6 +2744,108 @@ public enum ItemArt {
             ".X.....X....",
             ".XXXXXXX....",
             "............"],
+        // ---- ARCHETYPE BATCH v6.76 (mirrors the web BASE_SYM symbols) ------
+        // Purge Coupon: a ticket with a perforated stub (the Purge price cut).
+        "purgeDiscount": [
+            "............",
+            "............",
+            ".XXXXXXXXX..",
+            ".X..X....X..",
+            ".X..X....XX.",
+            ".X..X....XX.",
+            ".X..X....X..",
+            ".XXXXXXXXX..",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Transmute: the alchemy flask with its changed (red) content.
+        "transmute": [
+            "............",
+            "....XX......",
+            "....XX......",
+            "...X..X.....",
+            "..X....X....",
+            "..X.RR.X....",
+            "..XRRRRX....",
+            "..XRRRRX....",
+            "...XXXX.....",
+            "............",
+            "............",
+            "............"],
+        // Sacrifice: a drop of blood (the family red) over the card it costs.
+        "sacrifice": [
+            "............",
+            "....XX......",
+            "...XXXX.....",
+            "....XX......",
+            "............",
+            "..CCCCCC....",
+            "..C....C....",
+            "..C.CC.C....",
+            "..C....C....",
+            "..CCCCCC....",
+            "............",
+            "............"],
+        // Devil's Deal: a gold coin wearing red horns (double the bonus, take
+        // the curse).
+        "devilsDeal": [
+            "............",
+            ".R........R.",
+            ".RR......RR.",
+            "..R......R..",
+            "..XXXXXX....",
+            "..X......X..",
+            "..X..CC..X..",
+            "..X..CC..X..",
+            "..X......X..",
+            "..XXXXXX....",
+            "............",
+            "............"],
+        // Cleanse: a card with the clean sparkle (every curse washed off —
+        // the web's sparkle read; a red smudge made it a face).
+        "cleanseColumn": [
+            "............",
+            "..XXXXXX....",
+            "..X....X....",
+            "..X..C.X....",
+            "..X.CCCX....",
+            "..X..C.X....",
+            "..X....X....",
+            "..XXXXXX....",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Chorus: three SOLID cards standing in unison, one shared ink pip
+        // (outlined cards read as the letters "EEB" at plaque scale).
+        "chorus": [
+            "............",
+            ".XXX.XXX.XXX",
+            ".XKX.XKX.XKX",
+            ".XXX.XXX.XXX",
+            ".XXX.XXX.XXX",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Diamond Boost: a red ♦ with an up chevron under it (pile size up).
+        "diamondBoost": [
+            "............",
+            "....RR......",
+            "...RRRR.....",
+            "..RRRRRR....",
+            "...RRRR.....",
+            "....RR......",
+            "............",
+            "...X..X.....",
+            "..X....X....",
+            ".X......X...",
+            "............",
+            "............"],
     ]
 
     /// 8×8 marks composited onto the Same-Power diamond's centre (in ink over
@@ -2498,6 +2934,16 @@ public enum ItemArt {
             "K..KK..K",
             ".K....K.",
             "..KKKK.."],
+        // ---- ARCHETYPE BATCH v6.76 ----
+        "rankFlood": [   // Rank Flood — every top re-ranked (the flood waterline)
+            "........",
+            "........",
+            ".KK..KK.",
+            "K..KK..K",
+            "........",
+            ".KK..KK.",
+            "K..KK..K",
+            "........"],
     ]
 
     /// The mystery Same-Power's centre mark: a "?" in place of any power's own
@@ -2806,8 +3252,8 @@ public enum ItemArt {
         switch def.id {
         case "clubDig", "stickerHarvest": return CRT.phosphor      // dig/bury
         case "kamikaze", "demolish", "heartDemolish",
-             "lastResort": return CRT.suitRed                       // destroy
-        case "tax": return CRT.gold                                 // coins
+             "lastResort", "sacrifice": return CRT.suitRed          // destroy
+        case "tax", "purgeDiscount", "devilsDeal": return CRT.gold  // coins
         default: return CRT.cardFace                                // peek + util
         }
     }

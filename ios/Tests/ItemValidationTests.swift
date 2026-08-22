@@ -143,11 +143,150 @@ final class ItemValidationTests: IVCase {
                 XCTAssertFalse((0..<50).contains { bare.twoWardNegates($0) },
                                "twoWard: no pillar, no ward")
             }
+        // ── v6.76 archetype batch (store-side / on-purchase items) ──────────
+        case "purgeFlatFive":
+            return {
+                // FLAT PURGE: the store Purge always costs `value`, overriding
+                // the ladder — prove it AFTER climbing past the flat price.
+                let flat = def.num("value", 5)
+                let c = self.campaign(); _ = c.addCoins(1000)
+                while c.removalPrice() <= flat {
+                    XCTAssertTrue(c.buyRemoval(c.getRunDeck()[0].id), "setup: climb the ladder")
+                }
+                XCTAssertGreaterThan(c.removalPrice(), flat, "setup: the bare ladder climbed past the flat price")
+                c.pillarInventory[def.id, default: 0] += 1
+                c.setColumnPillar(col: 0, typeId: def.id)
+                XCTAssertEqual(c.removalPrice(), flat, "\(def.id): the ladder is overridden")
+                // …survives save/restore (derived live from the loadout)…
+                let c2 = CampaignState(store: MemoryStore())
+                XCTAssertTrue(c2.restore(c.serialize()))
+                XCTAssertEqual(c2.removalPrice(), flat, "\(def.id): the flat price persists")
+                // …and the charge matches the quote.
+                let before = c2.getCoins()
+                XCTAssertTrue(c2.buyRemoval(c2.getRunDeck()[0].id))
+                XCTAssertEqual(Double(before - c2.getCoins()), flat, "\(def.id): charged as quoted")
+            }
+        case "firstFree":
+            return {
+                // ON THE HOUSE: the first restock of EVERY store visit and the
+                // first reshuffle of EVERY deal are free while equipped.
+                let c = self.campaign(); _ = c.addCoins(1000)
+                c.pillarInventory[def.id, default: 0] += 1
+                c.setColumnPillar(col: 0, typeId: def.id)
+                XCTAssertEqual(c.openStore().rerollCost, 0, "\(def.id): the first restock is free")
+                XCTAssertEqual(c.openStore().rerollCost, 0, "\(def.id): …at EVERY store, not just the first")
+                c.noteDealStarted()
+                XCTAssertTrue(c.consumeFreeRedeal(), "\(def.id): the deal's first reshuffle is free")
+                XCTAssertFalse(c.consumeFreeRedeal(), "\(def.id): …exactly once per deal")
+                c.noteDealStarted()
+                XCTAssertTrue(c.consumeFreeRedeal(), "\(def.id): the next deal re-arms it")
+                // Must-not: the bare campaign pays the base cost and gets nothing.
+                let bare = self.campaign()
+                XCTAssertEqual(bare.openStore().rerollCost, self.data.items.store.reroll.baseCost)
+                bare.noteDealStarted()
+                XCTAssertFalse(bare.consumeFreeRedeal(), "\(def.id): no pillar, no free reshuffle")
+            }
+        case "purgeRank":
+            return {
+                // RANK PURGE: on purchase every full-deck card of the rolled
+                // rank leaves — NO ladder charge. Also: restore MID-STORE, the
+                // restored offer's slot still carries the roll and the buy
+                // purges the same rank.
+                let c = self.campaign(); _ = c.addCoins(1000)
+                _ = c.openStore()
+                let rolled = 4
+                c.storeOffer = StoreOffer(slots: [StoreSlot(kind: "pillar", id: def.id, rollRank: rolled)],
+                                          rerollCost: 0)
+                // If the open shelf already locked a rank for this item, the
+                // purchase honors THE LOCK (first appearance wins the climb).
+                let effective = c.shopRolls[def.id]?.rank ?? rolled
+                let ladderBefore = c.removalsBought
+                let priceBefore = c.removalPrice()
+                let heldBefore = c.getRunDeck().filter { $0.currentRank == effective }.count
+                let blob = c.serialize()
+                let r = c.buyMixedSlot(0)
+                XCTAssertTrue(r.ok, "\(def.id): the buy completes")
+                XCTAssertEqual(r.purgedCount, heldBefore, "\(def.id): every \(effective) left the deck")
+                XCTAssertEqual(c.getRunDeck().filter { $0.currentRank == effective }.count, 0, "\(def.id)")
+                XCTAssertEqual(c.removalsBought, ladderBefore, "\(def.id): NO ladder charge")
+                XCTAssertEqual(c.removalPrice(), priceBefore, "\(def.id): the Purge price never moved")
+                XCTAssertEqual(c.shopRolls[def.id]?.rank, effective, "\(def.id): the roll locked")
+                // Restore mid-store: the slot's OWN roll rides the saved
+                // offer (the climb lock may legitimately differ — first
+                // appearance wins, and the purchase honors THE LOCK).
+                let c2 = CampaignState(store: MemoryStore())
+                XCTAssertTrue(c2.restore(blob), "\(def.id): the mid-store save restores")
+                let slot = c2.storeOffer?.slots[0] ?? nil
+                XCTAssertEqual(slot?.rollRank, rolled, "\(def.id): the slot's roll rides the saved offer")
+                let r2 = c2.buyMixedSlot(0)
+                XCTAssertEqual(r2.purgedCount, heldBefore, "\(def.id): the restored buy purges identically")
+                XCTAssertEqual(c2.getRunDeck().filter { $0.currentRank == effective }.count, 0, "\(def.id)")
+            }
+        case "transmute":
+            return {
+                // TRANSMUTE: on purchase every full-deck card of the rolled
+                // rank takes the rolled suit. Restore mid-store replays it.
+                let c = self.campaign(); _ = c.addCoins(1000)
+                _ = c.openStore()
+                let rolled = 5, suit = "♣"
+                c.storeOffer = StoreOffer(slots: [StoreSlot(kind: "base", id: def.id,
+                                                            rollRank: rolled, rollSuit: suit)],
+                                          rerollCost: 0)
+                let effectiveRank = c.shopRolls[def.id]?.rank ?? rolled
+                let effectiveSuit = c.shopRolls[def.id]?.suit ?? suit
+                let blob = c.serialize()
+                let heldBefore = c.getRunDeck().filter { $0.currentRank == effectiveRank }.count
+                let r = c.buyMixedSlot(0)
+                XCTAssertTrue(r.ok, "\(def.id): the buy completes")
+                XCTAssertEqual(r.transmutedCount, heldBefore, "\(def.id)")
+                XCTAssertTrue(c.getRunDeck().filter { $0.currentRank == effectiveRank }
+                                .allSatisfy { $0.suit == effectiveSuit },
+                              "\(def.id): every \(effectiveRank) is now \(effectiveSuit)")
+                XCTAssertEqual(c.baseInventory[def.id], 1, "\(def.id): the base still lands in inventory")
+                // …and it NEVER activates in a deal.
+                let e = IVBases.baseEngine(def)
+                XCTAssertNil(e.baseActivate(col: 0), "\(def.id): never fires in-deal")
+                XCTAssertNotNil(e.baseUnavailableReason(0), "\(def.id): the amber tap says why")
+                // Restore mid-store: identical recolor.
+                let c2 = CampaignState(store: MemoryStore())
+                XCTAssertTrue(c2.restore(blob), "\(def.id)")
+                let r2 = c2.buyMixedSlot(0)
+                XCTAssertEqual(r2.transmutedCount, heldBefore, "\(def.id): the restored buy matches")
+            }
+        case "purgeDiscount":
+            return {
+                // PURGE COUPON: the engine activation REPORTS the cut + floor;
+                // applying it to the campaign cuts the store Purge price,
+                // never below the floor, for the rest of the climb.
+                let e = IVBases.baseEngine(def)
+                let res = e.baseActivate(col: 0)
+                XCTAssertEqual(res?.purgePriceCut, def.int("value", 3), "\(def.id): the cut is the data's value")
+                XCTAssertEqual(res?.purgePriceFloor, def.int("min", 5), "\(def.id): the floor is the data's min")
+                XCTAssertEqual(e.run.basesUsed?[0], true, "\(def.id): the charge is spent")
+                XCTAssertNil(e.baseActivate(col: 0), "\(def.id): …and stays spent")
+                let cut = def.int("value", 3), floor = def.int("min", 5)
+                let c = self.campaign(); _ = c.addCoins(1000)
+                let base0 = c.removalPrice()
+                c.addPurgeDiscount(cut)
+                XCTAssertEqual(c.removalPrice(), max(Double(floor), base0 - Double(cut)),
+                               "\(def.id): −\(cut), floored at the Coupon's min")
+                c.addPurgeDiscount(999)
+                XCTAssertEqual(c.removalPrice(), Double(floor),
+                               "\(def.id): the cut can NEVER drag Purge below \(floor)")
+                // The accumulated CUT persists across save/restore (the floor
+                // re-derives from the def at price time — it is never saved)…
+                let c2 = CampaignState(store: MemoryStore())
+                XCTAssertTrue(c2.restore(c.serialize()))
+                XCTAssertEqual(c2.removalPrice(), Double(floor), "\(def.id): the cut survives the save")
+                // …and reset with the climb.
+                c2.startNewRun()
+                XCTAssertEqual(c2.removalPrice(), c2.shopPrice(self.data.items.store.removal.price),
+                               "\(def.id): a new climb restarts the ladder")
+            }
         default:
             return nil
         }
     }
-
     // MARK: - TIER 1: every item, every scenario
 
     func testTier1EveryItemValidates() {

@@ -248,6 +248,37 @@ export function run() {
     r.eq(res.peekCount, 2, "peeks the next 2 cards (2 ♠ piles)");
   }
 
+  // --- effect: Empty Purse (v6.74 rework: 1 peek baseline + 1 per 10 coins,
+  //     purse threaded in by the caller and drained from the result) --------
+  {
+    // peeks = 1 + floor(coins / 10): 0/9/10/25 coins → 1/1/2/3 peeks.
+    for (const [coins, want] of [[0, 1], [9, 1], [10, 2], [25, 3]]) {
+      const e = game(["emptyPurse", null, null]);
+      r.ok(e.baseAvailable(0), `Empty Purse available with a non-empty deck (${coins} coins)`);
+      const res = e.baseActivate(0, null, coins);
+      r.eq(res.peekCount, want, `${coins} coins → ${want} peek(s)`);
+      r.eq((res.cards || []).length, want, `${coins} coins: ${want} peek card(s) snapshotted`);
+      r.eq(res.purseSpent, coins, `${coins} coins: the result reports the exact spend`);
+      r.ok(e.getRun().kamikazeRevealLeft >= want, `${coins} coins: the peek window is armed`);
+    }
+    // The purse empties: the flow drains exactly res.purseSpent (web: the
+    // "base-fired" handler; native: DealController — same contract).
+    const c = CampaignState.create();
+    c.addCoins(25);
+    const e = game(["emptyPurse", null, null]);
+    const res = e.baseActivate(0, null, c.getCoins());
+    r.ok(c.spendCoins(res.purseSpent), "the drain succeeds");
+    r.eq(c.getCoins(), 0, "the purse is emptied — every coin spent");
+    // 0 coins still yields the 1 baseline peek, and the drain is a no-op.
+    const c0 = CampaignState.create();
+    const e0 = game(["emptyPurse", null, null]);
+    const res0 = e0.baseActivate(0, null, c0.getCoins());
+    r.eq(res0.peekCount, 1, "0 coins still peeks 1");
+    r.eq(res0.purseSpent, 0, "0 coins: nothing to drain");
+    // A spent Empty Purse cannot fire again (the once-per-deal rule).
+    r.ok(!e0.baseAvailable(0), "a spent Empty Purse is unavailable");
+  }
+
   // --- effect: Heart Demolish (destroy ♥-top piles, +7 each) ------------
   {
     const e = game(["heartDemolish", null, null]);

@@ -56,6 +56,34 @@ extension CampaignState {
             "pillarRankVariants": .object(pillarRankVariants.reduce(into: [:]) { $0[$1.key] = .number(Double($1.value)) }),
             "purgeDiscount": .number(Double(purgeDiscount)),
             "purgeStepBonus": .number(Double(purgeStepBonus)),
+            // v6.76 — SHARED with the web save (exact names + shapes):
+            // `purgePriceCut` is the Coupon's accumulated cut (a bare number);
+            // `shopRolls` is a FLAT map — the first axis rides the bare id,
+            // the second "id#2", and a value is a bare rank NUMBER or suit
+            // STRING, never a wrapper.
+            "purgePriceCut": .number(Double(purgePriceCut)),
+            "shopRolls": .object(shopRolls.reduce(into: [:]) { out, kv in
+                let def = data.pillarTypes.get(kv.key) ?? data.baseTypes.get(kv.key)
+                // Axis kind tells where each field lands; the catalog's first
+                // axis is the item's `shopRoll`, its second `shopRoll2`.
+                func put(_ key: String, _ axis: String?) {
+                    switch axis {
+                    case "rank": if let r = kv.value.rank { out[key] = .number(Double(r)) }
+                    case "suit": if let s = kv.value.suit { out[key] = .string(s) }
+                    default: break
+                    }
+                }
+                if def != nil {
+                    put(kv.key, def?.shopRoll)
+                    put(kv.key + "#2", def?.shopRoll2)
+                } else {
+                    // Def left the catalog: keep the values rather than drop
+                    // them (rank at the bare id, suit at "#2" — no catalog
+                    // item carries two same-kind axes).
+                    if let r = kv.value.rank { out[kv.key] = .number(Double(r)) }
+                    if let s = kv.value.suit { out[kv.key + "#2"] = .string(s) }
+                }
+            }),
             "jokerDebt": .number(Double(jokerDebt)),
             "freeShopPending": .bool(freeShopPending),
             "jokerThirstPending": .bool(jokerThirstPending),
@@ -126,6 +154,19 @@ extension CampaignState {
                 var sd: [String: JSONValue] = ["kind": .string(s.kind), "id": .string(s.id)]
                 if s.mystery { sd["mystery"] = .bool(true) }
                 if let card = s.card { sd["card"] = encodeCard(card) }
+                // v6.76 (only when set, like slot `mystery`): the shop-rolled
+                // values ride the slot as the web's `shopRolled`/`shopRolled2`
+                // — a bare rank NUMBER or suit STRING. The catalog's one
+                // dual-axis item (Transmute) is rank-then-suit; everything
+                // else carries a single axis.
+                if let r = s.rollRank, let s2 = s.rollSuit {
+                    sd["shopRolled"] = .number(Double(r))
+                    sd["shopRolled2"] = .string(s2)
+                } else if let r = s.rollRank {
+                    sd["shopRolled"] = .number(Double(r))
+                } else if let s2 = s.rollSuit {
+                    sd["shopRolled"] = .string(s2)
+                }
                 return .object(sd)
             }),
         ]
@@ -144,8 +185,14 @@ extension CampaignState {
                 guard let d = s.asObject, let kind = d["kind"]?.asString, let id = d["id"]?.asString else { return nil }
                 // `mystery` is absent in pre-v6.51 saves — a legacy CONCRETE
                 // same-power slot decodes as concrete and stays buyable.
+                // `shopRolled`/`shopRolled2` are absent in pre-v6.76 saves —
+                // a legacy shopRoll slot re-rolls (and locks) at purchase.
+                // A numeric shopRolled is a rank, a string one a suit.
+                let rolled = d["shopRolled"], rolled2 = d["shopRolled2"]
                 return StoreSlot(kind: kind, id: id, mystery: d["mystery"]?.asBool ?? false,
-                                 card: d["card"].flatMap(decodeCard))
+                                 card: d["card"].flatMap(decodeCard),
+                                 rollRank: rolled?.asNumber.map(Int.init) ?? rolled2?.asNumber.map(Int.init),
+                                 rollSuit: rolled?.asString ?? rolled2?.asString)
             },
             rerollCost: o["rerollCost"]?.asNumber ?? 0,
             freeSlot: o["freeSlot"]?.asNumber.map(Int.init),
@@ -226,6 +273,21 @@ extension CampaignState {
             .compactMapValues { $0.asNumber.map(Int.init) }
         purgeDiscount = Int(s["purgeDiscount"]?.asNumber ?? 0)
         purgeStepBonus = Int(s["purgeStepBonus"]?.asNumber ?? 0)
+        // v6.76, SHARED keys (absent in pre-v6.76 saves → the defaults the web
+        // restore uses: 0 cut, empty map; they roll at the next shelf visit).
+        purgePriceCut = max(0, Int(s["purgePriceCut"]?.asNumber ?? 0))
+        // The web's FLAT shape: id / "id#2" → bare rank number or suit string.
+        // Numbers fold to the rank axis, strings to the suit axis — lossless
+        // for the catalog (no item rolls two same-kind axes).
+        var rolls: [String: ShopRoll] = [:]
+        for (k, v) in s["shopRolls"]?.asObject ?? [:] {
+            let id = k.hasSuffix("#2") ? String(k.dropLast(2)) : k
+            var roll = rolls[id] ?? ShopRoll()
+            if let n = v.asNumber { roll.rank = Int(n) }
+            else if let str = v.asString { roll.suit = str }
+            rolls[id] = roll
+        }
+        shopRolls = rolls
         // Absent in pre-Old-Joker saves — an old climb simply owes nothing.
         jokerDebt = Int(s["jokerDebt"]?.asNumber ?? 0)
         freeShopPending = s["freeShopPending"]?.asBool ?? false
