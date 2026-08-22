@@ -80,7 +80,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Shoulda Said Same
-        CFBundleShortVersionString: "0.1"
+        CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         # LAUNCH SCREEN (v6.52): the menu's OWN first frame — felt + tissue
         # atmosphere baked to LaunchBackdrop by the `-splashFrame 1` harness
