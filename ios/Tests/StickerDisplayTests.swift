@@ -151,12 +151,31 @@ final class StickerDisplayTests: XCTestCase {
     }
 
     func testEverySurfaceRoutesThroughTheCanonicalLayout() throws {
-        // Each chip-drawing surface must reference the shared helper, and no
-        // display path may truncate below maxStickersPerCard with a literal
-        // prefix(3) or a hardcoded 3-chip cap.
+        // v6.81: UIKit surfaces that show a card WITH its chips must route
+        // through the ONE baked renderer, CardComposite — never hand-placed
+        // chip views beside card faces (the negative-zPosition trap that
+        // kept sinking chips 2…4 beneath sibling card faces; see
+        // CardComposite's header). The composite itself is the one place
+        // that caps at maxStickersPerCard and reads StickerChipLayout.
+        for path in ["UI/DeckInspectViewController.swift", "UI/PileFanOverlayView.swift"] {
+            let src = try source(path)
+            XCTAssertTrue(src.contains("CardComposite"),
+                          "\(path) must render cards through CardComposite")
+            XCTAssertFalse(src.contains("zPosition = CGFloat(-"),
+                           "\(path) re-grew sibling chip views with negative zPositions")
+        }
+        let composite = try source("UI/CardComposite.swift")
+        XCTAssertTrue(composite.contains("StickerChipLayout"),
+                      "CardComposite must take its geometry from StickerChipLayout")
+        XCTAssertTrue(composite.contains("maxStickersPerCard"),
+                      "CardComposite must cap at maxStickersPerCard")
+        XCTAssertFalse(composite.contains(".prefix(3)"),
+                       "CardComposite truncates below maxStickersPerCard")
+        // The remaining chip-drawing surfaces (SpriteKit board, the picker's
+        // isolated chip holder, baked map minis, curse cells) still compute
+        // geometry through the shared layout and never hard-truncate.
         let surfaces = [
             "Rendering/PileNode.swift",
-            "UI/DeckInspectViewController.swift",
             "UI/CardPickerViewController.swift",
             "UI/PhaseOverlayView.swift",
             "UI/MapViewController.swift",

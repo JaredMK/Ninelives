@@ -24,6 +24,14 @@ import GameCore
 /// PhaseOverlayView's CurseCardCell, MapViewController's baked chips, the
 /// store/pack composites) computes its geometry through this enum and points
 /// its comment here. StickerDisplayTests mirrors the math and pins it.
+///
+/// ⚠️ UIKit RULE (v6.81): a card face + its chips is rendered by
+/// `CardComposite.image` — ONE baked image, never chip views placed beside
+/// card faces. The view idiom copied this file's `zPosition = -i` fan order,
+/// but a UIKit layer's zPosition competes with EVERY sibling: chips 2…4 sank
+/// beneath the neighbouring card faces and only the first sticker showed
+/// (the twice-recurring deck-view bug). SpriteKit chips here are CHILDREN of
+/// their card node, so the same trick is safe on the board.
 public enum StickerChipLayout {
     /// The first chip's overhang past the card's RIGHT edge, in points.
     public static let rightOverhang: CGFloat = 3

@@ -550,12 +550,15 @@ const NINELIVES_ITEMS = {
     { id: "rankShield", label: "Rank Shield", icon: "🔰",
       kind: "guess", effect: "rankShield", tier: "uncommon", price: 5,
       description: "Most common card in deck ({rank}) is always safe in this column" },
-    // DAILY SUIT: the shielded suit re-rolls at the START of each deal (and
-    // on redeal); the current suit shows on the pillar's plaque.
+    // SCARCE SUIT (v6.81, was "Daily Suit"): no roll any more — each deal
+    // start reads the FULL deck and shields the suit it holds the FEWEST of
+    // (among suits present; ties break by canonical suit order). The id and
+    // the effect key are STABLE ("suitShield"/"suitShieldDaily" — saves and
+    // engine hooks bind to them); only the player-facing label moved.
     // TUNE: price 6 proposed (R4).
-    { id: "suitShield", label: "Daily Suit", icon: "📅",
+    { id: "suitShield", label: "Scarce Suit", icon: "📉",
       kind: "guess", effect: "suitShieldDaily", tier: "uncommon", price: 6,
-      description: "A new suit is chosen at the start of each deal (shown on the plaque). That suit is safe when it lands in this column" },
+      description: "The suit your deck holds the fewest of is safe when it lands in this column. Rechecked at the start of each deal, shown on the plaque" },
 
     // ---- ECONOMY / STORE --------------------------------------------------
     // FLAT PURGE: value = the fixed Purge price while equipped (overrides the
@@ -999,7 +1002,10 @@ const NINELIVES_ITEMS = {
     // `returnChance`: once the drink is bought (or refused) he does NOT
     // promise the very next "?" — every mystery node rolls this chance until
     // the one where he turns up to settle it.
-    thirsty: { rewardMult: 2, ambushCards: 18, ambushPiles: 4, ambushBounty: 1, returnChance: 0.25 },
+    // `charity`: what he hands a player whose purse is EMPTY when he asks
+    // (v6.81) — shared hard luck, no return visit, no ambush. Only a refusal
+    // from a purse that HAD coins arms the comeback.
+    thirsty: { rewardMult: 2, ambushCards: 18, ambushPiles: 4, ambushBounty: 1, returnChance: 0.25, charity: 3 },
     // DUPLICATE: copy any non-Joker card in your deck, stickers and all, then
     // choose which card the copy REPLACES. The copy carries a curse from the
     // shared weighted roll (path "duplicate" — mild band only).

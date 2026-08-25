@@ -101,6 +101,42 @@ final class StoreDetailView: UIView {
         buyButton.isHidden = true
     }
 
+    /// INSPECT (v6.81): the deck view's read-only popup — the same centered
+    /// panel as the store detail (art, name, description, a card's sticker
+    /// rows) with NO buy, NO sell and no placement; ✕ and tap-away close.
+    init(campaign: CampaignState, inspectCard c: CardSpec) {
+        self.campaign = campaign
+        self.kind = "card"
+        self.itemId = "card"
+        self.card = c
+        self.isEquippedView = true      // the read-only path: no placement, no buy
+        self.isMystery = false
+        self.isReveal = false
+        self.shopRoll = nil
+        super.init(frame: .zero)
+        common()
+        refresh()
+        buyButton.isHidden = true
+        sellButton.isHidden = true
+    }
+
+    /// INSPECT for an equipped/owned ITEM (pillar / base / Same-Power).
+    init(campaign: CampaignState, inspectKind: String, id: String) {
+        self.campaign = campaign
+        self.kind = inspectKind
+        self.itemId = id
+        self.card = nil
+        self.isEquippedView = true
+        self.isMystery = false
+        self.isReveal = false
+        self.shopRoll = campaign.shopRolls[id]
+        super.init(frame: .zero)
+        common()
+        refresh()
+        buyButton.isHidden = true
+        sellButton.isHidden = true
+    }
+
     /// Mystery Same-Power REVEAL: the just-rolled power over the equipped→new
     /// comparison, with KEEP / DISCARD living INSIDE the panel (v6.52 — the
     /// prompt-bar version put the decision at the far end of the screen from
@@ -246,9 +282,18 @@ final class StoreDetailView: UIView {
             nameLabel.attributedText = CardInfo.attributed(title: name, titleColor: CRT.cardFace)
             captionLabel.attributedText = nil
             tierLabel.attributedText = nil
-            let desc = card?.joker == true
-                ? "A Joker. Always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
-                : data.items.store.card.description
+            // INSPECT (deck-view card — the only equipped-view card) keeps
+            // the sticker rows but drops the store's buy-it copy.
+            let desc: String
+            if card?.joker == true {
+                desc = isEquippedView
+                    ? "A Joker. Always safe on any guess."
+                    : "A Joker. Always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
+            } else if isEquippedView {
+                desc = (card?.stickers.isEmpty ?? true) ? "No stickers on this card." : ""
+            } else {
+                desc = data.items.store.card.description
+            }
             descLabel.attributedText = CardInfo.attributed(
                 body: desc, rows: card.map { CardInfo.rows(for: $0) } ?? [])
         case "samepower" where isMystery:

@@ -1646,13 +1646,13 @@
     },
     {
       "id": "suitShield",
-      "label": "Daily Suit",
-      "icon": "📅",
+      "label": "Scarce Suit",
+      "icon": "📉",
       "kind": "guess",
       "effect": "suitShieldDaily",
       "tier": "uncommon",
       "price": 6,
-      "description": "A new suit is chosen at the start of each deal (shown on the plaque). That suit is safe when it lands in this column"
+      "description": "The suit your deck holds the fewest of is safe when it lands in this column. Rechecked at the start of each deal, shown on the plaque"
     },
     {
       "id": "purgeFlatFive",
@@ -2485,7 +2485,8 @@
       "ambushCards": 18,
       "ambushPiles": 4,
       "ambushBounty": 1,
-      "returnChance": 0.25
+      "returnChance": 0.25,
+      "charity": 3
     },
     "duplicate": {},
     "jokerForPillars": {}

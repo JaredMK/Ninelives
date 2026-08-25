@@ -676,6 +676,7 @@ final class OldJokerTests: XCTestCase {
 
     func testGivingNothingBringsHimBackAngryEventually() {
         let c = campaign()
+        c.addCoins(20)   // a FUNDED purse — the empty purse is the charity branch
         _ = c.resolveOldJoker(.thirsty(purse: c.getCoins()), choice: .give(0), nodeId: 1)
         XCTAssertTrue(c.jokerThirstPending)
         XCTAssertEqual(c.jokerThirstCoins, 0)
@@ -688,12 +689,44 @@ final class OldJokerTests: XCTestCase {
         XCTAssertFalse(c.jokerThirstPending, "the score is settled either way")
     }
 
-    func testHeCannotBeGivenMoreThanYouHold() {
+    /// v6.81: an EMPTY purse is its own branch — he hands YOU the charity
+    /// coins, arms NO comeback, and no ambush ever follows. Distinct from
+    /// the funded-but-refused branch, which still brings him back angry.
+    func testThirstyEmptyPurseGetsCharityAndNoComeback() {
         let c = campaign()
-        c.spendCoins(c.getCoins())
-        _ = c.resolveOldJoker(.thirsty(purse: 0), choice: .give(999), nodeId: 1)
-        XCTAssertEqual(c.getCoins(), 0, "he cannot take coins that aren't there")
-        XCTAssertEqual(c.jokerThirstCoins, 0, "…and an empty purse reads as nothing given")
+        _ = c.spendCoins(c.getCoins())
+        XCTAssertEqual(c.getCoins(), 0)
+        let charity = cfg.int("thirsty", "charity", 3)
+        let r = c.resolveOldJoker(.thirsty(purse: 0), choice: .give(0), nodeId: 1)
+        XCTAssertEqual(r?.good, true, "shared hard luck, not a refusal")
+        XCTAssertEqual(c.getCoins(), charity, "he hands over the charity coins")
+        XCTAssertFalse(c.jokerThirstPending, "no comeback is armed")
+        XCTAssertEqual(c.jokerThirstCoins, 0)
+        // No return — and so no retaliatory ambush — across a long horizon.
+        for node in 2..<400 {
+            if case .thirstReturn? = c.rollOldJoker(node) {
+                return XCTFail("node \(node): he came back about a drink nobody owed")
+            }
+        }
+        // Even ASKING to give from an empty purse lands in the charity
+        // branch (there is nothing to take).
+        let c2 = campaign()
+        _ = c2.spendCoins(c2.getCoins())
+        _ = c2.resolveOldJoker(.thirsty(purse: 0), choice: .give(999), nodeId: 1)
+        XCTAssertEqual(c2.getCoins(), charity, "an empty purse cannot be drawn on")
+        XCTAssertFalse(c2.jokerThirstPending)
+    }
+
+    func testHeCannotBeGivenMoreThanYouHold() {
+        // A FUNDED purse clamps at what it holds (the empty purse is the
+        // charity branch above).
+        let c = campaign()
+        c.addCoins(7)
+        let held = c.getCoins()
+        XCTAssertGreaterThan(held, 0)
+        _ = c.resolveOldJoker(.thirsty(purse: held), choice: .give(999), nodeId: 1)
+        XCTAssertEqual(c.getCoins(), 0, "he takes everything you hold, never more")
+        XCTAssertEqual(c.jokerThirstCoins, held, "…and remembers exactly what he got")
     }
 
     /// THE COAT IS A SHELF: 1–6 rows, never a duplicate, never something you

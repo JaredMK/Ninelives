@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.80"
-    static let note = "archetype unlock gates land (13 mid-late/late anchors; everything through mid ships unlocked except Purge Coupon); Old Joker Buyout prices each item with its own 50/50 lowball-or-premium roll; every store tile names itself; Escape Hatch copy fixed; Rank Shield plaque band fits a 10; stray duplicate files deleted."
+    static let version = "v6.81"
+    static let note = "the deck view's one-sticker bug is root-caused and killed for good (all UIKit cards now bake face+chips through one CardComposite); deck-view taps open the store-style detail popup; the Old Joker hands a broke player drink money instead of an ambush; Daily Suit becomes SCARCE SUIT (shields your fewest-held suit, re-read each deal)."
     static let line = "build \(version) · \(note)"
 }
 

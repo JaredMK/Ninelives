@@ -110,17 +110,21 @@ public final class PileFanOverlayView: UIView {
 
     private func buildCards() {
         let artW: CGFloat = 76   // 72 + the baked 4px hard shadow
-        let cardFaceW: CGFloat = 72
         let topPad: CGFloat = 12 // clears the TOP pill above the first card
-        let stkMax = GameData.shared.items.maxStickersPerCard
 
         for (i, c) in cards.enumerated() {
             let box = UIView()
-            let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .three))
+            // ONE renderer (v6.81): face + chips baked by CardComposite —
+            // the hand-placed chip views this fan used until v6.80 carried
+            // the same negative-zPosition trap the deck view did (chips 2…4
+            // sank beneath the card face; see CardComposite's header).
+            let iv = UIImageView(image: CardComposite.image(c, scale: .three))
             let artH = iv.image?.size.height ?? 104   // 100 + the baked 4px shadow
             iv.layer.magnificationFilter = .nearest
             iv.contentMode = .scaleAspectFit
-            iv.frame = CGRect(x: 0, y: topPad, width: artW, height: artH)
+            iv.frame = CGRect(x: 0, y: topPad - StickerChipLayout.topRaise,
+                              width: artW + StickerChipLayout.rightOverhang,
+                              height: artH + StickerChipLayout.topRaise)
             box.addSubview(iv)
 
             // The web's marker chips: a loud phosphor TOP on the first card,
@@ -132,25 +136,6 @@ public final class PileFanOverlayView: UIView {
             }
             let bottomPill = (i == cards.count - 1 && cards.count > 1)
 
-            // Sticker chips ride the card's TOP-RIGHT corner (v6.52), fanning
-            // leftward with the deal board's lean — ONE idiom wherever a card
-            // is shown. v6.78: geometry via StickerChipLayout (master comment
-            // in PileNode.swift) — the fan had kept a private 16pt chip, half
-            // the canonical 44%-of-card size, and a fixed step that could
-            // shed the 4th chip (the pre-v6.72 bug, lingering here).
-            let defs = Array(c.stickers.prefix(stkMax))
-                .compactMap { GameData.shared.stickerTypes.get($0.type) }
-            let placed = StickerChipLayout.frames(count: defs.count, cardWidth: cardFaceW)
-            for (s, def) in defs.enumerated() {
-                let (rect, deg) = placed[s]
-                let chip = UIImageView(image: ItemArt.sticker(def, size: rect.width))
-                chip.layer.magnificationFilter = .nearest
-                chip.contentMode = .scaleAspectFit
-                chip.frame = rect.offsetBy(dx: 0, dy: topPad)
-                chip.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
-                chip.layer.zPosition = CGFloat(-s)   // first sticker on top
-                box.addSubview(chip)
-            }
             var boxH = topPad + artH + 8
             if bottomPill {
                 let pill = Self.pill("BOTTOM", bg: CRT.feltDeep, fg: CRT.cardFace)

@@ -1776,8 +1776,9 @@ public final class DealController {
         // The column rides the NAME (router batch) — "Applies to column N"
         // read like a second sentence of rules.
         var body = campaign.itemDescription(def)
-        // DAILY SUIT (v6.76): the registry copy says a suit is rolled per
-        // deal — the hold names THIS deal's roll (the plaque shows it).
+        // SCARCE SUIT (v6.81): the registry copy names the rule (fewest-held
+        // suit, per deal) — the hold names THIS deal's read (the plaque
+        // shows it too).
         if def.effect == "suitShieldDaily", let suit = engine?.run.dailySuits?[col] {
             body += "\nThis deal shields \(suit)."
         }

@@ -275,32 +275,73 @@ final class ArchetypeBatchTests: XCTestCase {
                        "the hook's owned deck (4s dominate) rules the pick")
     }
 
-    // MARK: - Daily Suit (deal-start roll, snapshot round-trip)
+    // MARK: - Scarce Suit (v6.81 — deal-start fewest-suit read, snapshot
+    //         round-trip; was "Daily Suit", a per-deal random roll)
 
-    func testDailySuitRollsAtStartRunAndRoundTripsSnapshot() {
+    func testScarceSuitShieldsTheFewestHeldSuitAtDealStart() {
+        // Full deck at Start Run: tops ♠♥♣ + draw ♠♥ → ♠2 ♥2 ♣1 ♦0.
+        // ♦ is absent (a dead shield — excluded); ♣ is the scarcest PRESENT
+        // suit, whatever the seed.
+        for seed: UInt32 in [7, 99, 4242] {
+            let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣")],
+                              deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♥")],
+                              pillars: ["suitShield", nil, nil], seed: seed)
+            XCTAssertEqual(e.run.dailySuits?[0], "♣",
+                           "seed \(seed): the fewest PRESENT suit shields — never a roll")
+        }
+    }
+
+    func testScarceSuitRecomputesPerDealAndTiesBreakCanonically() {
+        // A different deck (the next deal, post-purge) shields a different
+        // suit: now ♥ is the singleton.
+        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♣"), spec(3, 6, "♥")],
+                          deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♣")],
+                          pillars: ["suitShield", nil, nil])
+        XCTAssertEqual(e.run.dailySuits?[0], "♥", "the next deal re-reads the deck")
+        // A full standard deck ties all four suits at 13 → the canonical
+        // suit order (♦ first) breaks it, deterministically.
+        let tie = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 3,
+                             runConfig: RunConfig(cols: [1, 1, 1]))
+        tie.start(seedOverride: 7)
+        tie.startRun(pillars: ["suitShield", nil, nil], bases: [nil, nil, nil], samePower: nil)
+        XCTAssertEqual(tie.run.dailySuits?[0], DeckManager.suits[0].symbol,
+                       "a full tie breaks to the first canonical suit")
+    }
+
+    func testScarceSuitReadsTheFullOwnedDeckThroughTheHook() {
+        // The owned deck says ♦ is scarce even though the deal subset holds
+        // none of it... it holds ONE ♦ — present and fewest.
+        let owned = [spec(90, 4, "♠"), spec(91, 5, "♠"), spec(92, 6, "♥"),
+                     spec(93, 7, "♥"), spec(94, 8, "♦")]
+            .map { DeckManager.toCard($0, data: GameData.shared) }
+        let e = GameEngine(deckSpecs: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣"),
+                                       spec(50, 9, "♠")],
+                           pileCount: 3, runConfig: RunConfig(cols: [1, 1, 1]))
+        e.fullDeckProvider = { owned }
+        e.start(seedOverride: 7)
+        e.startRun(pillars: ["suitShield", nil, nil], bases: [nil, nil, nil], samePower: nil)
+        XCTAssertEqual(e.run.dailySuits?[0], "♦",
+                       "the hook's owned deck rules the scarce-suit read")
+    }
+
+    func testScarceSuitRoundTripsSnapshotAndStillShields() {
         let build = {
             IV.engine(tops: [self.spec(1, 5, "♠"), self.spec(2, 6, "♥"), self.spec(3, 6, "♣")],
                       deckOrder: [self.spec(50, 9, "♠"), self.spec(51, 3, "♥")],
                       pillars: ["suitShield", nil, nil])
         }
         let e = build()
-        guard let rolled = e.run.dailySuits?[0] else { return XCTFail("the suit rolled at Start Run") }
-        XCTAssertTrue(DeckManager.suits.contains { $0.symbol == rolled })
-        // A fresh deal (fresh seed — the redeal path) rolls again, its own way.
-        let e2 = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣")],
-                           deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♥")],
-                           pillars: ["suitShield", nil, nil], seed: 99)
-        XCTAssertNotNil(e2.run.dailySuits?[0], "the redeal re-rolled the suit")
-        // Snapshot → twin: the rolled suit survives the mid-deal save…
+        guard let shielded = e.run.dailySuits?[0] else { return XCTFail("the suit computed at Start Run") }
+        // Snapshot → twin: the suit survives the mid-deal save…
         let twin = build()
         XCTAssertTrue(twin.restoreSnapshot(e.snapshot()))
-        XCTAssertEqual(twin.run.dailySuits?[0], rolled)
-        // …and still shields it: craft a wrong-call landing of the rolled suit.
+        XCTAssertEqual(twin.run.dailySuits?[0], shielded)
+        // …and still shields it: craft a wrong-call landing of that suit.
         var cards = twin.deck.snapshotCards()
-        cards[0] = DeckManager.toCard(spec(90, 9, rolled), data: data)
+        cards[0] = DeckManager.toCard(spec(90, 9, shielded), data: data)
         twin.deck.restoreSnapshot(cards: cards, drawn: twin.deck.drawn())
         twin.guess(0, .lower)   // 9 on 5 called lower: wrong, but shielded
-        XCTAssertTrue(twin.board.isActive(0), "the restored engine still shields the rolled suit")
+        XCTAssertTrue(twin.board.isActive(0), "the restored engine still shields the scarce suit")
     }
 
     // MARK: - Crazy Eights latch (deal-start composition condition)

@@ -136,7 +136,7 @@ enum OldJokerCopy {
         case .thirsty(let purse):
             return purse > 0
                 ? "Give him what you like."
-                : "You have nothing to give. He'll remember being asked all the same."
+                : "You have nothing to give."
         case .thirstReturn(let paid, _):
             // No price tag on a gift — let the player just enjoy the haul.
             return paid > 0

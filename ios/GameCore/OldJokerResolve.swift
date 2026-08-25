@@ -206,9 +206,22 @@ extension CampaignState {
 
         // ── 15. THIRSTY ──────────────────────────────────────────────────────
         // He asks for drink money. ANY amount is a legal answer, zero included,
-        // and zero is remembered. Either way he comes back at the next mystery.
+        // and a zero from a purse that HAD coins is remembered — he comes back
+        // (paid: the coat opens; stiffed: the ambush). But an EMPTY purse is a
+        // different story (v6.81): you had nothing to give, so he takes it as
+        // shared hard luck — "You look thirsty yourself" — hands YOU a few
+        // coins (items.js thirsty.charity), and never returns about it. No
+        // pending, no ambush.
         case .thirsty:
             guard case .give(let asked) = choice else { return nil }
+            if coins == 0 {
+                let charity = cfg.int("thirsty", "charity", 3)
+                _ = earnCoins(charity)
+                return OldJoker.Result(
+                    key: "thirsty", headline: "On him",
+                    detail: "\"You look thirsty yourself.\" He presses \(charity) coin\(charity == 1 ? "" : "s") into your hand and asks for nothing.",
+                    coins: charity, good: true)
+            }
             let given = max(0, min(asked, coins))
             if given > 0 { _ = spendCoins(given) }
             jokerThirstPending = true

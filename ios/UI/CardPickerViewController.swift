@@ -715,35 +715,9 @@ public final class CardPickerViewController: UIViewController {
     /// none reads as a bug, and did).
     static func cardWithStickers(_ c: CardSpec, extra: String?,
                                  scale: CardArt.Scale = .half) -> UIImage {
-        let face = CardArt.image(CardArt.Face(c), scale: scale)
-        var defs = c.stickers.compactMap { GameData.shared.stickerTypes.get($0.type) }
-        if let extra, let d = GameData.shared.stickerTypes.get(extra) { defs.append(d) }
-        defs = Array(defs.prefix(GameData.shared.items.maxStickersPerCard))
-        guard !defs.isEmpty else { return face }
-        // The card BOX is the canvas minus the baked hard shadow.
-        let cardW = scale.size.width
-        let placed = StickerChipLayout.frames(count: defs.count, cardWidth: cardW)
-        let canvas = CGSize(width: face.size.width + StickerChipLayout.rightOverhang,
-                            height: face.size.height + StickerChipLayout.topRaise)
-        let fmt = UIGraphicsImageRendererFormat()
-        fmt.scale = UIScreen.main.scale
-        return UIGraphicsImageRenderer(size: canvas, format: fmt).image { ctx in
-            let cg = ctx.cgContext
-            face.draw(at: CGPoint(x: 0, y: StickerChipLayout.topRaise))
-            // First sticker on TOP: draw the fan back-to-front.
-            for (i, d) in defs.enumerated().reversed() {
-                let (rect, deg) = placed[i]
-                let r = rect.offsetBy(dx: 0, dy: StickerChipLayout.topRaise)
-                cg.saveGState()
-                cg.translateBy(x: r.midX, y: r.midY)
-                cg.rotate(by: deg * .pi / 180)
-                cg.interpolationQuality = .none
-                ItemArt.sticker(d, size: r.width).draw(
-                    in: CGRect(x: -r.width / 2, y: -r.height / 2,
-                               width: r.width, height: r.height))
-                cg.restoreGState()
-            }
-        }
+        // The implementation moved to CardComposite (v6.81) — the ONE UIKit
+        // card+chips renderer; this forwarder keeps the old call sites.
+        CardComposite.image(c, extra: extra, scale: scale)
     }
 
     /// The card's ACTUAL stickers, not an anonymous count of pips — you cannot
@@ -773,6 +747,11 @@ public final class CardPickerViewController: UIViewController {
             iv.layer.minificationFilter = .nearest
             iv.frame = rect.offsetBy(dx: origin.x, dy: origin.y)
             iv.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
+            // Negative zPositions are safe ONLY because this holder contains
+            // nothing but chips — z competes among siblings, and a card face
+            // sharing the container would sink chips 2…4 beneath it (the
+            // deck-view bug; see CardComposite's header). Don't add non-chip
+            // subviews here.
             iv.layer.zPosition = CGFloat(-i)   // first sticker outermost/on top
             holder.addSubview(iv)
         }

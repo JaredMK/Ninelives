@@ -519,17 +519,21 @@ public final class GameEngine {
                 }
             }
         }
-        // DAILY SUIT (v6.76): each Daily Suit column rolls its shielded suit
-        // HERE, at Start Run, off the deal's seeded stream (the baseRandom
-        // precedent). A redeal re-creates the engine with a fresh seed, which
-        // re-rolls — there is no stale-suit state to clear. Only columns that
-        // actually carry the pillar draw, so deals without it keep the exact
-        // legacy rng sequence.
+        // SCARCE SUIT (v6.81 — the Daily Suit rework): the shielded suit is
+        // no longer a roll. Each deal start reads the FULL deck and shields
+        // the suit it holds the FEWEST of — among suits actually present
+        // (a suit you own zero of can never land, so it would be a dead
+        // shield); ties break by the canonical suit order, deterministically,
+        // so no rng is ever drawn. Recomputed here every Start Run (a redeal
+        // re-runs it; a mid-deal restore keeps the snapshot's value).
         if let pillars = run.pillars, run.dailySuits != nil {
+            let counts = fullDeckSuitCounts()
+            let scarce = DeckManager.suits.map(\.symbol)
+                .filter { (counts[$0] ?? 0) > 0 }
+                .min { (counts[$0] ?? 0) < (counts[$1] ?? 0) }
             for c in 0..<pillars.count {
-                if let def = resolvePillarDef(c), def.effect == "suitShieldDaily" {
-                    let suit = DeckManager.suits[rng.index(DeckManager.suits.count)].symbol
-                    run.dailySuits?[c] = suit
+                if let def = resolvePillarDef(c), def.effect == "suitShieldDaily", let scarce {
+                    run.dailySuits?[c] = scarce
                     recT("pillar", def.id, def.label, ["fires": 1])
                 }
             }

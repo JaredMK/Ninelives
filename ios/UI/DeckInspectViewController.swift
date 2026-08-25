@@ -21,11 +21,11 @@ public final class DeckInspectViewController: UIViewController {
     private let content = UIView()
     private let crt = CRTOverlayUIView()
     private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 16)
-    /// Hold-for-help: bottom panel naming the card + everything on it.
-    private let helpPanel = PixelPanelView()
-    /// THE SHARED CARD-INFO GRAMMAR (v6.74, CardInfoView): rank+suit largest,
-    /// then per sticker its bold colored name + registry description.
-    private let helpContent = CardInfoView(alignment: .center)
+    /// THE STORE-STYLE INSPECT POPUP (v6.81): tapping (or holding) any card
+    /// or equipped item opens the same centered detail panel the store uses
+    /// — art, name, description, a card's sticker rows — minus the buy/sell
+    /// buttons. It replaces the old top-banner help strip.
+    private var inspectDetail: StoreDetailView?
 
     public init(campaign: CampaignState,
                 remainingIds: Set<Int>? = nil,
@@ -61,10 +61,6 @@ public final class DeckInspectViewController: UIViewController {
         scroll.alwaysBounceVertical = true
         view.addSubview(scroll)
         scroll.addSubview(content)
-        // Tap-away collapses a tap-opened card help (v6.52).
-        let felt = UITapGestureRecognizer(target: self, action: #selector(feltTapped(_:)))
-        felt.cancelsTouchesInView = false
-        content.addGestureRecognizer(felt)
         crt.isUserInteractionEnabled = false
         view.addSubview(crt)
         build()
@@ -76,11 +72,6 @@ public final class DeckInspectViewController: UIViewController {
         let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(backEdgePanned))
         edge.edges = .left
         view.addGestureRecognizer(edge)
-
-        // Hold-for-help panel (hidden until a card is held).
-        helpPanel.isHidden = true
-        helpPanel.addSubview(helpContent)
-        view.addSubview(helpPanel)
     }
 
     public override func viewDidLayoutSubviews() {
@@ -99,112 +90,52 @@ public final class DeckInspectViewController: UIViewController {
         // at viewDidLoad, so the floating ✕ lands here).
         closeButton.frame = CGRect(x: view.bounds.width - 50, y: view.safeAreaInsets.top + 4,
                                    width: 38, height: 32)
-        let hp = helpPanel
-        if !hp.isHidden {
-            let w = min(view.bounds.width - 28, 400)
-            let contentH = helpContent.sizeThatFits(CGSize(width: w - 24, height: 600)).height
-            let h = contentH + 26
-            // TOP, over the histogram — the same place every other screen puts
-            // hold-help. It used to sit at the bottom, so the one gesture that
-            // works everywhere answered in a different place here.
-            hp.frame = CGRect(x: (view.bounds.width - w) / 2,
-                              y: view.safeAreaInsets.top + 8,
-                              width: w, height: h)
-            helpContent.frame = CGRect(x: 12, y: 13, width: w - 24, height: contentH)
-        }
+        inspectDetail?.frame = view.bounds
     }
 
-    // MARK: - Tap / hold for help
+    // MARK: - Tap / hold → the store-style inspect popup (v6.81)
 
     @objc private func cardHeld(_ g: UILongPressGestureRecognizer) {
-        switch g.state {
-        case .began:
-            guard let iv = g.view, let c = helpCards[ObjectIdentifier(iv)] else { return }
-            showHelp(for: c)
-        case .ended, .cancelled, .failed:
-            helpPanel.isHidden = true
-            helpShownCardId = nil
-        default: break
-        }
+        guard g.state == .began, let iv = g.view,
+              let c = helpCards[ObjectIdentifier(iv)] else { return }
+        presentInspect(StoreDetailView(campaign: campaign, inspectCard: c))
     }
 
-    /// TAP works too (v6.52): tap a card → its help stays up; tap the same
-    /// card again, another card, or empty felt → it collapses/switches. The
-    /// hold keeps its press-to-peek behaviour.
     @objc private func cardTapped(_ g: UITapGestureRecognizer) {
         guard let iv = g.view, let c = helpCards[ObjectIdentifier(iv)] else { return }
-        if helpShownCardId == c.id, !helpPanel.isHidden {
-            helpPanel.isHidden = true
-            helpShownCardId = nil
-        } else {
-            showHelp(for: c)
-        }
+        presentInspect(StoreDetailView(campaign: campaign, inspectCard: c))
     }
 
-    @objc private func feltTapped(_ g: UITapGestureRecognizer) {
-        // The content recognizer hears EVERY tap (cards included) — only a
-        // tap on empty felt collapses the open help; card taps are the card
-        // recognizer's business.
-        guard let v = g.view else { return }
-        if let hit = v.hitTest(g.location(in: v), with: nil),
-           helpCards[ObjectIdentifier(hit)] != nil || helpItems[ObjectIdentifier(hit)] != nil { return }
-        helpPanel.isHidden = true
-        helpShownCardId = nil
-        helpShownItemKey = nil
-    }
-
-    /// Equipped items answer the SAME tap/hold idiom as the cards (v6.56):
-    /// tap sticks/toggles, hold peeks. Copy is the registry description —
-    /// never hand-written here.
+    /// Equipped items answer the SAME tap/hold idiom as the cards (v6.56).
     @objc private func itemHeld(_ g: UILongPressGestureRecognizer) {
-        switch g.state {
-        case .began:
-            guard let iv = g.view, let item = helpItems[ObjectIdentifier(iv)] else { return }
-            showItemHelp(item)
-        case .ended, .cancelled, .failed:
-            helpPanel.isHidden = true
-            helpShownItemKey = nil
-        default: break
-        }
+        guard g.state == .began, let iv = g.view,
+              let item = helpItems[ObjectIdentifier(iv)] else { return }
+        presentInspect(StoreDetailView(campaign: campaign, inspectKind: item.kind, id: item.id))
     }
 
     @objc private func itemTapped(_ g: UITapGestureRecognizer) {
         guard let iv = g.view, let item = helpItems[ObjectIdentifier(iv)] else { return }
-        if helpShownItemKey == item.key, !helpPanel.isHidden {
-            helpPanel.isHidden = true
-            helpShownItemKey = nil
-        } else {
-            showItemHelp(item)
+        presentInspect(StoreDetailView(campaign: campaign, inspectKind: item.kind, id: item.id))
+    }
+
+    /// The one presenter: full-bounds (the detail self-scrims), below the
+    /// CRT overlay, ✕ and tap-away close — exactly the store's idiom.
+    private func presentInspect(_ d: StoreDetailView) {
+        inspectDetail?.removeFromSuperview()
+        Sound.shared.tap()
+        d.onClose = { [weak self] in
+            self?.inspectDetail?.removeFromSuperview()
+            self?.inspectDetail = nil
         }
-    }
-
-    private func showItemHelp(_ item: (key: String, label: String, desc: String)) {
-        // An item's name takes the title slot in gold; the copy is the
-        // registry description — never hand-written here.
-        helpContent.show(title: item.label, titleColor: CRT.gold, body: item.desc)
-        helpPanel.isHidden = false
-        helpShownCardId = nil
-        helpShownItemKey = item.key
-        view.setNeedsLayout()
-    }
-
-    private func showHelp(for c: CardSpec) {
-        helpContent.show(card: c)
-        helpPanel.isHidden = false
-        helpShownCardId = c.id
-        helpShownItemKey = nil
-        view.setNeedsLayout()
+        d.frame = view.bounds
+        view.insertSubview(d, belowSubview: crt)
+        inspectDetail = d
     }
 
     /// Card lookup for the tap/hold recognizers (views don't carry models).
     private var helpCards: [ObjectIdentifier: CardSpec] = [:]
-    /// Equipped-item lookup for the same recognizers (v6.56): kind:id is the
-    /// toggle key, label + registry description are the help copy.
-    private var helpItems: [ObjectIdentifier: (key: String, label: String, desc: String)] = [:]
-    /// The card whose TAP-opened help is currently up (nil = none).
-    private var helpShownCardId: Int?
-    /// The equipped item whose TAP-opened help is currently up (nil = none).
-    private var helpShownItemKey: String?
+    /// Equipped-item lookup for the same recognizers (v6.56 → popup v6.81).
+    private var helpItems: [ObjectIdentifier: (kind: String, id: String)] = [:]
 
     private func build() {
         let deck = campaign.getRunDeck().sorted { a, b in
@@ -277,20 +208,29 @@ public final class DeckInspectViewController: UIViewController {
         let cols = max(1, Int((w - 24) / (cw + 8)))
         let rowW = CGFloat(cols) * (cw + 8) - 8
         let x0 = (w - rowW) / 2
-        // 15 → 18 (v6.52) → canonical 22 (v6.72): the chips are why you open
-        // this screen. Size + fan come from the one shared rule — see the
-        // CANONICAL STICKER CHIP LAYOUT master comment in PileNode.swift.
-        let stkMax = GameData.shared.items.maxStickersPerCard
+        // 15 → 18 (v6.52) → canonical 22 (v6.72) → baked (v6.81): the chips
+        // are why you open this screen. Size + fan come from the one shared
+        // rule (StickerChipLayout master comment in PileNode.swift), baked
+        // into each card image by CardComposite.
         let pitch = (ch - 7) + 8
         helpCards.removeAll()
         helpItems.removeAll()
         for (i, c) in deck.enumerated() {
             let row = i / cols, col = i % cols
-            let iv = UIImageView(image: CardArt.image(CardArt.Face(c), scale: .half))
+            // ONE renderer (v6.81): face + full chip fan baked into a single
+            // image by CardComposite — the deal-board idiom, flattened. The
+            // old code hand-placed chip views beside the card faces with
+            // negative zPositions, which UIKit sank BENEATH every sibling
+            // card face: only the first sticker ever showed (the recurring
+            // "one sticker in the corner" bug, root-caused at last). A baked
+            // image has no z to get wrong — and the dealt-away shadow now
+            // dims the chips with their card instead of leaving them bright.
+            let iv = UIImageView(image: CardComposite.image(c))
             iv.contentMode = .scaleAspectFit
             iv.layer.magnificationFilter = .nearest
             iv.frame = CGRect(x: x0 + CGFloat(col) * (cw + 8), y: y + CGFloat(row) * pitch,
-                              width: cw, height: ch - 7)
+                              width: cw + StickerChipLayout.rightOverhang,
+                              height: (ch - 7) + StickerChipLayout.topRaise)
             // Dealt-away cards shadow out (only with live-deal context).
             // v6.78: a card outside a SUBSET deal is not "dealt away" — it
             // never shadows; only in-deal cards that left the draw pile do.
@@ -304,24 +244,6 @@ public final class DeckInspectViewController: UIViewController {
             hold.minimumPressDuration = 0.4
             iv.addGestureRecognizer(hold)
             iv.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(cardTapped(_:))))
-            // Sticker chips ride the card's TOP-RIGHT corner (v6.52), fanning
-            // leftward with the deal board's lean — the same idiom everywhere
-            // a card is shown. Geometry via StickerChipLayout (v6.72, master
-            // comment in PileNode.swift): canonical size for this card width,
-            // fan tightened so all four stay on the face.
-            let defs = Array(c.stickers.prefix(stkMax))
-                .compactMap { GameData.shared.stickerTypes.get($0.type) }
-            let placed = StickerChipLayout.frames(count: defs.count, cardWidth: iv.frame.width)
-            for (s, def) in defs.enumerated() {
-                let (rect, deg) = placed[s]
-                let chip = UIImageView(image: ItemArt.sticker(def, size: rect.width))
-                chip.contentMode = .scaleAspectFit
-                chip.layer.magnificationFilter = .nearest
-                chip.frame = rect.offsetBy(dx: iv.frame.minX, dy: iv.frame.minY)
-                chip.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
-                chip.layer.zPosition = CGFloat(-s)   // first sticker on top
-                content.addSubview(chip)
-            }
         }
         let rows = (deck.count + cols - 1) / cols
         y += CGFloat(rows) * pitch + 28
@@ -358,9 +280,8 @@ public final class DeckInspectViewController: UIViewController {
                 art.layer.magnificationFilter = .nearest
                 art.frame = CGRect(x: ax, y: y, width: artSize.width, height: artSize.height)
                 art.isUserInteractionEnabled = true
-                helpItems[ObjectIdentifier(art)] = (key: "\(kind):\(id)",
-                                                    label: def.label,
-                                                    desc: campaign.itemDescription(def))
+                _ = def   // identity comes from the registry at popup time
+                helpItems[ObjectIdentifier(art)] = (kind: kind, id: id)
                 let hold = UILongPressGestureRecognizer(target: self, action: #selector(itemHeld(_:)))
                 hold.minimumPressDuration = 0.4
                 art.addGestureRecognizer(hold)
