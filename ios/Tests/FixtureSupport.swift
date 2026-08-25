@@ -1,13 +1,14 @@
 import XCTest
 @testable import GameCore
 
-/// Loads `Fixtures/seed-fixtures.json` — the ground truth captured from the REAL
-/// web engine by `ios/Tools/export-fixtures.mjs`.
+/// Loads `Fixtures/seed-fixtures.json` — the GOLDEN BASELINE captured from
+/// GameCore itself by `GoldenRecorder` (see GoldenSupport.swift; regenerate
+/// with `make golden`).
 enum Fixtures {
     static let root: [String: JSONValue] = {
         let bundle = Bundle(for: FixtureAnchor.self)
         guard let url = bundle.url(forResource: "seed-fixtures", withExtension: "json") else {
-            fatalError("seed-fixtures.json is not in the test bundle — run `node ios/Tools/export-fixtures.mjs`")
+            fatalError("seed-fixtures.json is not in the test bundle — run `make golden`")
         }
         do {
             let data = try Data(contentsOf: url)
@@ -30,9 +31,8 @@ extension JSONValue {
     var stringArray: [String] { asArray?.compactMap(\.asString) ?? [] }
 }
 
-/// A canonical, comparable rendering of one generated node — the exact shape
-/// `canonicalNode()` writes on the JS side, so a mismatch prints as a readable
-/// diff instead of "objects differ".
+/// A canonical, comparable rendering of one generated node, so a determinism
+/// mismatch prints as a readable diff instead of "objects differ".
 struct CanonicalNode: Equatable, CustomStringConvertible {
     var id: Int
     var row: Int
@@ -53,22 +53,6 @@ struct CanonicalNode: Equatable, CustomStringConvertible {
         lane = n.lane; localRow = n.localRow; phase = n.phase
         piles = n.piles; packCount = n.packCount; add = n.add; suit = n.suit
         mystery = n.mystery; jokerNode = n.jokerNode; next = n.next
-    }
-
-    init(fixture v: JSONValue) {
-        id = v["id"]?.int ?? -1
-        row = v["row"]?.int ?? -1
-        type = v["type"]?.asString ?? ""
-        lane = v["lane"]?.int
-        localRow = v["localRow"]?.int
-        phase = v["phase"]?.int
-        piles = v["piles"]?.int
-        packCount = v["packCount"]?.int
-        add = v["add"]?.int
-        suit = v["suit"]?.asString
-        mystery = v["mystery"]?.asBool ?? false
-        jokerNode = v["jokerNode"]?.asBool ?? false
-        next = v["next"]?.intArray ?? []
     }
 
     var description: String {

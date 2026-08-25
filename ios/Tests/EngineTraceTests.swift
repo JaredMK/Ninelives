@@ -1,143 +1,218 @@
 import XCTest
 @testable import GameCore
 
-/// ENGINE TRACE TESTS — replays deterministic deals captured from the REAL web
-/// GameEngine and asserts the Swift engine matches step for step.
-///
-/// This covers what unit tests can't reach cheaply: effect ORDER, the exact
-/// number and sequence of rng draws inside a turn, and the full save-priority
-/// chain (Guard → Second Wind → Same Charge → death). One wrong comparison or a
-/// single misplaced `rng()` diverges a pile size or coin tally within a few
-/// steps, and the failure message points at the exact step and field.
-final class EngineTraceTests: XCTestCase {
+/// THE TRACE RUNNER — builds an engine from a scenario's INPUT keys and
+/// drives the scripted deal. Shared by the replay test below (which compares
+/// each step against the golden baseline) and by `GoldenRecorder` (which
+/// captures each step INTO the baseline), so the two can never drift apart.
+enum TraceRunner {
 
-    static let traces: [JSONValue] = {
-        let bundle = Bundle(for: EngineTraceTests.self)
-        guard let url = bundle.url(forResource: "engine-traces", withExtension: "json") else {
-            fatalError("engine-traces.json is not in the test bundle — run `node ios/Tools/export-traces.mjs`")
-        }
-        let data = try! Data(contentsOf: url)
-        let root = try! JSONDecoder().decode([String: JSONValue].self, from: data)
-        return root["scenarios"]?.asArray ?? []
-    }()
-
-    /// The same scripted choice the exporter uses — pure arithmetic on the step
-    /// index plus a read of the pile's visible top card.
-    private func scriptedChoice(step: Int, alive: [Int], board: BoardState) -> (pile: Int, call: Guess) {
+    /// The same scripted choice the original exporter used — pure arithmetic
+    /// on the step index plus a read of the pile's visible top card. This is
+    /// part of the baseline's identity: changing it re-scripts every trace.
+    static func scriptedChoice(step: Int, alive: [Int], board: BoardState) -> (pile: Int, call: Guess) {
         let pile = alive[(step * 7 + 3) % alive.count]
         let v = board.top(pile)?.value ?? 8
         let call: Guess = step % 5 == 4 ? .same : (v <= 8 ? .higher : .lower)
         return (pile, call)
     }
 
-    func testAllScenariosMatchWeb() {
+    /// Build the engine from the scenario's inputs and play it out.
+    /// `onSnapshot` fires once BEFORE the first step (pile/call nil — the
+    /// as-dealt board) and once after every executed step.
+    @discardableResult
+    static func run(_ sc: JSONValue,
+                    onSnapshot: (_ step: Int, _ pile: Int?, _ call: Guess?, _ eng: GameEngine) -> Void)
+        -> GameEngine {
+        let seed = UInt32(truncatingIfNeeded: sc["seed"]?.asInt ?? 0)
+        let piles = sc["piles"]?.asInt ?? 9
+        let maxSteps = sc["steps"]?.asInt ?? 0
+        let cols = sc["cols"]?.intArray
+        let pillars = sc["pillars"]?.asArray?.map { $0.asString }
+        let bases = sc["bases"]?.asArray?.map { $0.asString }
+        let samePower = sc["samePower"]?.asString
+        let noStickers = sc["noStickers"]?.asBool ?? false
+        let sameCharge = sc["sameCharge"]?.asBool ?? false
+        let baseAt = sc["baseAt"]?.asInt
+        let baseTarget = sc["baseTarget"]?.asInt
+
+        // The deck specs with this scenario's sticker plan.
+        var specs = DeckManager.buildStandardDeck()
+        for pair in sc["stickers"]?.asArray ?? [] {
+            guard let cardId = pair[0]?.asInt, let typeId = pair[1]?.asString,
+                  let i = specs.firstIndex(where: { $0.id == cardId }) else { continue }
+            specs[i].stickers.append(StickerRecord(type: typeId))
+        }
+
+        let eng = GameEngine(deckSpecs: specs, pileCount: piles,
+                             runConfig: RunConfig(cols: cols?.isEmpty == false ? cols : nil,
+                                                  sameCharge: sameCharge,
+                                                  samePower: samePower,
+                                                  noStickers: noStickers))
+        eng.start(seedOverride: seed)
+        eng.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
+
+        onSnapshot(-1, nil, nil, eng)
+
+        for step in 0..<maxSteps {
+            if eng.status != "playing" { break }
+            // Fire a Base on the scripted step, if one is armed and legal.
+            if let baseAt, step == baseAt, let cols {
+                for c in 0..<cols.count where eng.baseAvailable(c) {
+                    let def = eng.baseTypes.get(bases?[safe: c] ?? nil)
+                    let pileTarget: Int?
+                    if def?.target == "pile" {
+                        pileTarget = (0..<eng.board.size).first {
+                            !eng.board.piles[$0].dead && eng.run.pileColumns?[$0] == c
+                        }
+                    } else if def?.target == "pillar" {
+                        pileTarget = baseTarget ?? 0
+                    } else {
+                        pileTarget = baseTarget
+                    }
+                    _ = eng.baseActivate(col: c, targetIndex: pileTarget)
+                    break
+                }
+            }
+            let alive = (0..<eng.board.size).filter { !eng.board.piles[$0].dead }
+            if alive.isEmpty { break }
+            let choice = scriptedChoice(step: step, alive: alive, board: eng.board)
+            eng.guess(choice.pile, choice.call)
+            // Drain queued prompts deterministically (accept on even steps).
+            var guardN = 0
+            while guardN < 8 {
+                guardN += 1
+                if !eng.run.pendingTributes.isEmpty { eng.answerTribute(step % 2 == 0); continue }
+                if !eng.run.pendingActions.isEmpty { eng.answerAction(step % 2 == 0); continue }
+                break
+            }
+            onSnapshot(step, choice.pile, choice.call, eng)
+        }
+        return eng
+    }
+}
+
+/// EVERY observable field one recorded trace step carries. The recorder
+/// writes exactly this dictionary; the replay recomputes it and demands
+/// equality — one list, no drift.
+enum TraceSnapshot {
+    static func fields(_ eng: GameEngine) -> [String: JSONValue] {
+        let board = eng.board!, deck = eng.deck!, run = eng.run!
+        var out: [String: JSONValue] = [:]
+        out["status"] = .string(eng.status)
+        out["remaining"] = .num(deck.remaining())
+        out["drawn"] = .num(deck.drawn())
+        out["alive"] = .num(board.aliveCount())
+        out["dead"] = .array(board.piles.map { .bool($0.dead) })
+        out["sizes"] = .ints(board.piles.map { $0.cards.count })
+        out["weighted"] = .ints((0..<board.size).map { board.pileSize($0) })
+        out["tops"] = .array(board.piles.map { p -> JSONValue in
+            guard let t = p.cards.last else { return .null }
+            return .string(t.joker ? "★" : t.label + t.suit)
+        })
+        out["topStickers"] = .array(board.piles.map { .strings(($0.cards.last?.stickers ?? []).map(\.type)) })
+        out["minAlive"] = .num(board.minAliveCards())
+        out["trueMinAlive"] = .num(board.trueMinAliveCards())
+        out["extraCoinUnits"] = .num(board.extraCoinUnits())
+        out["bonusCoins"] = .num(run.bonusCoins)
+        out["bonusEvents"] = .array(run.bonusEvents.pairs.map { .array([.string($0.label), .num($0.amount)]) })
+        out["sameCharge"] = .bool(eng.sameCharge)
+        out["correct"] = .num(run.correctGuesses)
+        out["total"] = .num(run.totalGuesses)
+        out["revealNext"] = .bool(run.revealNextActive)
+        out["kamikazeReveal"] = .num(run.kamikazeRevealLeft)
+        out["tellDrawsLeft"] = .num(run.tellDrawsLeft)
+        out["tellPiles"] = .ints(run.tellPiles.sorted())
+        out["colStreak"] = .maybeInts(run.colStreak)
+        out["pendingTributes"] = .num(run.pendingTributes.count)
+        out["pendingActions"] = .num(run.pendingActions.count)
+        out["reviveUsed"] = .maybeBools(run.reviveUsed)
+        out["secondWindUsed"] = .maybeBools(run.secondWindUsed)
+        out["basesUsed"] = .maybeBools(run.basesUsed)
+        out["suitBountyHits"] = .maybeInts(run.suitBountyHits)
+        out["denseBuryUsed"] = .maybeInts(run.denseBuryUsed)
+        out["cardsDrawn"] = .num(run.cardsDrawn)
+        out["compoundUpdates"] = .array(run.compoundUpdates.sorted { $0.key < $1.key }
+            .map { .ints([$0.key, $0.value]) })
+        out["snowballUpdates"] = .array(run.snowballUpdates.sorted { $0.key < $1.key }
+            .map { .ints([$0.key, $0.value]) })
+        return out
+    }
+
+    /// The per-deal Base randomizer rolled during `start()`.
+    static func baseRandom(_ eng: GameEngine) -> JSONValue {
+        guard let br = eng.run.baseRandom else { return .null }
+        return .object(["value": .num(br.value), "suit": .maybeString(br.suit)])
+    }
+
+    /// Terminal state + the end-of-deal Pillar payout.
+    static func final(_ eng: GameEngine) -> JSONValue {
+        let pp = eng.pillarPayout()
+        return .object([
+            "status": .string(eng.status),
+            "result": .maybeString(eng.run.result),
+            "pillarPayout": .object([
+                "bonus": .num(pp.bonus),
+                "lines": .array(pp.lines.map { l in
+                    .object(["label": .string(l.label), "detail": .string(l.detail),
+                             "amount": .num(l.amount), "col": .maybeNum(l.col)])
+                }),
+            ]),
+        ])
+    }
+}
+
+/// ENGINE TRACE TESTS — replays the deterministic deals recorded in the
+/// GOLDEN BASELINE (captured from GameCore itself by `GoldenRecorder`; see
+/// GoldenSupport.swift) and asserts the engine still matches step for step.
+///
+/// This covers what unit tests can't reach cheaply: effect ORDER, the exact
+/// number and sequence of rng draws inside a turn, and the full save-priority
+/// chain (Guard → Second Wind → Same Charge → death). One wrong comparison or
+/// a single misplaced `rng()` diverges a pile size or coin tally within a few
+/// steps, and the failure message points at the exact step and field.
+final class EngineTraceTests: XCTestCase {
+
+    static let traces: [JSONValue] = {
+        let bundle = Bundle(for: EngineTraceTests.self)
+        guard let url = bundle.url(forResource: "engine-traces", withExtension: "json") else {
+            fatalError("engine-traces.json is not in the test bundle — run `make golden`")
+        }
+        let data = try! Data(contentsOf: url)
+        let root = try! JSONDecoder().decode([String: JSONValue].self, from: data)
+        return root["scenarios"]?.asArray ?? []
+    }()
+
+    func testAllScenariosMatchGolden() {
         var scenariosChecked = 0, stepsChecked = 0
         for sc in Self.traces {
             let name = sc["name"]?.asString ?? "?"
-            let seed = UInt32(truncatingIfNeeded: sc["seed"]?.int ?? 0)
-            let piles = sc["piles"]?.int ?? 9
-            let maxSteps = sc["steps"]?.int ?? 0
-            let cols = sc["cols"]?.intArray
-            let pillars = sc["pillars"]?.asArray?.map { $0.asString }
-            let bases = sc["bases"]?.asArray?.map { $0.asString }
-            let samePower = sc["samePower"]?.asString
-            let noStickers = sc["noStickers"]?.asBool ?? false
-            let sameCharge = sc["sameCharge"]?.asBool ?? false
-            let baseAt = sc["baseAt"]?.int
-            let baseTarget = sc["baseTarget"]?.int
-
-            // Build the deck specs with this scenario's sticker plan.
-            var specs = DeckManager.buildStandardDeck()
-            for pair in sc["stickers"]?.asArray ?? [] {
-                guard let cardId = pair[0]?.int, let typeId = pair[1]?.asString,
-                      let i = specs.firstIndex(where: { $0.id == cardId }) else { continue }
-                specs[i].stickers.append(StickerRecord(type: typeId))
-            }
-
-            let eng = GameEngine(deckSpecs: specs, pileCount: piles,
-                                 runConfig: RunConfig(cols: cols?.isEmpty == false ? cols : nil,
-                                                      sameCharge: sameCharge,
-                                                      samePower: samePower,
-                                                      noStickers: noStickers))
-            eng.start(seedOverride: seed)
-            // The per-deal Base randomizers roll during start(); check them
-            // before startRun so a divergence is caught at its source.
-            if let wantRandom = sc["baseRandom"], !wantRandom.isNull {
-                XCTAssertEqual(eng.run.baseRandom?.value, wantRandom["value"]?.int, "\(name): baseRandom.value")
-                XCTAssertEqual(eng.run.baseRandom?.suit, wantRandom["suit"]?.asString, "\(name): baseRandom.suit")
-            }
-            eng.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
-
             let stepList = sc["trace"]?.asArray ?? []
-
             var idx = 0
-            assertSnapshot(eng, stepList[safe: idx], label: "\(name) step -1")
-            idx += 1
 
-            for step in 0..<maxSteps {
-                if eng.status != "playing" { break }
-                // Fire a Base on the scripted step, if one is armed and legal.
-                if let baseAt, step == baseAt, let cols {
-                    for c in 0..<cols.count where eng.baseAvailable(c) {
-                        let def = eng.baseTypes.get(bases?[safe: c] ?? nil)
-                        let pileTarget: Int?
-                        if def?.target == "pile" {
-                            pileTarget = (0..<eng.board.size).first {
-                                !eng.board.piles[$0].dead && eng.run.pileColumns?[$0] == c
-                            }
-                        } else if def?.target == "pillar" {
-                            pileTarget = baseTarget ?? 0
-                        } else {
-                            pileTarget = baseTarget
-                        }
-                        _ = eng.baseActivate(col: c, targetIndex: pileTarget)
-                        break
-                    }
-                }
-                let alive = (0..<eng.board.size).filter { !eng.board.piles[$0].dead }
-                if alive.isEmpty { break }
-                let choice = scriptedChoice(step: step, alive: alive, board: eng.board)
-                eng.guess(choice.pile, choice.call)
-                // Drain queued prompts deterministically (accept on even steps).
-                var guardN = 0
-                while guardN < 8 {
-                    guardN += 1
-                    if !eng.run.pendingTributes.isEmpty { eng.answerTribute(step % 2 == 0); continue }
-                    if !eng.run.pendingActions.isEmpty { eng.answerAction(step % 2 == 0); continue }
-                    break
-                }
+            let eng = TraceRunner.run(sc) { step, pile, call, eng in
                 guard let want = stepList[safe: idx] else {
-                    XCTFail("\(name): Swift ran step \(step) but the web trace ended at \(stepList.count) steps")
-                    break
+                    XCTFail("\(name): engine ran step \(step) but the golden trace ended at \(stepList.count) steps")
+                    idx += 1
+                    return
                 }
-                XCTAssertEqual(choice.pile, want["pile"]?.int, "\(name) step \(step): chose a different pile")
-                XCTAssertEqual(choice.call.rawValue, want["call"]?.asString, "\(name) step \(step): chose a different call")
-                assertSnapshot(eng, want, label: "\(name) step \(step)")
+                let label = "\(name) step \(step)"
+                if step >= 0 {
+                    XCTAssertEqual(pile, want["pile"]?.asInt, "\(label): chose a different pile")
+                    XCTAssertEqual(call?.rawValue, want["call"]?.asString, "\(label): chose a different call")
+                    stepsChecked += 1
+                }
+                self.compareSnapshot(eng, want, label: label)
                 idx += 1
-                stepsChecked += 1
             }
-            XCTAssertEqual(idx, stepList.count, "\(name): recorded \(stepList.count) steps, Swift produced \(idx)")
+            XCTAssertEqual(idx, stepList.count,
+                           "\(name): golden recorded \(stepList.count) steps, engine produced \(idx)")
 
-            // Terminal state + the end-of-deal Pillar payout.
+            if let wantRandom = sc["baseRandom"] {
+                XCTAssertEqual(TraceSnapshot.baseRandom(eng), wantRandom, "\(name): baseRandom")
+            }
             if let final = sc["final"] {
-                XCTAssertEqual(eng.status, final["status"]?.asString, "\(name): final status")
-                XCTAssertEqual(eng.run.result, final["result"]?.asString, "\(name): final result")
-                if let pp = final["pillarPayout"] {
-                    let got = eng.pillarPayout()
-                    XCTAssertEqual(got.bonus, pp["bonus"]?.asNumber ?? 0, "\(name): pillar payout bonus")
-                    let wantLines = pp["lines"]?.asArray ?? []
-                    XCTAssertEqual(got.lines.count, wantLines.count, "\(name): pillar payout line count")
-                    for (i, wl) in wantLines.enumerated() where i < got.lines.count {
-                        XCTAssertEqual(got.lines[i].label, wl["label"]?.asString, "\(name): payout line \(i) label")
-                        // Prose is compared em-dash-blind: the native build
-                        // dropped "—" from ALL player copy (v6.30), while the
-                        // web traces still carry it. Mechanics stay verbatim.
-                        XCTAssertEqual(got.lines[i].detail, wl["detail"]?.asString?.replacingOccurrences(of: " — ", with: ", "),
-                                       "\(name): payout line \(i) detail")
-                        XCTAssertEqual(got.lines[i].amount, wl["amount"]?.asNumber, "\(name): payout line \(i) amount")
-                        XCTAssertEqual(got.lines[i].col, wl["col"]?.int, "\(name): payout line \(i) col")
-                    }
-                }
+                XCTAssertEqual(TraceSnapshot.final(eng), final, "\(name): final state + pillar payout")
             }
             scenariosChecked += 1
         }
@@ -145,71 +220,15 @@ final class EngineTraceTests: XCTestCase {
         XCTAssertGreaterThan(stepsChecked, 1500, "expected a deep step sweep")
     }
 
-    /// Compare every observable field of one recorded step.
-    private func assertSnapshot(_ eng: GameEngine, _ want: JSONValue?, label: String,
-                                file: StaticString = #filePath, line: UInt = #line) {
-        guard let want else { XCTFail("\(label): no recorded snapshot", file: file, line: line); return }
-        let board = eng.board!, deck = eng.deck!, run = eng.run!
-
-        func eq<T: Equatable>(_ got: T, _ expected: T?, _ field: String) {
-            XCTAssertEqual(got, expected, "\(label): \(field)", file: file, line: line)
+    /// Compare the live snapshot against a recorded step, field by field, so
+    /// a mismatch names the exact field instead of "objects differ".
+    private func compareSnapshot(_ eng: GameEngine, _ want: JSONValue, label: String,
+                                 file: StaticString = #filePath, line: UInt = #line) {
+        let got = TraceSnapshot.fields(eng)
+        for (key, gotValue) in got.sorted(by: { $0.key < $1.key }) {
+            let wantValue = want[key] ?? .null
+            XCTAssertEqual(gotValue, wantValue, "\(label): \(key)", file: file, line: line)
         }
-        /// Column-scoped run arrays are nil for column-agnostic runs and JSON
-        /// `null` in the fixture; compare the two nullable shapes explicitly
-        /// (a generic `eq` collapses `nil` and `.some(nil)` into each other).
-        func eqNullable<T: Equatable>(_ got: [T]?, _ raw: JSONValue?, _ field: String,
-                                      _ decode: (JSONValue) -> [T]) {
-            let expected: [T]? = (raw == nil || raw!.isNull) ? nil : decode(raw!)
-            switch (got, expected) {
-            case (nil, nil): return
-            case let (g?, e?): XCTAssertEqual(g, e, "\(label): \(field)", file: file, line: line)
-            default:
-                XCTFail("\(label): \(field) — swift \(String(describing: got)) vs web \(String(describing: expected))",
-                        file: file, line: line)
-            }
-        }
-        eq(eng.status, want["status"]?.asString, "status")
-        eq(deck.remaining(), want["remaining"]?.int, "deck.remaining")
-        eq(deck.drawn(), want["drawn"]?.int, "deck.drawn")
-        eq(board.aliveCount(), want["alive"]?.int, "aliveCount")
-        eq(board.piles.map(\.dead), want["dead"]?.asArray?.map { $0.asBool ?? false }, "dead flags")
-        eq(board.piles.map { $0.cards.count }, want["sizes"]?.intArray, "pile sizes")
-        eq((0..<board.size).map { board.pileSize($0) }, want["weighted"]?.intArray, "weighted sizes")
-        eq(board.piles.map { p -> String? in
-            guard let t = p.cards.last else { return nil }
-            return t.joker ? "★" : t.label + t.suit
-        }, want["tops"]?.asArray?.map { $0.asString }, "top cards")
-        eq(board.piles.map { ($0.cards.last?.stickers ?? []).map(\.type) },
-           want["topStickers"]?.asArray?.map { $0.stringArray }, "top stickers")
-        eq(board.minAliveCards(), want["minAlive"]?.int, "minAliveCards")
-        eq(board.trueMinAliveCards(), want["trueMinAlive"]?.int, "trueMinAliveCards")
-        eq(board.extraCoinUnits(), want["extraCoinUnits"]?.int, "extraCoinUnits")
-        eq(run.bonusCoins, want["bonusCoins"]?.asNumber, "bonusCoins")
-        eq(run.bonusEvents.pairs.map { [$0.label, jsNum($0.amount)] },
-           want["bonusEvents"]?.asArray?.map { [$0[0]?.asString ?? "", jsNum($0[1]?.asNumber ?? 0)] },
-           "bonusEvents (ordered)")
-        eq(eng.sameCharge, want["sameCharge"]?.asBool, "sameCharge")
-        eq(run.correctGuesses, want["correct"]?.int, "correctGuesses")
-        eq(run.totalGuesses, want["total"]?.int, "totalGuesses")
-        eq(run.revealNextActive, want["revealNext"]?.asBool, "revealNextActive")
-        eq(run.kamikazeRevealLeft, want["kamikazeReveal"]?.int, "kamikazeRevealLeft")
-        eq(run.tellDrawsLeft, want["tellDrawsLeft"]?.int, "tellDrawsLeft")
-        eq(run.tellPiles.sorted(), want["tellPiles"]?.intArray, "tellPiles")
-        let bools: (JSONValue) -> [Bool] = { $0.asArray?.map { $0.asBool ?? false } ?? [] }
-        let ints: (JSONValue) -> [Int] = { $0.intArray }
-        eqNullable(run.colStreak, want["colStreak"], "colStreak", ints)
-        eq(run.pendingTributes.count, want["pendingTributes"]?.int, "pendingTributes")
-        eq(run.pendingActions.count, want["pendingActions"]?.int, "pendingActions")
-        eqNullable(run.reviveUsed, want["reviveUsed"], "reviveUsed", bools)
-        eqNullable(run.secondWindUsed, want["secondWindUsed"], "secondWindUsed", bools)
-        eqNullable(run.basesUsed, want["basesUsed"], "basesUsed", bools)
-        eqNullable(run.suitBountyHits, want["suitBountyHits"], "suitBountyHits", ints)
-        eqNullable(run.denseBuryUsed, want["denseBuryUsed"], "denseBuryUsed", ints)
-        eq(run.cardsDrawn, want["cardsDrawn"]?.int, "cardsDrawn")
-        eq(run.compoundUpdates.sorted { $0.key < $1.key }.map { [$0.key, $0.value] },
-           want["compoundUpdates"]?.asArray?.map { $0.intArray }, "compoundUpdates")
-        eq(run.snowballUpdates.sorted { $0.key < $1.key }.map { [$0.key, $0.value] },
-           want["snowballUpdates"]?.asArray?.map { $0.intArray }, "snowballUpdates")
     }
 }
 

@@ -1,8 +1,9 @@
 # AGENTS.md — Ninelives
 
-Mobile-first, single-file web card game. No frameworks, no build step, no
-dependencies — open `index.html` in a browser. A Capacitor wrapper lives in
-`app/`; a full NATIVE Swift port lives in `ios/`.
+Mobile-first card game. The SHIPPING build is the native Swift app in `ios/`.
+The original single-file web build (`index.html`) is a **FROZEN REFERENCE**
+as of v6.78 — no longer maintained, never a required mirror (see "The iOS
+engine is the source of truth" below). A Capacitor wrapper lives in `app/`.
 
 ## Layout
 
@@ -19,19 +20,27 @@ dependencies — open `index.html` in a browser. A Capacitor wrapper lives in
   `Rendering/` is the SpriteKit board, `UI/` the UIKit shell.
   See `ios/README.md`; build/test with `make` in `ios/`.
 
-### The web is the source of truth for the native port
+### The iOS engine is the source of truth (v6.79 — the web is CUT OUT)
 
-- The three data files are shared: `ios/Tools/export-data.mjs` (`make data`)
-  regenerates `ios/Resources/*.json` from them. **Edit the `.js` files, never
-  the exported JSON**, then re-export.
-- `ios/Fixtures/*.json` is ground truth captured by running the REAL web
-  engine (`make fixtures`). The Swift tests replay it, so **an intentional
-  engine change must be made in `index.html` too, then the fixtures
-  re-exported** — otherwise the parity suites fail. The save blob's key set is
-  compared against the web's exactly, so a new persisted field must be added
-  on both sides.
-- `make test` in `ios/` must be green before any commit, same as
-  `node tests/all.mjs`.
+- `index.html`'s engine is FROZEN at v6.78. **No change needs a web
+  counterpart, ever.** Do not edit `index.html` or `tests/*.mjs`; the web
+  suite (`node tests/all.mjs`) is no longer a commit gate — it simply
+  documents the frozen build.
+- The three data files are still shared history and remain THE hand-editable
+  data home: `ios/Tools/export-data.mjs` (`make data`) regenerates
+  `ios/Resources/*.json` from `items.js` / `difficulty.js` / `tutorial.js`.
+  **Edit the `.js` files, never the exported JSON**, then re-export.
+- `ios/Fixtures/*.json` is the **GOLDEN BASELINE** — captured from GameCore
+  ITSELF by `ios/Tests/GoldenRecorder.swift` (`make golden`), replayed by the
+  fixture suites on every `make test`. An INTENTIONAL engine change
+  re-records the baseline in the same commit (`make golden`, review the
+  diff, `make test` green); an unintentional diff is a caught regression.
+  The save blob's key set is pinned EXACTLY by the golden round-trips — a
+  new persisted field is a deliberate act made by re-recording.
+- NEW gameplay is tested with Swift-native XCTest against GameCore directly
+  (rules, boundaries, invariants — see `ios/Fixtures/README.md`); the golden
+  layer is the regression net underneath, not a substitute.
+- `make test` in `ios/` must be green before any commit.
 
 ## Convention 1: data files are the source of truth
 
@@ -127,8 +136,11 @@ The game targets phones. Four invariants, all currently enforced — keep them:
 ## Convention 4: tests gate every commit
 
 ```sh
-node tests/all.mjs   # must be 100% green before ANY commit
+cd ios && make test   # must be 100% green before ANY commit
 ```
+
+*(The web-suite gate `node tests/all.mjs` retired with the v6.79 web freeze —
+the notes below describe the frozen web build.)*
 
 - `_harness.mjs` extracts the game `<script>` from `index.html` and evaluates
   it with a stubbed DOM — engine modules are testable in Node BECAUSE they

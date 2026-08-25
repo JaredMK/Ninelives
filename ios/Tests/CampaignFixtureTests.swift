@@ -1,14 +1,15 @@
 import XCTest
 @testable import GameCore
 
-/// CAMPAIGN-LAYER CROSS-IMPLEMENTATION TESTS. Every expectation here was
-/// captured from the REAL web CampaignState by `ios/Tools/export-campaign.mjs`.
+/// CAMPAIGN-LAYER GOLDEN TESTS. Every expectation here is the committed
+/// GOLDEN BASELINE captured from GameCore itself by `GoldenRecorder`
+/// (see GoldenSupport.swift; regenerate with `make golden`).
 final class CampaignFixtureTests: XCTestCase {
 
     static let root: [String: JSONValue] = {
         let bundle = Bundle(for: CampaignFixtureTests.self)
         guard let url = bundle.url(forResource: "campaign-fixtures", withExtension: "json") else {
-            fatalError("campaign-fixtures.json is not in the test bundle — run `node ios/Tools/export-campaign.mjs`")
+            fatalError("campaign-fixtures.json is not in the test bundle — run `make golden`")
         }
         let data = try! Data(contentsOf: url)
         return try! JSONDecoder().decode([String: JSONValue].self, from: data)
@@ -37,15 +38,11 @@ final class CampaignFixtureTests: XCTestCase {
 
     // MARK: - Fresh starts
 
-    func testStartNewRunMatchesWeb() {
+    func testStartNewRunMatchesGolden() {
         var checked = 0
         for f in Self.list("starts") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
-            // v6.67: the iOS roster diverged from the web's (smith/lammy are
-            // garden/rocko with NEW rules; slyrex is iOS-only), so web-pinned
-            // fixtures only bind the decks both builds still share.
-            guard GameData.shared.meta.deckRules[deck] != nil else { continue }
             let tier = f["tier"]?.asString ?? "regular"
             let label = "start seed=\(seed) deck=\(deck) tier=\(tier)"
             let c = campaign(deck: deck, tier: tier, seed: seed)
@@ -121,7 +118,6 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("stores") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
-            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let label = "store seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
             if let first = c.legalNextNodes().first { c.moveToNode(first.id) }
@@ -230,7 +226,6 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("packs") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
-            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let packId = f["packId"]?.asString ?? ""
             let label = "pack \(packId) seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
@@ -240,9 +235,9 @@ final class CampaignFixtureTests: XCTestCase {
             let rng2 = RNG(seed: UInt32(truncatingIfNeeded: seed) ^ 0xabcdef)
             let out = c.revealPack(packId, rng: rng)
             let again = c2.revealPack(packId, rng: rng2)
-            let wantItems = f["items"]?.asArray ?? []
+            let wantCount = f["count"]?.asInt ?? -1
             if f["kind"]?.asString == "card" {
-                XCTAssertEqual(out.cards.count, wantItems.count, "\(label): card count")
+                XCTAssertEqual(out.cards.count, wantCount, "\(label): card count")
                 XCTAssertEqual(out.cards.map(\.suit), again.cards.map(\.suit), "\(label): determinism (suits)")
                 XCTAssertEqual(out.cards.map(\.currentRank), again.cards.map(\.currentRank),
                                "\(label): determinism (ranks)")
@@ -258,14 +253,14 @@ final class CampaignFixtureTests: XCTestCase {
                     }
                 }
             } else {
-                XCTAssertEqual(out.stickers.count, wantItems.count, "\(label): sticker count")
+                XCTAssertEqual(out.stickers.count, wantCount, "\(label): sticker count")
                 XCTAssertEqual(out.stickers, again.stickers, "\(label): determinism (sticker ids)")
                 for sid in out.stickers {
                     XCTAssertNotNil(data.stickerTypes.get(sid), "\(label): unregistered sticker '\(sid)'")
                 }
             }
-            let wantDelta = (f["nextCardIdAfter"]?.asInt ?? 0) - (f["nextCardIdBefore"]?.asInt ?? 0)
-            XCTAssertEqual(c.nextCardId - idBefore, wantDelta, "\(label): cards minted by the reveal")
+            XCTAssertEqual(c.nextCardId - idBefore, f["minted"]?.asInt ?? -1,
+                           "\(label): cards minted by the reveal")
         }
     }
 
@@ -282,7 +277,6 @@ final class CampaignFixtureTests: XCTestCase {
         for f in Self.list("storeCards") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
-            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
             let label = "storeCard seed=\(seed) deck=\(deck)"
             let c = campaign(deck: deck, tier: "regular", seed: seed)
             let c2 = campaign(deck: deck, tier: "regular", seed: seed)
@@ -321,43 +315,25 @@ final class CampaignFixtureTests: XCTestCase {
 
     // MARK: - Serialize / restore
 
-    func testSerializeRestoreRoundTripMatchesWeb() {
+    func testSerializeRestoreRoundTripMatchesGolden() {
         for f in Self.list("roundTrips") {
             let seed = f["seed"]?.asInt ?? 0
             let deck = f["deck"]?.asString ?? "pink"
-            guard GameData.shared.meta.deckRules[deck] != nil else { continue }   // v6.67 roster divergence
+            let tier = f["tier"]?.asString ?? "legendary"
             let label = "roundTrip seed=\(seed) deck=\(deck)"
-            let c = campaign(deck: deck, tier: "master", seed: seed)
+            let c = campaign(deck: deck, tier: tier, seed: seed)
             if let first = c.legalNextNodes().first { c.moveToNode(first.id) }
             c.addCoins(250)
             c.addRunScore(37)
             let blob = c.serialize()
-            // The save shape must still carry every key the web writes — losing
-            // one would silently drop player state. NATIVE-ONLY additions are
-            // allowed, but must be declared here so they are a deliberate act
-            // rather than an accident.
-            let webKeys = Set(f["blobKeys"]?.stringArray ?? [])
-            let nativeOnly: Set<String> = [
-                "jokerDebt",            // THE OLD JOKER's outstanding marker (iOS-only feature)
-                "freeShopPending",      // …his comp on the next shop
-                "jokerThirstPending",   // …and the drink he is coming back about
-                "jokerThirstCoins",
-                "purgeDiscount",        // …and his purge bargain
-                "purgeStepBonus",
-                "freeRerollPending",    // THE BEHEADED QUEEN's Restock (next shop's first refresh free)
-                "freeRedealPending",    // …her Mulligan (next deal's first reshuffle free)
-                "storePriceModPending", // the cast's next-shop price twist, armed…
-                "storePriceModActive",  // …and live for the current shop
-                "pillarRankVariants",   // Underdog/Crowd Favorite's climb-locked ranks
-                // NOTE: `purgePriceCut` and `shopRolls` (v6.76) are SHARED
-                // keys — the web writes them with the exact same names and
-                // shapes, so they must never appear in this list.
-            ]
-            let mine = Set(blob.keys)
-            XCTAssertTrue(webKeys.isSubset(of: mine),
-                          "\(label): the save dropped web keys \(webKeys.subtracting(mine).sorted())")
-            XCTAssertEqual(mine.subtracting(webKeys), nativeOnly.intersection(mine.subtracting(webKeys)),
-                           "\(label): undeclared native-only save keys \(mine.subtracting(webKeys).subtracting(nativeOnly).sorted())")
+            // THE SAVE-SHAPE LAW: the blob's key set matches the golden
+            // EXACTLY. A dropped key silently loses player state; a new key
+            // is a save-format change and must be a deliberate act — make it
+            // by re-recording the baseline in the same commit.
+            XCTAssertEqual(Set(blob.keys), Set(f["blobKeys"]?.stringArray ?? []),
+                           "\(label): the save's key set diverged from the golden — "
+                           + "added \(Set(blob.keys).subtracting(f["blobKeys"]?.stringArray ?? []).sorted()), "
+                           + "dropped \(Set(f["blobKeys"]?.stringArray ?? []).subtracting(blob.keys).sorted())")
 
             let c2 = CampaignState()
             XCTAssertEqual(c2.restore(blob), f["ok"]?.asBool, "\(label): restore ok")
@@ -381,7 +357,7 @@ final class CampaignFixtureTests: XCTestCase {
 
     // MARK: - Layout
 
-    func testLayoutForPilesMatchesWeb() {
+    func testLayoutForPilesMatchesGolden() {
         for f in Self.list("layouts") {
             let n = f["piles"]?.asInt ?? 0
             let l = CampaignLayout.layoutForPiles(n)

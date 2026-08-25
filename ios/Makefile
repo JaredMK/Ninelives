@@ -3,7 +3,7 @@
 #   make            # regenerate the project, build, test
 #   make test       # run the XCTest suite
 #   make data       # re-export items.js / difficulty.js / tutorial.js → JSON
-#   make fixtures   # re-capture the web-engine ground truth (needs the web repo)
+#   make golden     # re-record the golden baseline from GameCore itself
 #   make verify-launch   # boot the app in the simulator and read its boot receipt
 #   make perf       # play a scripted 12-pile deal and print its frame timings
 #   make device-run # build, install and launch on a connected iPhone
@@ -13,7 +13,7 @@ PROJECT   = ShouldaSaidSame.xcodeproj
 DD        = build/DerivedData
 BUNDLE_ID = com.ninelives.shouldasaidsame
 
-.PHONY: all project build test data fixtures app verify-launch device device-run perf clean
+.PHONY: all project build test data golden app verify-launch device device-run perf clean
 
 all: project build test
 
@@ -43,12 +43,19 @@ test: project
 data:
 	node Tools/export-data.mjs
 
-# Ground truth captured by running the REAL web engine. Re-run when the web
-# engine changes, then re-run `make test` to see whether iOS still agrees.
-fixtures:
-	node Tools/export-fixtures.mjs
-	node Tools/export-traces.mjs
-	node Tools/export-campaign.mjs
+# THE GOLDEN BASELINE (v6.79): `Fixtures/*.json` is recorded from GameCore
+# ITSELF — the iOS engine is the source of truth; the web engine is frozen
+# and never consulted. Re-record ONLY after an INTENTIONAL engine change, in
+# the same commit, then `make test` must be green against the new baseline.
+# The flag file arms `GoldenRecorder` (a normal test run always skips it).
+golden: project
+	touch Fixtures/.golden-record
+	xcodebuild test -project $(PROJECT) -scheme GameCore \
+	  -destination 'platform=iOS Simulator,name=$(SIM)' \
+	  -only-testing:GameCoreTests/GoldenRecorder \
+	  || (rm -f Fixtures/.golden-record; exit 1)
+	rm -f Fixtures/.golden-record
+	@echo "golden baseline re-recorded — review the Fixtures/ diff, then run: make test"
 
 app: project
 	xcodebuild build -project $(PROJECT) -scheme ShouldaSaidSame \

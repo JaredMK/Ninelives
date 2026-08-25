@@ -4,8 +4,8 @@ A native Swift port of the web game. The web build (`../index.html` +
 `../items.js` / `../difficulty.js` / `../tutorial.js`) is the reference
 implementation and stays untouched.
 
-- **Phase 1 — engine + data.** `GameCore/` + `Data/`, verified against the real
-  web engine by committed fixtures.
+- **Phase 1 — engine + data.** `GameCore/` + `Data/`, guarded by the committed
+  golden baseline in `Fixtures/` (GameCore's own recorded output).
 - **Phase 2 — the DEAL BOARD.** `Rendering/` + `UI/`: a SpriteKit board with
   the full ported motion language (cascade, traveling cards, synapse pulses,
   death sequences, the living deck character).
@@ -75,8 +75,8 @@ simulator. Add a team in Xcode when you want to run on a device.
 | `Assets/Fonts/` | VT323 + Press Start 2P as `.ttf`, unwrapped from the web's `.woff2`. |
 | `App/` | The host app. Validates the data at boot, then shows the launcher. |
 | `Tests/` | XCTest suite. |
-| `Fixtures/` | Ground truth captured from the **real web engine** (committed). |
-| `Tools/` | The Node exporters that produce `Resources/` and `Fixtures/`, plus `render_icon.py` (the app icon). |
+| `Fixtures/` | The committed **golden baseline** — GameCore's own recorded output (see `Fixtures/README.md`). |
+| `Tools/` | `export-data.mjs` (items/difficulty/tutorial → `Resources/`), plus `render_icon.py` (the app icon). |
 
 ### Modules
 
@@ -152,24 +152,25 @@ Anything numeric that isn't a typed field stays reachable through
 `ItemDef.num(_:_:)` — the twin of `itemNum(def, key, fallback)`. It never treats
 `0` as missing.
 
-## Seed compatibility
+## Seed stability (the GOLDEN BASELINE)
 
-**Same seed + deck + tier produces the same map, stores, packs and draws on web
-and iOS.** This is enforced, not asserted:
+**Same seed + deck + tier produces the same map, stores, packs and draws,
+build after build.** This is enforced, not asserted:
 
-`Tools/export-fixtures.mjs`, `export-traces.mjs` and `export-campaign.mjs` load
-the **real web engine** through `../tests/_harness.mjs` — the same loader the
-5,049-test web suite uses — and record its output into `Fixtures/`. The XCTest
-suite replays each one and compares.
+`Fixtures/*.json` is the committed golden record of what GameCore ITSELF
+produces — captured by `Tests/GoldenRecorder.swift` (`make golden`) and
+replayed by the fixture suites on every `make test`. The iOS engine is the
+source of truth; the web engine in `../index.html` is a frozen v6.78
+reference and is never consulted. See `Fixtures/README.md` for what each
+file covers and how to grow the corpus.
 
-Re-capture after a web-engine change:
+Re-record ONLY after an intentional engine change, in the same commit:
 
 ```sh
-make fixtures && make test
+make golden && make test
 ```
 
-A diff in `Fixtures/` is the signal that the two implementations have parted
-ways.
+An unreviewed diff in `Fixtures/` is a caught regression, not noise.
 
 ## Tests
 

@@ -1,11 +1,14 @@
 import XCTest
 @testable import GameCore
 
-/// CROSS-IMPLEMENTATION SEED TESTS.
+/// SEED GOLDEN TESTS.
 ///
-/// Every assertion here compares Swift against output captured from the REAL web
-/// engine. If one fails, the same seed no longer plays the same climb on web and
-/// iOS — which is the one thing Phase 1 must guarantee.
+/// Every assertion here compares GameCore against the committed GOLDEN
+/// BASELINE (captured from GameCore itself by `GoldenRecorder`; regenerate
+/// with `make golden`). If one fails, the same seed no longer plays the same
+/// climb it did when the baseline was recorded — either an unintended
+/// regression, or an intentional change that must re-record the baseline in
+/// the same commit.
 final class SeedFixtureTests: XCTestCase {
 
     // MARK: - mulberry32
@@ -19,7 +22,7 @@ final class SeedFixtureTests: XCTestCase {
             let rng = RNG(seed: seed)
             for (i, want) in expected.enumerated() {
                 let got = rng.next()
-                XCTAssertEqual(got, want, "mulberry32(\(seed)) draw #\(i): got \(got), web says \(want)")
+                XCTAssertEqual(got, want, "mulberry32(\(seed)) draw #\(i): got \(got), golden says \(want)")
             }
         }
     }
@@ -35,7 +38,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - SeedCode
 
-    func testSeedCodeMatchesWeb() {
+    func testSeedCodeMatchesGolden() {
         for f in Fixtures.array("seedCode") {
             let seed = UInt32(truncatingIfNeeded: f["seed"]?.int ?? 0)
             let code = f["code"]?.asString ?? ""
@@ -44,7 +47,7 @@ final class SeedFixtureTests: XCTestCase {
         }
     }
 
-    func testSeedCodeRejectsMatchWeb() {
+    func testSeedCodeRejectsMatchGolden() {
         for f in Fixtures.array("seedCodeRejects") {
             let input = f["input"]?.asString ?? ""
             let expected = f["decoded"]
@@ -59,7 +62,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - Deck shuffle
 
-    func testSeededShuffleMatchesWeb() {
+    func testSeededShuffleMatchesGolden() {
         for f in Fixtures.array("shuffle") {
             let seed = UInt32(truncatingIfNeeded: f["seed"]?.int ?? 0)
             let expected = f["order"]?.intArray ?? []
@@ -70,7 +73,7 @@ final class SeedFixtureTests: XCTestCase {
         }
     }
 
-    func testZenShuffleMatchesWeb() {
+    func testZenShuffleMatchesGolden() {
         for f in Fixtures.array("zenShuffle") {
             let seed = UInt32(truncatingIfNeeded: f["seed"]?.int ?? 0)
             let suitCount = f["suitCount"]?.int ?? 4
@@ -84,7 +87,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - Economy
 
-    func testDealFlatMatchesWeb() {
+    func testDealFlatMatchesGolden() {
         let eco = Economy()
         for f in Fixtures.array("economy") {
             let stage = f["stage"]?.int ?? 0
@@ -96,7 +99,7 @@ final class SeedFixtureTests: XCTestCase {
         }
     }
 
-    func testBreakdownMatchesWeb() {
+    func testBreakdownMatchesGolden() {
         let eco = Economy()
         for f in Fixtures.array("breakdown") {
             guard let s = f["stats"], let out = f["out"] else { continue }
@@ -121,7 +124,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - Difficulty-derived generator surface
 
-    func testBandsForMatchWeb() {
+    func testBandsForMatchGolden() {
         let map = RunMap()
         for f in Fixtures.array("bands") {
             map.setDifficultyTier(f["tier"]?.asString ?? "regular")
@@ -132,7 +135,7 @@ final class SeedFixtureTests: XCTestCase {
         }
     }
 
-    func testDifficultyScoreMatchesWeb() {
+    func testDifficultyScoreMatchesGolden() {
         let map = RunMap()
         for f in Fixtures.array("difficultyScore") {
             map.setDifficultyTier(f["tier"]?.asString ?? "regular")
@@ -144,7 +147,7 @@ final class SeedFixtureTests: XCTestCase {
         }
     }
 
-    func testSolveSubsetPilesMatchesWeb() {
+    func testSolveSubsetPilesMatchesGolden() {
         let map = RunMap()
         for f in Fixtures.array("subsetPiles") {
             let got = map.solveSubsetPiles(surviveCount: f["survive"]?.int ?? 0,
@@ -156,7 +159,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - Single-stage generation
 
-    /// THE STAGE GENERATOR. It used to replay web-captured maps node-for-node,
+    /// THE STAGE GENERATOR. It used to replay externally captured maps node-for-node,
     /// but the native build has deliberately diverged (per-node deal danger,
     /// the +4 pack) — a web map is no longer ground truth. The fixtures stay
     /// as a SEED CORPUS; the assertions are the generator's own promises:
@@ -213,7 +216,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - Whole-run maps (the headline)
 
-    /// THE FULL RUN. Same conversion as the stage test above: web maps are no
+    /// THE FULL RUN. Same conversion as the stage test above: captured maps are no
     /// longer ground truth (per-node deal danger, the +4 pack), so the
     /// fixtures serve as a (seed, deck, tier, entries) CORPUS and the
     /// assertions are the run's own promises — determinism, sane structure,
@@ -252,7 +255,7 @@ final class SeedFixtureTests: XCTestCase {
 
     // MARK: - Data echo
 
-    func testDataSurfaceMatchesWeb() {
+    func testDataSurfaceMatchesGolden() {
         let echo = Fixtures.object("dataEcho")
         let d = GameData.shared
         XCTAssertEqual(d.items.store.slots, echo["storeSlots"]?.int)
@@ -294,10 +297,10 @@ final class SeedFixtureTests: XCTestCase {
                                   label: String, file: StaticString = #filePath, line: UInt = #line) {
         if got == expected { return }
         if got.count != expected.count {
-            XCTFail("\(label): node count \(got.count) ≠ web \(expected.count)", file: file, line: line)
+            XCTFail("\(label): node count \(got.count) ≠ \(expected.count)", file: file, line: line)
         }
         for i in 0..<Swift.min(got.count, expected.count) where got[i] != expected[i] {
-            XCTFail("\(label): node[\(i)] diverges\n     swift: \(got[i])\n       web: \(expected[i])",
+            XCTFail("\(label): node[\(i)] diverges\n       got: \(got[i])\n  expected: \(expected[i])",
                     file: file, line: line)
             return
         }

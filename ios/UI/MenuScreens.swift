@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.78"
-    static let note = "odds assist glows EVERY best call (inset strips, mute/magnet-aware); dynamic Rank Shield; live-most-common Transmute; Quick Bury fires on its own landing; Rank Roots; one-draw Second Sight; column-wide Diamond Boost; Fibonacci retired; endless payouts freeze at phase 3."
+    static let version = "v6.79"
+    static let note = "the web engine is cut out of the harness: Fixtures/ is now the GOLDEN BASELINE recorded from GameCore itself (make golden); index.html is a frozen reference. No gameplay changes."
     static let line = "build \(version) · \(note)"
 }
 
