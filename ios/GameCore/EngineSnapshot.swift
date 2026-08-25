@@ -97,8 +97,6 @@ extension GameEngine {
             "tellPiles": .array(r.tellPiles.sorted().map { .number(Double($0)) }),
             "whisperPiles": .array(r.whisperPiles.sorted().map { .number(Double($0)) }),
             "tellDrawsLeft": .number(Double(r.tellDrawsLeft)),
-            "sightDrawsLeft": .number(Double(r.sightDrawsLeft)),
-            "lastLandedPile": r.lastLandedPile.map { .number(Double($0)) } ?? .null,
             "compoundUpdates": .object(r.compoundUpdates.reduce(into: [:]) { $0["\($1.key)"] = .number(Double($1.value)) }),
             "snowballUpdates": .object(r.snowballUpdates.reduce(into: [:]) { $0["\($1.key)"] = .number(Double($1.value)) }),
             "stickerPeels": .object(r.stickerPeels.reduce(into: [:]) { $0["\($1.key)"] = .number(Double($1.value)) }),
@@ -272,8 +270,6 @@ extension GameEngine {
         r.tellPiles = Set(ints(rd["tellPiles"]) ?? [])
         r.whisperPiles = Set(ints(rd["whisperPiles"]) ?? [])
         r.tellDrawsLeft = Int(rd["tellDrawsLeft"]?.asNumber ?? 0)
-        r.sightDrawsLeft = Int(rd["sightDrawsLeft"]?.asNumber ?? 0)
-        r.lastLandedPile = rd["lastLandedPile"]?.asNumber.map { Int($0) }
         r.compoundUpdates = intDict(rd["compoundUpdates"])
         r.snowballUpdates = intDict(rd["snowballUpdates"])
         r.stickerPeels = intDict(rd["stickerPeels"])

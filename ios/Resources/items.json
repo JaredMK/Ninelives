@@ -1485,6 +1485,11 @@
     },
     {
       "id": "zeroRanksBury",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 40
+      },
       "label": "Empty Ranks",
       "icon": "🈳",
       "kind": "live",
@@ -1495,6 +1500,11 @@
     },
     {
       "id": "eightStart",
+      "unlock": {
+        "type": "behavior",
+        "stat": "perfectDeals",
+        "count": 12
+      },
       "label": "Crazy Eights",
       "icon": "8️⃣",
       "kind": "composition",
@@ -1505,6 +1515,11 @@
     },
     {
       "id": "royalSanctuary",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 30
+      },
       "label": "Royal Sanctuary",
       "icon": "🏰",
       "kind": "guess",
@@ -1515,6 +1530,11 @@
     },
     {
       "id": "absentSuitClubBury",
+      "unlock": {
+        "type": "behavior",
+        "stat": "clubsPlayed",
+        "count": 200
+      },
       "label": "Void Tribute",
       "icon": "🌫️",
       "kind": "live",
@@ -1527,6 +1547,11 @@
     },
     {
       "id": "suitMajoritySafe",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bossesBeaten",
+        "count": 6
+      },
       "label": "Majority Rule",
       "icon": "🗳️",
       "kind": "guess",
@@ -1538,6 +1563,11 @@
     },
     {
       "id": "diamondDupeSize",
+      "unlock": {
+        "type": "behavior",
+        "stat": "diamondsPlayed",
+        "count": 150
+      },
       "label": "Diamond Echo",
       "icon": "👯",
       "kind": "live",
@@ -1548,6 +1578,11 @@
     },
     {
       "id": "sameTolNear",
+      "unlock": {
+        "type": "behavior",
+        "stat": "correctSames",
+        "count": 52
+      },
       "label": "Close Call",
       "icon": "🤏",
       "kind": "guess",
@@ -1560,6 +1595,11 @@
     },
     {
       "id": "sameTolRoyal",
+      "unlock": {
+        "type": "behavior",
+        "stat": "samesCalled",
+        "count": 40
+      },
       "label": "Royal Pair",
       "icon": "🤴",
       "kind": "guess",
@@ -1705,6 +1745,11 @@
     },
     {
       "id": "clubThin",
+      "unlock": {
+        "type": "behavior",
+        "stat": "cardsBuried",
+        "count": 150
+      },
       "label": "Club Thin",
       "icon": "✂️",
       "kind": "live",
@@ -2051,10 +2096,15 @@
       "effect": "ambushWin",
       "tier": "rare",
       "price": 8,
-      "description": "Only usable in an ambush from Just a Two → clear the deal instantly. No effect during deal"
+      "description": "Only usable in an ambush from Just a Two → clear the deal instantly"
     },
     {
       "id": "purgeDiscount",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 3
+      },
       "label": "Purge Coupon",
       "icon": "🎟️",
       "kind": "active",
@@ -2067,6 +2117,11 @@
     },
     {
       "id": "transmute",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bossesBeaten",
+        "count": 8
+      },
       "label": "Transmute",
       "icon": "⚗️",
       "kind": "active",
@@ -2109,6 +2164,11 @@
     },
     {
       "id": "chorus",
+      "unlock": {
+        "type": "milestone",
+        "stat": "bestCampaignScore",
+        "count": 160
+      },
       "label": "Chorus",
       "icon": "🎼",
       "kind": "active",
@@ -2248,6 +2308,11 @@
     },
     {
       "id": "rankFlood",
+      "unlock": {
+        "type": "behavior",
+        "stat": "samesCalled",
+        "count": 60
+      },
       "label": "Rank Flood",
       "icon": "🌊",
       "effect": "rankFlood",
@@ -2347,7 +2412,8 @@
       "lowMin": 1,
       "lowMaxMult": 1,
       "highMinMult": 2,
-      "highMaxMult": 3
+      "highMaxMult": 3,
+      "premiumChance": 0.5
     },
     "purge": {
       "removeCount": 3,

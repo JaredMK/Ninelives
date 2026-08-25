@@ -627,8 +627,6 @@ public final class GameEngine {
             run.tellDrawsLeft -= 1
             if run.tellDrawsLeft == 0 { run.whisperPiles.removeAll() }
         }
-        // Second Sight: this draw consumes one sighted hint.
-        if run.sightDrawsLeft > 0 { run.sightDrawsLeft -= 1 }
         // Kamikaze deck-reveal counts down one per draw.
         if run.kamikazeRevealLeft > 0 { run.kamikazeRevealLeft -= 1 }
         let pillar = pillarForPile(index)
@@ -799,7 +797,6 @@ public final class GameEngine {
             board.push(index, drawn)
             curseTouch(index: index, current: current, drawn: drawn)
             board.kill(index)
-            run.lastLandedPile = nil                 // the landed top died with the pile
             let t = stickerTypes.all().first { $0.behavior == "malfunction" }
             logLine("MALFUNCTION: \(cardName(current)) blew the pile on a correct guess")
             recT("sticker", "malfunction", t?.label ?? "Malfunction", ["kills": 1])
@@ -808,7 +805,6 @@ public final class GameEngine {
             emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: false))
         } else if correct {
             board.push(index, drawn)
-            run.lastLandedPile = index               // Second Sight's display anchor
             curseTouch(index: index, current: current, drawn: drawn)
             // Scout: the placed card reveals the next deck card (display-only).
             if drawn.revealNext { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", ["peeks": 1]) }
@@ -917,7 +913,6 @@ public final class GameEngine {
             // card LANDS normally and becomes the new pile card.
             sameCharge = false
             board.push(index, drawn)
-            run.lastLandedPile = index               // a SAVED landing is still a landing
             // No curseTouch here (v6.52): the guess was WRONG, and CURSES fire
             // only on correct landings (the fatal-landing audit's rule). But a
             // SAVED landing is still a LANDING (v6.57): the card became the
@@ -963,7 +958,6 @@ public final class GameEngine {
         for c in removed { deck.returnCard(c) }      // random positions, never shown
         deck.returnCard(killingCard)                 // the card that would've killed it
         board.push(index, deck.draw())               // one new top (pile size = 1)
-        run.lastLandedPile = nil                     // dealt fresh, not landed
         // Scout: a freshly-dealt revive top is "placed" too.
         if let fresh = board.top(index), fresh.revealNext { run.revealNextActive = true }
         logLine("Second Wind: pile revived (1 fresh card); \(removed.count + 1) cards recycled into the deck (hidden)")
@@ -992,7 +986,6 @@ public final class GameEngine {
         // on-death payout).
         board.push(index, drawn)
         board.kill(index)
-        run.lastLandedPile = nil                     // the landed top died with the pile
         emit(.pileKilled(index: index))
         logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")
         // Last Rites: a pile in this column just died — peek the next card.
@@ -1212,8 +1205,7 @@ public final class GameEngine {
         // pile and `tellDrawsLeft` only decides how many draws that pile keeps
         // hinting for — it never lights the rest of the board.
         guard run.tellPiles.contains(index)
-                || (run.tellDrawsLeft > 0 && run.whisperPiles.contains(index))
-                || (run.sightDrawsLeft > 0 && run.lastLandedPile == index) else { return nil }
+                || (run.tellDrawsLeft > 0 && run.whisperPiles.contains(index)) else { return nil }
         guard let deck, !deck.isEmpty, board.isActive(index) else { return nil }
         guard let top = board.top(index), let next = deck.peek(1).first else { return nil }
         // A Joker pile can never be called wrong — its hint is always SAME

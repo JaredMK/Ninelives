@@ -18,7 +18,9 @@ public enum OldJoker {
     /// Which offer he is making. The associated values are everything the UI
     /// needs to draw the offer WITHOUT re-rolling anything.
     public enum Offer: Equatable {
-        /// Two of your equipped items, one lowballed and one bid up.
+        /// Two of your equipped items, EACH independently priced lowball or
+        /// premium (v6.80 — the cheap/rich labels are historical: they mean
+        /// "first/second", and either side can carry either kind of price).
         case buyout(cheap: Holding, cheapCoins: Int, rich: Holding, richCoins: Int)
         /// He takes `taken` and leaves `given` behind — shown before you accept.
         case swap(taken: Holding, given: String)
@@ -255,31 +257,35 @@ extension CampaignState {
         let cfg = data.items.oldJoker
         switch key {
         case "buyout":
-            // TWO different holdings: a lowball on one, a premium on the other.
-            // (A single item with two prices would make the low offer strictly
-            // dominated — this keeps it a real decision.)
+            // TWO different holdings, EACH priced by its OWN independent roll
+            // (v6.80): `premiumChance` (items.js oldJoker.buyout, 0.5) of a
+            // premium offer (highMinMult..highMaxMult × the item's price),
+            // else a lowball (lowMin..lowMaxMult × price). So one-of-each
+            // 50%, both lowball 25%, both premium 25%. The enum's cheap/rich
+            // labels are just "first/second" now — either side can be either.
             var pool = equippedHoldings()
             guard pool.count >= 1 else { return nil }
+            let premiumChance = cfg.num("buyout", "premiumChance", 0.5)
+            func rollPrice(for h: OldJoker.Holding) -> Int {
+                let p = holdingPrice(h)
+                if rng.next() < premiumChance {
+                    let lo = p * cfg.num("buyout", "highMinMult", 2)
+                    let hi = p * cfg.num("buyout", "highMaxMult", 3)
+                    return Int(max(1, (lo + rng.next() * max(0, hi - lo)).rounded()))
+                }
+                let lowMin = cfg.num("buyout", "lowMin", 1)
+                return Int(max(lowMin, (lowMin + rng.next()
+                    * max(0, p * cfg.num("buyout", "lowMaxMult", 1) - lowMin)).rounded()))
+            }
             let a = pool.remove(at: rng.index(pool.count))
-            // With only ONE thing to point at he names ONE price. It used to
-            // fall back to `b = a`, which offered the same item at two
-            // different numbers — the low one strictly dominated, which is not
-            // an offer, it's a trick question.
+            // With only ONE thing to point at he names ONE price — a single
+            // independent roll, lowball or premium alike.
             guard !pool.isEmpty else {
-                let p = holdingPrice(a)
-                let lo = p * cfg.num("buyout", "highMinMult", 2)
-                let hi = p * cfg.num("buyout", "highMaxMult", 3)
-                let only = Int(max(1, (lo + rng.next() * max(0, hi - lo)).rounded()))
+                let only = rollPrice(for: a)
                 return .buyout(cheap: a, cheapCoins: only, rich: a, richCoins: only)
             }
             let b = pool.remove(at: rng.index(pool.count))
-            let priceA = holdingPrice(a), priceB = holdingPrice(b)
-            let lowMin = cfg.num("buyout", "lowMin", 1)
-            let low = Int(max(lowMin, (lowMin + rng.next() * max(0, priceA * cfg.num("buyout", "lowMaxMult", 1) - lowMin)).rounded()))
-            let hiLo = priceB * cfg.num("buyout", "highMinMult", 2)
-            let hiHi = priceB * cfg.num("buyout", "highMaxMult", 3)
-            let high = Int(max(1, (hiLo + rng.next() * max(0, hiHi - hiLo)).rounded()))
-            return .buyout(cheap: a, cheapCoins: low, rich: b, richCoins: high)
+            return .buyout(cheap: a, cheapCoins: rollPrice(for: a), rich: b, richCoins: rollPrice(for: b))
 
         case "swap":
             let pool = equippedHoldings().filter { $0.kind != .sticker }

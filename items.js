@@ -469,50 +469,49 @@ const NINELIVES_ITEMS = {
       description: "When a ♦ lands in this column → make all piles in this column equal size" },
 
     /* ====================== ARCHETYPE BATCH v6.76 =======================
-       NEW pillars — DATA ONLY: the engine does not implement these effects
-       yet. Every entry in this batch is deliberately UNGATED (no `unlock`
-       field — a starting item, always rollable); the user will add gates
-       later. Every price below is an R4 PROPOSAL, marked TUNE. Icons are
-       single-emoji placeholders — pixel art comes later. */
+       Engine-implemented since v6.76. GATING (v6.80, user-approved): the
+       simple/early/mid items ship UNGATED as starting items; the mid-late
+       and late ARCHETYPE ANCHORS carry `unlock` gates below. Every price
+       is an R4 PROPOSAL, marked TUNE. */
 
     // ---- Deck-composition Pillars — every condition below evaluates against
     //      the FULL deck (board + buried + remaining), LIVE, at each landing.
     // EMPTY RANKS: the bury count is DERIVED — 1 card per rank that has zero
     // copies anywhere in the full deck — so there is no count knob.
     // TUNE: price 8 proposed (R4).
-    { id: "zeroRanksBury", label: "Empty Ranks", icon: "🈳",
+    { id: "zeroRanksBury", unlock: { type: "behavior", stat: "removalsUsed", count: 40 }, label: "Empty Ranks", icon: "🈳",
       kind: "live", effect: "clubZeroRanksBury", tier: "rare", price: 8,
       description: "When a ♣ lands in this column → bury 1 card under that pile per rank with zero copies in your full deck" },
     // CRAZY EIGHTS: a composition condition (8s the most common rank in the
     // full deck) changes the column's STARTING pile size. The target size 8
     // is the mechanic itself — no knob.
     // TUNE: price 10 proposed (R4); deliberately huge vs normal starting size — flagged for balance.
-    { id: "eightStart", label: "Crazy Eights", icon: "8️⃣",
+    { id: "eightStart", unlock: { type: "behavior", stat: "perfectDeals", count: 12 }, label: "Crazy Eights", icon: "8️⃣",
       kind: "composition", effect: "startPileSizeEight", tier: "rare", price: 10,
       description: "If 8s are the most common rank in your full deck → this column's piles start at pile size 8" },
     // ROYAL SANCTUARY: composition-gated guess safety — the no-2s condition
     // is the whole knob.
     // TUNE: price 6 proposed (R4).
-    { id: "royalSanctuary", label: "Royal Sanctuary", icon: "🏰",
+    { id: "royalSanctuary", unlock: { type: "behavior", stat: "removalsUsed", count: 30 }, label: "Royal Sanctuary", icon: "🏰",
       kind: "guess", effect: "royalSafeNoTwos", tier: "uncommon", price: 6,
       description: "If your full deck contains no 2s → royals (J/Q/K) are always safe in this column" },
     // VOID TRIBUTE: {suit} pillar — the suit locks the FIRST time the pillar
     // shows in a shop this climb and holds all climb (shopRoll: "suit").
     // buryCount = cards buried per qualifying ♣ landing.
     // TUNE: price 8 proposed (R4).
-    { id: "absentSuitClubBury", label: "Void Tribute", icon: "🌫️",
+    { id: "absentSuitClubBury", unlock: { type: "behavior", stat: "clubsPlayed", count: 200 }, label: "Void Tribute", icon: "🌫️",
       kind: "live", effect: "absentSuitClubBury", shopRoll: "suit", buryCount: 2, tier: "rare", price: 8,
       description: "If your full deck contains no {suit} → when a ♣ lands in this column, bury 2 cards under that pile" },
     // MAJORITY RULE: {suit} pillar (shopRoll: "suit", same first-shop lock).
     // The 50% majority threshold is the mechanic itself — no knob.
     // TUNE: price 8 proposed (R4).
-    { id: "suitMajoritySafe", label: "Majority Rule", icon: "🗳️",
+    { id: "suitMajoritySafe", unlock: { type: "milestone", stat: "bossesBeaten", count: 6 }, label: "Majority Rule", icon: "🗳️",
       kind: "guess", effect: "suitMajoritySafe", shopRoll: "suit", tier: "rare", price: 8,
       description: "If half or more of your full deck is {suit} → {suit} cards are safe when they land in this column" },
     // DIAMOND ECHO: the size bonus is DERIVED — +1 per duplicate of the
     // landing card's rank in the full deck — so there is no count knob.
     // TUNE: price 6 proposed (R4).
-    { id: "diamondDupeSize", label: "Diamond Echo", icon: "👯",
+    { id: "diamondDupeSize", unlock: { type: "behavior", stat: "diamondsPlayed", count: 150 }, label: "Diamond Echo", icon: "👯",
       kind: "live", effect: "diamondDupeSize", tier: "uncommon", price: 6,
       description: "When a ♦ lands in this column → +1 pile size per duplicate of that card's rank in your full deck" },
 
@@ -524,11 +523,11 @@ const NINELIVES_ITEMS = {
     // as a FULL correct Same — it charges the Same Shield and fires the
     // equipped Same-Power.
     // TUNE: price 9 proposed (R4).
-    { id: "sameTolNear", label: "Close Call", icon: "🤏",
+    { id: "sameTolNear", unlock: { type: "behavior", stat: "correctSames", count: 52 }, label: "Close Call", icon: "🤏",
       kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "near", tier: "rare", price: 9,
       description: "Same calls are safe on cards ±1 in value in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
     // TUNE: price 7 proposed (R4).
-    { id: "sameTolRoyal", label: "Royal Pair", icon: "🤴",
+    { id: "sameTolRoyal", unlock: { type: "behavior", stat: "samesCalled", count: 40 }, label: "Royal Pair", icon: "🤴",
       kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "royalPair", tier: "uncommon", price: 7,
       description: "A royal landing on a royal survives a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
     // TUNE: price 7 proposed (R4).
@@ -614,7 +613,7 @@ const NINELIVES_ITEMS = {
     // CLUB THIN: per = the deck-remaining step the bury scales on;
     // digCount = cards buried per full step.
     // TUNE: price 6 proposed (R4).
-    { id: "clubThin", label: "Club Thin", icon: "✂️",
+    { id: "clubThin", unlock: { type: "behavior", stat: "cardsBuried", count: 150 }, label: "Club Thin", icon: "✂️",
       kind: "live", effect: "clubThin", per: 25, digCount: 1, tier: "uncommon", price: 6,
       description: "When a ♣ lands in this column → bury 1 card per 25 cards remaining in the deck" },
     // RANK PURGE: an ON-PURCHASE purge — {rank} rolls the first time the
@@ -730,20 +729,18 @@ const NINELIVES_ITEMS = {
     // deal — it is a panic button you carry for the deals you did not choose.
     { id: "ambushOut", unlock: { type: "behavior", stat: "ambushesWon", count: 3 }, label: "Escape Hatch", icon: "🚪",
       kind: "active", effect: "ambushWin", tier: "rare", price: 8,
-      description: "Only usable in an ambush from Just a Two → clear the deal instantly. No effect during deal" },
+      description: "Only usable in an ambush from Just a Two → clear the deal instantly" },
 
     /* ====================== ARCHETYPE BATCH v6.76 =======================
-       NEW bases — DATA ONLY: the engine does not implement these effects
-       yet. Every entry in this batch is deliberately UNGATED (no `unlock`
-       field — a starting item, always rollable); the user will add gates
-       later. Every price below is an R4 PROPOSAL, marked TUNE. Icons are
-       single-emoji placeholders — pixel art comes later. */
+       Engine-implemented since v6.76. GATING (v6.80): early/mid bases ship
+       UNGATED except Purge Coupon; the anchors (Transmute, Chorus) gate.
+       Every price is an R4 PROPOSAL, marked TUNE. */
 
     // PURGE COUPON: value = coins knocked off the store's Purge price per
     // activation; min = the floor the price never drops below. A store-side
     // lever carried on a base — nothing happens in-deal.
     // TUNE: price 5 proposed (R4).
-    { id: "purgeDiscount", label: "Purge Coupon", icon: "🎟️",
+    { id: "purgeDiscount", unlock: { type: "behavior", stat: "removalsUsed", count: 3 }, label: "Purge Coupon", icon: "🎟️",
       kind: "active", effect: "purgeDiscount", value: 3, min: 5, tier: "uncommon", price: 5,
       description: "Reduce the cost of the Store's Purge" },
     // TRANSMUTE: an ON-PURCHASE base — it fires at BUY time and never in a
@@ -753,7 +750,7 @@ const NINELIVES_ITEMS = {
     // the {suit} rolls at the store (shopRoll, first shelf appearance this
     // climb, shown before purchase).
     // TUNE: price 8 proposed (R4).
-    { id: "transmute", label: "Transmute", icon: "⚗️",
+    { id: "transmute", unlock: { type: "milestone", stat: "bossesBeaten", count: 8 }, label: "Transmute", icon: "⚗️",
       kind: "active", effect: "transmute", shopRoll: "suit", tier: "rare", price: 8,
       description: "Change all {rank}s to {suit}" },
     // SACRIFICE: target: "pile" — the player picks the pile whose top card
@@ -777,7 +774,7 @@ const NINELIVES_ITEMS = {
     // CHORUS: the target rank is DERIVED — the rank your full deck holds the
     // most copies of — so there is no rank knob.
     // TUNE: price 8 proposed (R4).
-    { id: "chorus", label: "Chorus", icon: "🎼",
+    { id: "chorus", unlock: { type: "milestone", stat: "bestCampaignScore", count: 160 }, label: "Chorus", icon: "🎼",
       kind: "active", effect: "chorus", tier: "rare", price: 8,
       description: "Set every top card in this column to the rank your full deck holds the most copies of" },
     // DIAMOND BOOST (v6.78: column-wide, no target pick) — value = the pile
@@ -834,15 +831,13 @@ const NINELIVES_ITEMS = {
       description: "Add +1 pile size to every pile, and +3 to the pile you called Same on" },
 
     /* ====================== ARCHETYPE BATCH v6.76 =======================
-       NEW same-power — DATA ONLY: the engine does not implement this effect
-       yet. Deliberately UNGATED (no `unlock` field — always rollable); the
-       user will add gates later. Price is an R4 PROPOSAL, marked TUNE.
-       Icon is a single-emoji placeholder — pixel art comes later. */
+       Engine-implemented since v6.76; gated in v6.80 (a late anchor —
+       samesCalled teaches the build). Price is an R4 PROPOSAL, marked TUNE. */
     // RANK FLOOD: board-wide rank rewrite off a correct Same. No knobs — the
     // Joker edge cases (Joker on either side ranks piles by the ranked card;
     // Joker-on-Joker makes Aces) are the mechanic.
     // TUNE: price 9 proposed (R4) — the flat same-power price point.
-    { id: "rankFlood", label: "Rank Flood", icon: "🌊",
+    { id: "rankFlood", unlock: { type: "behavior", stat: "samesCalled", count: 60 }, label: "Rank Flood", icon: "🌊",
       effect: "rankFlood", tier: "rare", price: 9,
       description: "A correct Same sets the top card of every alive pile to this card's rank. A Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces" },
   ],
@@ -946,10 +941,12 @@ const NINELIVES_ITEMS = {
       // Pillar is up and the tier's joker cap has room.
       jokerForPillars: 7,
     },
-    // BUYOUT: he names TWO of your equipped items — a lowball on one, a
-    // premium on the other. lowMin..lowMaxMult × the item's price for the
-    // cheap offer; highMinMult..highMaxMult × price for the rich one.
-    buyout: { lowMin: 1, lowMaxMult: 1, highMinMult: 2, highMaxMult: 3 },
+    // BUYOUT: he names TWO of your equipped items and prices EACH with its
+    // own independent roll (v6.80): premiumChance of a premium offer
+    // (highMinMult..highMaxMult × the item's price), else a lowball
+    // (lowMin..lowMaxMult × price). So mixed 50%, both lowball 25%, both
+    // premium 25% at the default 0.5.
+    buyout: { lowMin: 1, lowMaxMult: 1, highMinMult: 2, highMaxMult: 3, premiumChance: 0.5 },
     // PURGE: remove `removeCount` cards you choose, at the cost of a curse
     // landing on `leechCount` others. WHICH curse each card gets comes from
     // the shared weighted curse roll (curseWeight, path "purge").

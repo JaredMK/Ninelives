@@ -248,18 +248,18 @@ public final class StoreViewController: UIViewController {
                 } else {
                     art = ItemArt.forSlot(kind: s.kind, id: s.id, card: s.card, deckId: campaign.deckId)
                 }
-                // Only packs (.pf-name), Removal (.ro-lab) and the MYSTERY
-                // Same-Power carry a NAME on the web shelf — pillar/base/
-                // sticker tiles are art + price only. The label always comes
-                // from the registry (the store config for the mystery slot).
-                // EXCEPTION (v6.76, R2): a SHOP-ROLLED item is never a blind
-                // buy — its tile names the item AND the rolled {rank}/{suit}
-                // ("RANK SHIELD — 9S", "TRANSMUTE — 9S→♠"; suits render as
-                // pixel pips through CRTKit's substitution).
+                // EVERY tile names itself (v6.80 consistency pass — packs,
+                // Purge and rolled items used to carry a caption while
+                // pillar/base/sticker/card tiles sat bare, which read as
+                // random). The label always comes from the registry (the
+                // store config for the mystery slot); a SHOP-ROLLED item
+                // appends its rolled value ("TRANSMUTE — ♠", suits render as
+                // pixel pips through CRTKit's substitution); the card slot
+                // names the card itself.
                 let caption = s.kind == "pack" ? GameData.shared.packTypes.get(s.id)?.label
                     : s.kind == "removal" ? GameData.shared.items.store.removal.label
                     : s.mystery ? GameData.shared.items.store.mysterySamePower.label
-                    : rolledCaption(s)
+                    : rolledCaption(s) ?? plainCaption(s)
                 tile.configure(art: art, kind: s.kind, caption: caption,
                                restriction: s.kind == "sticker"
                                    ? GameData.shared.stickerTypes.get(s.id)
@@ -357,10 +357,26 @@ public final class StoreViewController: UIViewController {
     }
 
     /// The shop-rolled tile's name-and-roll caption (v6.76, R2) — nil for
-    /// ordinary slots, which stay art + price only.
+    /// slots that rolled nothing (those fall through to `plainCaption`).
     private func rolledCaption(_ s: StoreSlot) -> String? {
         guard let rolled = rolledText(s), let def = shopRolledDef(s) else { return nil }
         return "\(def.label) — \(rolled)"
+    }
+
+    /// The plain name caption every un-rolled tile wears (v6.80): the
+    /// registry label for items, the card's own face for the card slot.
+    private func plainCaption(_ s: StoreSlot) -> String? {
+        let d = GameData.shared
+        switch s.kind {
+        case "sticker":   return d.stickerTypes.get(s.id)?.label
+        case "pillar":    return d.pillarTypes.get(s.id)?.label
+        case "base":      return d.baseTypes.get(s.id)?.label
+        case "samepower": return d.samePowerTypes.get(s.id)?.label
+        case "card":
+            guard let c = s.card else { return d.items.store.card.label }
+            return c.joker ? "★ Joker" : "\(rankLabel(c.currentRank) ?? "?")\(c.suit)"
+        default:          return nil
+        }
     }
 
     /// SHOP-ROLLED values in the debug log (v6.76, R2): when a fresh shelf

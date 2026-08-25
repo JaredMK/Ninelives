@@ -391,8 +391,8 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   `campaign.serialize()`; store-offer slots may carry `shopRolled`/
   `shopRolled2`, and the offer carries `freeReroll` (On the House's free
   first restock). Engine run state gained `pillarRolls` (col → {roll,roll2})
-  and `suitShieldSuits` (Daily Suit's per-deal roll — web re-derives it from
-  the deal seed on resume; the iOS snapshot must round-trip it).
+  and the Daily Suit per-deal roll — `run.dailySuits` on iOS (snapshot
+  round-tripped), `run.suitShieldSuits` on the frozen web build.
 - **Restore accepts removal-shrunk decks** (v6.76 bugfix): the old
   `baseDeck.length < 52` floor rejected EVERY save made after a store Purge
   (a refresh wiped the climb). The floor is now relative

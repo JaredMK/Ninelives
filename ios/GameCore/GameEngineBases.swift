@@ -531,7 +531,6 @@ extension GameEngine {
             board.kill(ti)
             run.tellPiles.remove(ti)
             run.whisperPiles.remove(ti)
-            if run.lastLandedPile == ti { run.lastLandedPile = nil }
             emit(.pileKilled(index: ti))
             // Last Rites on the sacrifice, like every other pile death.
             if let dd = resolvePillarDef(col), dd.effect == "lastRites" { peekPillar(col, dd) }

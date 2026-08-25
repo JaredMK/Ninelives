@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.79"
-    static let note = "the web engine is cut out of the harness: Fixtures/ is now the GOLDEN BASELINE recorded from GameCore itself (make golden); index.html is a frozen reference. No gameplay changes."
+    static let version = "v6.80"
+    static let note = "archetype unlock gates land (13 mid-late/late anchors; everything through mid ships unlocked except Purge Coupon); Old Joker Buyout prices each item with its own 50/50 lowball-or-premium roll; every store tile names itself; Escape Hatch copy fixed; Rank Shield plaque band fits a 10; stray duplicate files deleted."
     static let line = "build \(version) · \(note)"
 }
 

@@ -136,14 +136,37 @@ final class OldJokerTests: XCTestCase {
         XCTAssertEqual(c.equippedHoldings().count, held - 1, "…and takes exactly one holding")
     }
 
-    func testBuyoutRichOfferBeatsTheCheapOne() {
-        // The two prices are for DIFFERENT items, so the cheap offer is never
-        // strictly dominated — but the rich one is always the bigger number.
+    /// v6.80: EACH offered item independently rolls lowball (1…price) or
+    /// premium (2×price…3×price) — so a corpus of buyouts must show all
+    /// three mixes (both lowball, both premium, one of each), and every
+    /// price must land inside its own item's two legal bands (which never
+    /// overlap, so classification is unambiguous).
+    func testBuyoutPricesEachItemIndependently() {
         let c = campaign()
         equipEverything(c)
-        guard case .buyout(_, let cheapCoins, _, let richCoins)? = firstOffer(c, key: "buyout")
-        else { return XCTFail("no buyout offered") }
-        XCTAssertGreaterThanOrEqual(richCoins, cheapCoins)
+        var lowlow = 0, hihi = 0, mixed = 0, sampled = 0
+        for node in 1...1200 {
+            guard let o = c.rollOldJoker(node), o.key == "buyout",
+                  case .buyout(let a, let aCoins, let b, let bCoins) = o else { continue }
+            func classify(_ h: OldJoker.Holding, _ coins: Int) -> Bool? {   // true = premium
+                let p = c.holdingDef(h)?.price ?? 1
+                if Double(coins) <= p, coins >= 1 { return false }
+                if Double(coins) >= 2 * p, Double(coins) <= 3 * p { return true }
+                XCTFail("buyout price \(coins) for \(h.id) (price \(p)) is outside both bands")
+                return nil
+            }
+            guard let aHigh = classify(a, aCoins), let bHigh = classify(b, bCoins) else { continue }
+            sampled += 1
+            switch (aHigh, bHigh) {
+            case (true, true): hihi += 1
+            case (false, false): lowlow += 1
+            default: mixed += 1
+            }
+        }
+        XCTAssertGreaterThan(sampled, 20, "expected a real buyout corpus")
+        XCTAssertGreaterThan(lowlow, 0, "both-lowball must occur (~25%)")
+        XCTAssertGreaterThan(hihi, 0, "both-premium must occur (~25%)")
+        XCTAssertGreaterThan(mixed, 0, "one-of-each must occur (~50%)")
     }
 
     // MARK: - 2. Swap

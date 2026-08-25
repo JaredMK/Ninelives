@@ -817,21 +817,25 @@ public final class DealScene: SKScene {
                 }
             }
         }
-        // RANK SHIELD (v6.78): the plaque SHOWS the rank it protects this
-        // deal — the rank label replaces the generic emblem over the same
-        // ink halo the Daily Suit chip repaints.
+        // RANK SHIELD (v6.78, fitted v6.80): the plaque SHOWS the rank it
+        // protects this deal. The ink patch is sized to the LABEL, not the
+        // emblem halo — a two-glyph "10" at the 14pt display floor is wider
+        // than the halo, so a fixed patch clipped it; the fitted band grows
+        // with the text and stays centred on the emblem spot.
         if def.effect == "rankShield", let rank = rankShieldRank {
             let h = img.size.height
             let halo = (h * 0.46).rounded()
-            let hx = (img.size.width - halo) / 2
-            let hy = (h * 0.46 - halo / 2).rounded()
-            let inset = halo * 0.10
-            let rect = CGRect(x: hx + inset, y: hy + inset,
-                              width: halo - inset * 2, height: halo - inset * 2)
+            let cx = img.size.width / 2
+            let cy = (h * 0.46 - halo / 2).rounded() + halo / 2
             let text = NSAttributedString(string: rank, attributes: [
                 .font: CRT.Font.of(14, display: true), .foregroundColor: CRT.gold,
             ])
             let ts = text.size()
+            let pad: CGFloat = 3
+            let rect = CGRect(x: (cx - ts.width / 2 - pad).rounded(),
+                              y: (cy - ts.height / 2 - pad).rounded(),
+                              width: (ts.width + pad * 2).rounded(),
+                              height: (ts.height + pad * 2).rounded())
             img = UIGraphicsImageRenderer(size: img.size).image { _ in
                 img.draw(at: .zero)
                 CRT.ink.setFill()

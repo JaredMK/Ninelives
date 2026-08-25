@@ -623,7 +623,6 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertEqual(Set(res2.targets), Set(aliveTops),
                        "Second Sight tells on EVERY alive pile — no colour filter")
         XCTAssertEqual(e2.run.tellPiles, Set(aliveTops), "the tells ride the shared next-draw window")
-        XCTAssertEqual(e2.run.sightDrawsLeft, 0, "the old multi-draw window is retired")
     }
 
     /// SECOND SIGHT (v6.78): every alive pile hints for the NEXT DRAW ONLY —

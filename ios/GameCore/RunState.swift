@@ -80,8 +80,9 @@ public final class RunState {
     public var pillars: [String?]?
     /// The equipped Same-Power for this deal.
     public var samePower: String?
-    /// The power's climb-fixed variant, when it rolls one (Burrow's suit,
-    /// Second Sight's red/black). Nil for the fixed powers.
+    /// The power's climb-fixed variant, when it rolls one (Burrow's suit —
+    /// Second Sight's red/black roll retired in v6.78). Nil for the fixed
+    /// powers.
     public var samePowerVariant: String?
     /// The rank-variant pillars' locked ranks, by pillar id.
     public var pillarRankVariants: [String: Int] = [:]
@@ -167,13 +168,6 @@ public final class RunState {
     public var whisperPiles = Set<Int>()
     /// How many upcoming DRAWS still carry a whole-board Tell-style hint.
     public var tellDrawsLeft = 0
-    /// SECOND SIGHT window (v6.58): for this many upcoming draws the hint
-    /// shows on ONE pile only — the most recently landed top card.
-    public var sightDrawsLeft = 0
-    /// The pile whose LIVING top most recently landed (nil after a death,
-    /// a revive's fresh deal, or before any landing). Second Sight's anchor.
-    public var lastLandedPile: Int? = nil
-
     /// Debug logbook — dev tooling only, never read by game logic.
     public var log: [LogEntry] = []
 
