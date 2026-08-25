@@ -75,46 +75,8 @@ export function run() {
     r.ok(cc.stickers.some(s => s.type === res.stickerApplied.typeId), "Wild Sticker persists on the campaign card");
   }
 
-  // --- #5 Fibonacci pays LIVE per fib-rank draw, ONLY on a correct placement --
-  {
-    const fib = (top, drawn, guess) => {
-      const e = GameEngine.create(DeckManager.buildStandardDeck(), 7, { cols: COLS });
-      e.start();
-      e.startRun(["fibonacci", null, null], [null, null, null]);   // Fibonacci on col 0
-      const b = e.getBoard();
-      b.piles[0].cards = [card(top, "♠")];
-      const before = e.getRun().bonusCoins;
-      e.debug.setNextCard(drawn);
-      e.guess(0, guess);
-      return { paid: e.getRun().bonusCoins - before, alive: b.isActive(0) };
-    };
-
-    // Fib-rank (5) drawn, WRONG guess → pile dies → Fibonacci pays NOTHING now
-    // (payout moved inside the correct-placement path).
-    const dead = fib(10, 5, "higher");   // 5 < 10, higher is wrong → die
-    r.ok(!dead.alive, "the pile died on the wrong guess");
-    r.eq(dead.paid, 0, "Fibonacci pays nothing on a wrong placement (correct-only)");
-
-    // Fib-rank (3) drawn, CORRECT guess → survives and pays.
-    const live = fib(2, 3, "higher");    // 3 > 2, higher correct → survive
-    r.ok(live.alive, "the pile survived the correct guess");
-    r.eq(live.paid, 1, "Fibonacci pays on a correct fib draw too");
-
-    // Ace (14, = 1 in the sequence) counts; a non-fib rank (4) does not.
-    r.eq(fib(10, 14, "higher").paid, 1, "Ace counts as a Fibonacci rank");
-    r.eq(fib(10, 4, "higher").paid, 0, "a non-fib rank (4) pays nothing");
-
-    // Column scope: a fib draw into a column WITHOUT Fibonacci pays nothing.
-    const e2 = GameEngine.create(DeckManager.buildStandardDeck(), 7, { cols: COLS });
-    e2.start();
-    e2.startRun(["fibonacci", null, null], [null, null, null]);
-    const b2 = e2.getBoard();
-    b2.piles[5].cards = [card(10, "♠")];   // pile 5 is col 1 (no Fibonacci)
-    const before2 = e2.getRun().bonusCoins;
-    e2.debug.setNextCard(5);
-    e2.guess(5, "higher");
-    r.eq(e2.getRun().bonusCoins - before2, 0, "Fibonacci is column-scoped: a fib draw elsewhere pays nothing");
-  }
+  // --- #5 Fibonacci retired in v6.78 — the pillar left items.js; its
+  //     correct-only payout rule lives on in Prime (pinned elsewhere). ----
 
   return r.summary();
 }

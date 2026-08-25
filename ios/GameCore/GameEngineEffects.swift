@@ -47,17 +47,20 @@ extension GameEngine {
             guard let rank = run.shopRolls[pillar.id]?.rank, drawn.value == rank else { return nil }
             return "rankShield"
         case "suitMajoritySafe":
-            // MAJORITY RULE: half or more of the full deck is the rolled suit
-            // (printed suits) → that suit's landings here are safe. The check
-            // runs BEFORE the drawn card lands — it has already left the draw
-            // deck, so it counts IN FLIGHT, in both the numerator and the
-            // denominator (jokers/blanks count toward the deck, never the suit).
+            // MAJORITY RULE: half or more of the full deck's RANKED cards
+            // wear the rolled suit → that suit's landings here are safe.
+            // WEB-EXACT (v6.78 parity fix): jokers/blanks are outside BOTH
+            // sides of the ratio (a Joker is no suit's majority fodder), a
+            // Wild Suit card counts toward every suit, and there is no
+            // in-flight adjustment — the full-deck hook already holds the
+            // whole collection (the old +1 predates the hook).
             guard let suit = run.shopRolls[pillar.id]?.suit, matchesSuit(drawn, suit) else { return nil }
-            let cards = fullDeckCards()
-            let suited = cards.filter { !$0.joker && !$0.blank && $0.suit == suit }.count
-                + (drawn.suit == suit && !drawn.joker && !drawn.blank ? 1 : 0)
-            let total = cards.count + 1          // the drawn card is still in the deal
-            guard suited * 2 >= total else { return nil }
+            var suited = 0, total = 0
+            for c in fullDeckCards() where !c.joker && !c.blank {
+                total += 1
+                if matchesSuit(c, suit) { suited += 1 }
+            }
+            guard total > 0, suited * 2 >= total else { return nil }
             return "suitMajoritySafe"
         case "suitShieldDaily":
             // DAILY SUIT: the suit rolled at Start Run (run.dailySuits) is
@@ -527,17 +530,21 @@ extension GameEngine {
                 }
             }
         }
-        // Club Roots — bury under EACH OTHER alive ♣-topped pile. The landing
-        // pile is EXCLUDED even if its own top is now ♣.
+        // Rank Roots (renamed from Club Roots, rank-match v6.78) — bury under
+        // EACH OTHER alive pile whose TOP matches the landing card's RANK.
+        // The landing pile is EXCLUDED (the synergy-family rule); a rankless
+        // top (★/Removal) never matches.
         let crn = n("clubRoots")
-        if crn > 0 {
+        if crn > 0, !drawn.joker, !drawn.blank {
             let per = crn * (stickerTypes.get("clubRoots")?.int("digCount", 1) ?? 1)
             var cr = 0
             for i in 0..<board.size {
                 if i == index || !board.isActive(i) { continue }
-                if matchesSuit(board.top(i), "♣") { cr += buryTribute(i, per, "Club Roots") }
+                guard let top = board.top(i), !top.joker, !top.blank,
+                      top.value == drawn.value else { continue }
+                cr += buryTribute(i, per, "Rank Roots")
             }
-            if cr > 0 { recT("sticker", "clubRoots", "Club Roots", ["buried": Double(cr)]) }
+            if cr > 0 { recT("sticker", "clubRoots", "Rank Roots", ["buried": Double(cr)]) }
         }
         // Spade Whispers — the next X draws each carry a Tell-style hint.
         let swn = n("spadeWhispers")
@@ -554,13 +561,13 @@ extension GameEngine {
         }
 
         // --- burials ---
-        // Quick Bury (PILE-TOP, v6.75): the sticker sits on the pile's
-        // PRE-LANDING top (`current`) and fires when ANY card lands on that
-        // pile — bury 1 deck card per instance under this pile. The carrier's
-        // OWN landing does NOT fire it (it fires from underneath the NEXT
-        // landing); a saved landing lands on it too (same rule as the
-        // pile-top snobs); a fatal landing never reaches here.
-        let qb = cn("quickBury")
+        // Quick Bury (LANDING-FIRED, v6.78 — reverses the v6.75 pile-top
+        // rule): the sticker rides the LANDING card (`drawn`) and fires the
+        // moment its carrier lands — bury 1 deck card per instance under
+        // this pile. A card landing ON a Quick Bury top fires nothing; a
+        // saved landing still lands the carrier (the v6.57 rule) so it
+        // fires; a fatal landing never reaches here.
+        let qb = n("quickBury")
         var qbBuried = 0
         for _ in 0..<qb { qbBuried += buryTribute(index, 1, "Quick Bury") }
         if qb > 0 { recT("sticker", "quickBury", "Quick Bury", ["buried": Double(qbBuried)]) }

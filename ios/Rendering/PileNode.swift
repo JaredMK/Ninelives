@@ -195,27 +195,27 @@ public final class PileNode: SKNode {
         syncStickerBadges(top)
     }
 
-    // MARK: - Odds Assist edge glow (v6.71, edge-directional v6.72)
+    // MARK: - Odds Assist edge glow (v6.71, edge-directional v6.72, inset v6.78)
 
     private var assistGlows: [SKSpriteNode] = []
-    private var lastAssistCall: Guess?
+    private var lastAssistCalls: Set<Guess> = []
     private static var assistBarTexture: SKTexture?
 
-    /// The one baked glow-bar texture every assist edge reuses: a horizontal
-    /// phosphor bar with a soft stepped falloff (bright core, tapered ends —
-    /// a CG bake, a static asset, never a live filter). Stepped fills
-    /// COMPOSITE, so the core reaches ~0.7 opacity while the outermost
-    /// fringe stays a whisper — clearly visible at a glance, still soft.
-    /// Sides reuse it rotated 90°.
+    /// The one baked glow-strip texture every assist edge reuses: a
+    /// horizontal phosphor bar with a soft stepped falloff (bright core,
+    /// tapered ends — a CG bake, a static asset, never a live filter).
+    /// Stepped fills COMPOSITE, so the core reaches ~0.7 opacity while the
+    /// outermost fringe stays a whisper — clearly visible at a glance,
+    /// still soft. Sides reuse it rotated 90°.
     private static func assistBar() -> SKTexture {
         if let cached = assistBarTexture { return cached }
-        let w = 128.0, h = 36.0
+        let w = 128.0, h = 16.0
         let img = PixelTexture.image(size: CGSize(width: w, height: h)) { cg in
             for step in 0..<8 {
                 let t = CGFloat(step) / 8
-                let iy = (h / 2 - 4) * t          // squeeze toward the core line
-                let ix = 12 * t                   // taper the ends
-                cg.setFillColor(CRT.phosphor.withAlphaComponent(0.10 + 0.10 * t).cgColor)
+                let iy = (h / 2 - 2) * t          // squeeze toward the core line
+                let ix = 10 * t                   // taper the ends
+                cg.setFillColor(CRT.phosphor.withAlphaComponent(0.10 + 0.11 * t).cgColor)
                 cg.fill(CGRect(x: ix, y: iy, width: w - ix * 2, height: h - iy * 2))
             }
         }
@@ -224,47 +224,61 @@ public final class PileNode: SKNode {
         return tex
     }
 
-    /// The Odds Assist marker, now DIRECTIONAL: the recommended pile glows
-    /// along the edge that names the call — TOP edge for HIGHER, BOTTOM
-    /// edge for LOWER, BOTH SIDES for SAME. nil clears. The bars sit UNDER
-    /// the card (zPosition below Layer.card) centred on the card's edge
-    /// line, so only the outward half bleeds into view and the rank,
-    /// stickers, badge count and the on-card tell chip all stay untouched
-    /// (the peek-glow family lives ON the face and stays distinguishable).
-    /// One SKAction alpha cycle per bar — no filters.
-    public func syncAssist(_ call: Guess?) {
-        guard call != lastAssistCall else { return }
-        lastAssistCall = call
+    /// The Odds Assist marker, DIRECTIONAL and INSET (v6.78): every
+    /// recommended call on this pile glows as a thin strip ON the card
+    /// face, just inside the edge that names it — TOP strip for HIGHER,
+    /// BOTTOM strip for LOWER, and a full inset FRAME for SAME. Strips sit
+    /// wholly INSIDE the card bounds, so a stacked neighbour's glow can
+    /// never blend with this one across the gap (the v6.78 attribution
+    /// fix — the old bars straddled the edge and met between rows), and
+    /// SAME (frame) stays distinguishable from a HIGHER+LOWER double tie
+    /// (two strips). Ties may light several strips at once. The strips ride
+    /// ABOVE the card face but below the rank, stickers, badge count and
+    /// tell chip, hugging the border where no content lives. One SKAction
+    /// alpha cycle per strip — no filters.
+    public func syncAssist(_ calls: Set<Guess>) {
+        guard calls != lastAssistCalls else { return }
+        lastAssistCalls = calls
         for g in assistGlows { g.removeFromParent() }
         assistGlows = []
-        guard let call, !isDead, cardCount > 0 else { return }
+        guard !calls.isEmpty, !isDead, cardCount > 0 else { return }
         let s = cardScale.size
         let tex = Self.assistBar()
-        let thickness: CGFloat = 34    // half rides under the card, half bleeds out
-        let bleed: CGFloat = 24        // the bar wraps the corners a touch
+        let thickness: CGFloat = 14    // wholly inside the card face
+        let inset: CGFloat = 3         // hugs the border, clear of the rank
         func bar(at position: CGPoint, along length: CGFloat, vertical: Bool) -> SKSpriteNode {
             let n = SKSpriteNode(texture: tex)
-            n.size = CGSize(width: length + bleed, height: thickness)
+            n.size = CGSize(width: length, height: thickness)
             n.anchorPoint = CGPoint(x: 0.5, y: 0.5)
             n.position = position
             if vertical { n.zRotation = .pi / 2 }
-            n.zPosition = Layer.card - 6   // under the whole card stack
+            n.zPosition = Layer.card + 2   // on the face, under chips/text
             return n
         }
         // Card frame in pile space: top edge y = 0, bottom y = -height,
         // left x = 0, right x = width (the card anchors top-left).
-        switch call {
-        case .higher:
-            assistGlows = [bar(at: CGPoint(x: s.width / 2, y: 0),
-                               along: s.width, vertical: false)]
-        case .lower:
-            assistGlows = [bar(at: CGPoint(x: s.width / 2, y: -s.height),
-                               along: s.width, vertical: false)]
-        case .same:
-            assistGlows = [bar(at: CGPoint(x: 0, y: -s.height / 2),
-                               along: s.height, vertical: true),
-                           bar(at: CGPoint(x: s.width, y: -s.height / 2),
-                               along: s.height, vertical: true)]
+        let midY = inset + thickness / 2
+        if calls.contains(.higher) {
+            assistGlows.append(bar(at: CGPoint(x: s.width / 2, y: -midY),
+                                   along: s.width - inset * 2, vertical: false))
+        }
+        if calls.contains(.lower) {
+            assistGlows.append(bar(at: CGPoint(x: s.width / 2, y: -s.height + midY),
+                                   along: s.width - inset * 2, vertical: false))
+        }
+        if calls.contains(.same) {
+            // The inset FRAME: all four strips, so SAME reads as a ring even
+            // when a directional strip shares an edge with it.
+            assistGlows.append(contentsOf: [
+                bar(at: CGPoint(x: s.width / 2, y: -midY),
+                    along: s.width - inset * 2, vertical: false),
+                bar(at: CGPoint(x: s.width / 2, y: -s.height + midY),
+                    along: s.width - inset * 2, vertical: false),
+                bar(at: CGPoint(x: midY, y: -s.height / 2),
+                    along: s.height - inset * 2, vertical: true),
+                bar(at: CGPoint(x: s.width - midY, y: -s.height / 2),
+                    along: s.height - inset * 2, vertical: true),
+            ])
         }
         for g in assistGlows {
             g.alpha = 0.7

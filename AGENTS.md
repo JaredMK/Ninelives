@@ -403,6 +403,48 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   the campaign's persisted `shopRolls` map, ride the slot (`shopRolled`/
   `shopRolled2`), and transfer to the equipped item via
   `getColumnPillarRolls()` → `engine.startRun`'s 4th arg (`run.pillarRolls`).
+  v6.78: TRANSMUTE rolls only its SUIT (its rank is the live most-common —
+  see below) and RANK SHIELD left the shopRoll system entirely (dynamic,
+  below); `shopRolls["rankShield"]` now stores the shield's INCUMBENT rank,
+  not a shop roll.
+- **Rank Shield is DYNAMIC (v6.78).** At Start Run the engine re-reads the
+  FULL deck and protects its most common rank, writing the pick into
+  `run.shopRolls["rankShield"]` / the rankShield columns' `pillarRolls`
+  (the read `landingSave`/the web landing branch already had). TIE RULE:
+  the incumbent (the campaign's previous pick, threaded in) keeps the
+  shield until STRICTLY surpassed; a tie with no surviving incumbent picks
+  among the leaders off the deal's seeded rng (only then is a draw
+  consumed). The controller adopts the pick back
+  (`campaign.adoptRankShieldPick` / web `adoptRankShieldPick`) so the
+  incumbency persists across deals; the iOS plaque + {rank} template show
+  the current rank.
+- **Transmute targets the LIVE most common rank (v6.78)** — computed at
+  buy time (and per display) from the full owned deck, ties → lowest (the
+  Chorus rule, `mostCommonRank()` both sides); only the suit shop-rolls.
+- **Quick Bury is LANDING-FIRED (v6.78, reversing v6.75):** it buries when
+  its CARRIER lands (saved landings included — they land); a card landing
+  ON a Quick Bury top fires nothing. **Rank Roots** (id `clubRoots`,
+  relabeled) buries under each OTHER pile whose top matches the landing
+  card's RANK — the ♣-tops trigger is retired. **Second Sight** (`linkTell`)
+  arms a tell on EVERY alive pile for the NEXT DRAW ONLY via the shared
+  `tellPiles` window (the X-draws window and the {color} climb roll are
+  retired; iOS keeps `sightDrawsLeft` reads alive only so old mid-deal
+  saves drain their window). **Diamond Boost** is column-wide (no target
+  pick): +value to every alive ♦-topped pile in its column.
+- **Endless payouts FREEZE (v6.78):** `Economy.dealFlat` clamps its stage
+  term to items.js `economy.stageCap` (3) — endless deals pay phase-3
+  rates forever. The clamp lives in dealFlat itself so every reader agrees.
+- **Retired items strip on restore (v6.78, the Fibonacci removal):** both
+  restore paths drop unknown item ids from inventories, column slots and
+  the equipped Same-Power (registry-driven — a future retirement rides the
+  same path). Never re-use a retired id.
+- **Odds Assist (iOS, v6.78): ALL-BEST + legality.**
+  `assistRecommendations()` returns EVERY (pile, call) pair tying the max
+  survival probability — no tie-break ladder — and respects guess()'s
+  legality gates (no SAME on a muted pile; magnet piles only while a
+  Magnet is up). Still histogram-blind to probability modifiers by design.
+  The glow is an INSET strip/frame on the card face (never past the card
+  edge — stacked piles' glows must not blend).
 - **Composition conditions (R3) read the FULL OWNED deck live** through
   engine hooks injected at deal start: `setCompositionHook`
   (`campaign.getRunDeckLive`) and `setPurseHook` (`campaign.getCoins`, the

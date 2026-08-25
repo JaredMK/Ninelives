@@ -128,13 +128,16 @@ final class ArchetypeBatchTests: XCTestCase {
                 }
             }
         }
-        XCTAssertNotNil(found["rankShield"], "the sweep shelved Rank Shield")
-        XCTAssertNotNil(found["absentSuitClubBury"], "…Void Tribute")
+        XCTAssertNotNil(found["absentSuitClubBury"], "the sweep shelved Void Tribute")
         XCTAssertNotNil(found["suitMajoritySafe"], "…Majority Rule")
         XCTAssertNotNil(found["purgeRank"], "…Rank Purge")
         XCTAssertNotNil(found["transmute"], "…Transmute")
-        XCTAssertNotNil(found["transmute"]?.rollRank, "Transmute carries BOTH axes…")
-        XCTAssertNotNil(found["transmute"]?.rollSuit, "…rank and suit")
+        // v6.78: Transmute's rank is COMPOSITION-DRIVEN (live most common) —
+        // only the suit rolls at the shop; Rank Shield left the shopRoll
+        // system entirely (dynamic per-deal rank).
+        XCTAssertNil(found["transmute"]?.rollRank, "Transmute rolls no rank any more")
+        XCTAssertNotNil(found["transmute"]?.rollSuit, "…just the suit")
+        XCTAssertNil(found["rankShield"], "Rank Shield no longer rolls at the shop")
     }
 
     /// First shelf appearance locks the roll for the climb; later shelves
@@ -179,33 +182,97 @@ final class ArchetypeBatchTests: XCTestCase {
         _ = c.addCoins(2000)
         _ = c.openStore()
         c.storeOffer = StoreOffer(slots: [
-            StoreSlot(kind: "pillar", id: "rankShield", rollRank: 12),
-            StoreSlot(kind: "base", id: "transmute", rollRank: 5, rollSuit: "♣"),
+            StoreSlot(kind: "pillar", id: "absentSuitClubBury", rollSuit: "♦"),
+            StoreSlot(kind: "base", id: "transmute", rollSuit: "♣"),
             StoreSlot(kind: "pillar", id: "eightPeek"),     // no axes: stays bare
         ], rerollCost: 0)
         let c2 = CampaignState(store: MemoryStore())
         XCTAssertTrue(c2.restore(c.serialize()))
         let slots = c2.storeOffer?.slots ?? []
-        XCTAssertEqual(slots[0]?.rollRank, 12)
-        XCTAssertNil(slots[0]?.rollSuit)
-        XCTAssertEqual(slots[1]?.rollRank, 5)
+        XCTAssertEqual(slots[0]?.rollSuit, "♦")
+        XCTAssertNil(slots[0]?.rollRank)
         XCTAssertEqual(slots[1]?.rollSuit, "♣")
+        XCTAssertNil(slots[1]?.rollRank, "Transmute rolls no rank (v6.78 — live most common)")
         XCTAssertNil(slots[2]?.rollRank, "a non-shopRoll item never grows a roll")
         // The purchase transfers the slot's roll to the climb lock — unless
-        // the (random) open shelf already locked a rank for the item, in
+        // the (random) open shelf already locked a suit for the item, in
         // which case the LOCK wins (first appearance rules the climb).
         XCTAssertTrue(c2.buyMixedSlot(0).ok)
-        let effectiveRank = c2.shopRolls["rankShield"]?.rank ?? 12
-        XCTAssertEqual(c2.shopRolls["rankShield"]?.rank, effectiveRank)
-        // …which the engine reads at deal time via RunConfig/RunState.
-        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣")],
-                          deckOrder: [spec(50, effectiveRank, "♥"), spec(51, 3, "♦")],
+        XCTAssertNotNil(c2.shopRolls["absentSuitClubBury"]?.suit,
+                        "the bought slot's suit locked for the climb")
+    }
+
+    // MARK: - Rank Shield (dynamic, v6.78)
+
+    /// At Start Run the shield reads the FULL deck and protects its most
+    /// common rank — no shop roll anywhere in the path.
+    func testRankShieldProtectsTheMostCommonRankAtDealStart() {
+        // 9 is strictly most common across tops + deck (three copies).
+        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 7, "♣")],
+                          deckOrder: [spec(50, 9, "♥"), spec(51, 9, "♦"), spec(52, 9, "♣"),
+                                      spec(53, 3, "♦")],
+                          pillars: ["rankShield", nil, nil])
+        XCTAssertEqual(e.run.shopRolls["rankShield"]?.rank, 9,
+                       "the deal-start pick is the full deck's most common rank")
+        // …and a 9 landing WRONG in the column survives.
+        e.guess(0, .lower)                        // 9 on 5 called lower: wrong
+        XCTAssertTrue(e.board.isActive(0), "the most-common rank is safe here")
+        XCTAssertEqual(e.run.correctGuesses, 1, "the save counts as correct")
+    }
+
+    /// TIE RULE 1: the incumbent keeps the shield until STRICTLY surpassed.
+    func testRankShieldIncumbentKeepsTheShieldOnATie() {
+        // 6 and 9 tie at two copies each; the incumbent (6) stays.
+        let e = IV.engine(tops: [spec(1, 6, "♠"), spec(2, 9, "♥"), spec(3, 5, "♣")],
+                          deckOrder: [spec(50, 6, "♥"), spec(51, 9, "♦"), spec(52, 3, "♦")],
                           pillars: ["rankShield", nil, nil],
-                          shopRolls: c2.shopRolls)
-        // Always a WRONG call (higher when the rank is under 5, else lower) —
-        // survival is the shield's doing, never the comparison's.
-        e.guess(0, effectiveRank >= 5 ? Guess.lower : Guess.higher)
-        XCTAssertTrue(e.board.isActive(0), "the bought+restored roll shields in the deal")
+                          shopRolls: ["rankShield": ShopRoll(rank: 6)])
+        XCTAssertEqual(e.run.shopRolls["rankShield"]?.rank, 6,
+                       "tied at the top → the incumbent holds")
+    }
+
+    /// TIE RULE 2: a rank strictly ahead of the incumbent takes the shield.
+    func testRankShieldIncumbentFallsWhenStrictlySurpassed() {
+        // 9 has three copies, the incumbent 6 has two.
+        let e = IV.engine(tops: [spec(1, 6, "♠"), spec(2, 9, "♥"), spec(3, 5, "♣")],
+                          deckOrder: [spec(50, 6, "♥"), spec(51, 9, "♦"), spec(52, 9, "♣")],
+                          pillars: ["rankShield", nil, nil],
+                          shopRolls: ["rankShield": ShopRoll(rank: 6)])
+        XCTAssertEqual(e.run.shopRolls["rankShield"]?.rank, 9,
+                       "strictly surpassed → the new leader takes the shield")
+    }
+
+    /// TIE RULE 3: a tie with NO incumbent picks among the leaders off the
+    /// deal's seeded stream — in the tied set, and identical per seed.
+    func testRankShieldTieWithoutIncumbentPicksSeededAmongLeaders() {
+        let build = {
+            IV.engine(tops: [self.spec(1, 6, "♠"), self.spec(2, 9, "♥"), self.spec(3, 5, "♣")],
+                      deckOrder: [self.spec(50, 6, "♥"), self.spec(51, 9, "♦"), self.spec(52, 3, "♦")],
+                      pillars: ["rankShield", nil, nil])
+        }
+        let a = build().run.shopRolls["rankShield"]?.rank
+        let b = build().run.shopRolls["rankShield"]?.rank
+        XCTAssertTrue([6, 9].contains(a ?? -1), "the pick is one of the tied leaders")
+        XCTAssertEqual(a, b, "same seed → same pick (deal-seeded, never bare rng)")
+    }
+
+    /// The FULL-OWNED-DECK hook rules the count: a campaign subset deal
+    /// reads the whole collection, not the subset in play. (The hook must
+    /// be installed BEFORE startRun — the pick happens there.)
+    func testRankShieldReadsTheFullOwnedDeckThroughTheHook() {
+        // The owned deck says 4s dominate, whatever the deal subset holds
+        // (its own cards lean 9).
+        let owned = (0..<4).map { DeckManager.toCard(spec(90 + $0, 4, "♦"), data: GameData.shared) }
+            + [DeckManager.toCard(spec(99, 9, "♥"), data: GameData.shared)]
+        let e = GameEngine(deckSpecs: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 7, "♣"),
+                                       spec(50, 9, "♥"), spec(51, 9, "♦"), spec(52, 3, "♦")],
+                           pileCount: 3,
+                           runConfig: RunConfig(cols: [1, 1, 1]))
+        e.fullDeckProvider = { owned }
+        e.start(seedOverride: 7)
+        e.startRun(pillars: ["rankShield", nil, nil], bases: [nil, nil, nil], samePower: nil)
+        XCTAssertEqual(e.run.shopRolls["rankShield"]?.rank, 4,
+                       "the hook's owned deck (4s dominate) rules the pick")
     }
 
     // MARK: - Daily Suit (deal-start roll, snapshot round-trip)

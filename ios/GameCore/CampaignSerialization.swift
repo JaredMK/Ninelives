@@ -315,6 +315,18 @@ extension CampaignState {
         columnPillars = slotArray(s["columnPillars"], CampaignLayout.columnSlots)
         columnBases = slotArray(s["columnBases"], CampaignLayout.columnSlots)
         equippedSamePower = s["equippedSamePower"]?.asString
+        // RETIRED-ITEM STRIP (v6.78, the Fibonacci removal): an old save may
+        // still equip or hold an item id the registry no longer knows. Drop
+        // it quietly — the alternative is a raw id on a plaque and a nil def
+        // everywhere the column fires. Registry-driven, so any future
+        // retirement rides the same path.
+        stickerInventory = stickerInventory.filter { data.stickerTypes.get($0.key) != nil }
+        pillarInventory = pillarInventory.filter { data.pillarTypes.get($0.key) != nil }
+        baseInventory = baseInventory.filter { data.baseTypes.get($0.key) != nil }
+        samePowerInventory = samePowerInventory.filter { data.samePowerTypes.get($0.key) != nil }
+        columnPillars = columnPillars.map { $0.flatMap { data.pillarTypes.get($0) != nil ? $0 : nil } }
+        columnBases = columnBases.map { $0.flatMap { data.baseTypes.get($0) != nil ? $0 : nil } }
+        if let sp = equippedSamePower, data.samePowerTypes.get(sp) == nil { equippedSamePower = nil }
         storeOffer = Self.decodeOffer(s["storeOffer"])
         packTray = (s["packTray"]?.asArray ?? []).compactMap(Self.decodeCard)
 

@@ -71,10 +71,11 @@ export function run() {
       const d = PillarTypes.get(id);
       return d && d.effect === "sameTolerance" && d.family === "sameTolerance" && typeof d.tol === "string";
     }), "all four sameTolerance pillars are registered with family + tol");
-    r.ok(["rankShield", "absentSuitClubBury", "suitMajoritySafe", "purgeRank"]
-      .every(id => PillarTypes.get(id) && PillarTypes.get(id).shopRoll), "the four shopRoll pillars carry the knob");
+    r.ok(["absentSuitClubBury", "suitMajoritySafe", "purgeRank"]
+      .every(id => PillarTypes.get(id) && PillarTypes.get(id).shopRoll), "the three shopRoll pillars carry the knob");
+    r.ok(!PillarTypes.get("rankShield").shopRoll, "Rank Shield's rank is dynamic (v6.78) — no shop roll");
     const tm = BaseTypes.get("transmute");
-    r.ok(tm && tm.shopRoll === "rank" && tm.shopRoll2 === "suit", "Transmute carries shopRoll + shopRoll2");
+    r.ok(tm && tm.shopRoll === "suit" && !tm.shopRoll2, "Transmute rolls only its suit (v6.78 — the rank is live most common)");
     r.ok(!!SamePowerTypes.get("rankFlood"), "Rank Flood same-power is registered");
   }
 
@@ -240,14 +241,33 @@ export function run() {
 
   /* ---- shields (rankShield / suitShieldDaily) --------------------------- */
   {
+    // RANK SHIELD (dynamic, v6.78): at Start Run the shield reads the FULL
+    // deck and protects its most common rank; the incumbent (pillarRolls)
+    // keeps the shield on a tie. A standard 52 ties every rank at 4 copies,
+    // so the injected incumbent 9 holds.
     const e = game(["rankShield", null, null], { pillarRolls: [{ roll: 9, roll2: null }, null, null] });
+    r.eq(e.getRun().rankShieldRank, 9, "Rank Shield: a full tie keeps the incumbent");
     rigTop(e, 0, 5, "♥");
-    landWrong(e, 0, 9, "♦");   // the shielded rank — safe on any call
-    r.ok(e.getBoard().isActive(0), "Rank Shield: the shop-rolled rank lands safe");
+    landWrong(e, 0, 9, "♦");   // the protected rank — safe on any call
+    r.ok(e.getBoard().isActive(0), "Rank Shield: the protected (most common) rank lands safe");
     const e2 = game(["rankShield", null, null], { pillarRolls: [{ roll: 9, roll2: null }, null, null] });
     rigTop(e2, 0, 5, "♥");
     landWrong(e2, 0, 10, "♦");
     r.ok(!e2.getBoard().isActive(0), "Rank Shield: any other rank still dies");
+    // STRICT SURPASS: a composition where 7s dominate replaces the incumbent.
+    const comp = [compCard(7, "♥"), compCard(7, "♦"), compCard(7, "♣"), compCard(9, "♠")];
+    const e3 = game(["rankShield", null, null], { comp, pillarRolls: [{ roll: 9, roll2: null }, null, null] });
+    r.eq(e3.getRun().rankShieldRank, 7, "Rank Shield: strictly surpassed → the new leader takes the shield");
+    rigTop(e3, 0, 5, "♥");
+    landWrong(e3, 0, 7, "♦");
+    r.ok(e3.getBoard().isActive(0), "Rank Shield: the new leader lands safe");
+    // The campaign adopts the pick as the next incumbent.
+    const c = CampaignState.create();
+    c.adoptRankShieldPick(7);
+    const blob = JSON.parse(JSON.stringify(c.serialize()));
+    const c2 = CampaignState.create();
+    r.ok(c2.restore(blob), "Rank Shield: the incumbent save restores");
+    r.ok(c2.getShopRoll("rankShield") && c2.getShopRoll("rankShield").roll === 7, "Rank Shield: the incumbent survives save/restore");
   }
   {
     const e = game(["suitShield", null, null]);
@@ -419,37 +439,38 @@ export function run() {
     return null;
   };
   {
+    // RANK SHIELD left the shopRoll system in v6.78 (its rank is dynamic,
+    // per deal). The registry pins it, and a suit-roll item (Void Tribute)
+    // exercises the generic roll→ride→lock→persist path instead.
+    r.ok(!PillarTypes.get("rankShield").shopRoll, "shop-roll: Rank Shield no longer rolls at the shop");
     const c = CampaignState.create();
-    const hit = findSlot(c, (s, def) => s.kind === "pillar" && def.id === "rankShield");
-    r.ok(!!hit, "shop-roll: a Rank Shield eventually shows on a shelf");
-    r.ok(hit && hit.s.shopRolled != null && hit.s.shopRolled >= 2 && hit.s.shopRolled <= 14, "shop-roll: the rank is rolled at OFFER time and rides the slot");
-    r.ok(hit && c.getShopRoll("rankShield") && c.getShopRoll("rankShield").roll === hit.s.shopRolled, "shop-roll: the value locks into the campaign map");
-    // The climb-wide lock: the next shelf showing Rank Shield carries the SAME rank.
-    const roll = hit.s.shopRolled;
-    const again = findSlot(c, (s, def) => s.kind === "pillar" && def.id === "rankShield");
-    r.ok(again && again.s.shopRolled === roll, "shop-roll: the lock holds all climb (no re-roll on later shelves)");
-    // Save/restore: the slot value AND the lock survive the round-trip.
-    const blob = JSON.parse(JSON.stringify(c.serialize()));
-    const c2 = CampaignState.create();
-    r.ok(c2.restore(blob), "shop-roll: the save restores");
-    r.ok(c2.getShopRoll("rankShield") && c2.getShopRoll("rankShield").roll === roll, "shop-roll: the locked value survives save/restore");
-    const roffer = c2.getStoreOffer();
-    const rslot = roffer.slots.find(s => s && s.kind === "pillar" && s.id === "rankShield");
-    r.ok(!rslot || rslot.shopRolled === roll, "shop-roll: a restored shelf keeps the shown value");
-    // Purchase → the value transfers to the equipped item's data path.
-    const price = c.priceOfMixed(hit.slot);
-    const coinsBefore = c.getCoins();
-    const res = c.buyMixedSlot(hit.slot, Math.random);
-    r.ok(res.ok && c.getCoins() === coinsBefore - price, "shop-roll: the purchase charges the shelf price");
-    r.ok(c.placePillar("rankShield", 2), "shop-roll: the bought pillar places");
-    const colRolls = c.getColumnPillarRolls();
-    r.ok(colRolls[2] && colRolls[2].roll === roll, "shop-roll: the rolled value transfers to the equipped item");
+    const hit = findSlot(c, (s, def) => s.kind === "pillar" && def.id === "absentSuitClubBury");
+    r.ok(!!hit, "shop-roll: a Void Tribute eventually shows on a shelf");
+    if (hit) {
+      r.ok(typeof hit.s.shopRolled === "string", "shop-roll: the suit is rolled at OFFER time and rides the slot");
+      r.ok(c.getShopRoll("absentSuitClubBury") && c.getShopRoll("absentSuitClubBury").roll === hit.s.shopRolled, "shop-roll: the value locks into the campaign map");
+      const roll = hit.s.shopRolled;
+      const again = findSlot(c, (s, def) => s.kind === "pillar" && def.id === "absentSuitClubBury");
+      r.ok(again && again.s.shopRolled === roll, "shop-roll: the lock holds all climb (no re-roll on later shelves)");
+      const blob = JSON.parse(JSON.stringify(c.serialize()));
+      const c2 = CampaignState.create();
+      r.ok(c2.restore(blob), "shop-roll: the save restores");
+      r.ok(c2.getShopRoll("absentSuitClubBury") && c2.getShopRoll("absentSuitClubBury").roll === roll, "shop-roll: the locked value survives save/restore");
+      const price = c.priceOfMixed(hit.slot);
+      const coinsBefore = c.getCoins();
+      const res = c.buyMixedSlot(hit.slot, Math.random);
+      r.ok(res.ok && c.getCoins() === coinsBefore - price, "shop-roll: the purchase charges the shelf price");
+      r.ok(c.placePillar("absentSuitClubBury", 2), "shop-roll: the bought pillar places");
+      const colRolls = c.getColumnPillarRolls();
+      r.ok(colRolls[2] && colRolls[2].roll === roll, "shop-roll: the rolled value transfers to the equipped item");
+    }
   }
   {
-    // Transmute rolls BOTH knobs.
+    // Transmute rolls ONE knob now (v6.78): the suit. The rank is the live
+    // most common at buy time.
     const c = CampaignState.create();
     const hit = findSlot(c, (s, def) => s.kind === "base" && def.id === "transmute");
-    r.ok(!!hit && hit.s.shopRolled != null && typeof hit.s.shopRolled2 === "string", "Transmute: rank AND suit roll at offer time");
+    r.ok(!!hit && typeof hit.s.shopRolled === "string" && hit.s.shopRolled2 == null, "Transmute: only the suit rolls at offer time");
   }
 
   /* ---- on-purchase effects (Rank Purge / Transmute) ---------------------- */
@@ -475,14 +496,23 @@ export function run() {
   {
     const c = CampaignState.create();
     const hit = findSlot(c, (s, def) => s.kind === "base" && def.id === "transmute");
-    const { shopRolled: rank, shopRolled2: suit } = hit.s;
+    const suit = hit.s.shopRolled;
+    // v6.78: the target rank is the LIVE most common (ties → lowest) at the
+    // instant of purchase — compute the same way the engine does.
+    const counts = {};
+    for (const x of c.getRunDeck()) if (!x.joker && !x.blank) counts[x.currentRank] = (counts[x.currentRank] || 0) + 1;
+    let rank = null;
+    for (let v = 2; v <= 14; v++) if ((counts[v] || 0) > (rank == null ? 0 : counts[rank])) rank = v;
+    const blob0 = JSON.parse(JSON.stringify(c.serialize()));
     const res = c.buyMixedSlot(hit.slot, Math.random);
-    r.ok(res.ok && res.transmuted && res.transmuted.rank === rank && res.transmuted.suit === suit, "Transmute: fires at buy time with the rolled rank+suit");
-    r.ok(c.getRunDeck().filter(x => x.currentRank === rank).every(x => x.suit === suit), "Transmute: every card of the rolled rank is now the rolled suit");
-    const blob = JSON.parse(JSON.stringify(c.serialize()));
+    r.ok(res.ok && res.transmuted && res.transmuted.rank === rank && res.transmuted.suit === suit, "Transmute: fires at buy time on the LIVE most common rank + the rolled suit");
+    r.ok(c.getRunDeck().filter(x => x.currentRank === rank).every(x => x.suit === suit), "Transmute: every card of the most common rank is now the rolled suit");
+    // Restore of the PRE-buy save replays the identical recolor (the deck —
+    // and so the most-common read — is part of the save).
     const c2 = CampaignState.create();
-    c2.restore(blob);
-    r.ok(c2.getRunDeck().filter(x => x.currentRank === rank).every(x => x.suit === suit), "Transmute: the change survives save/restore");
+    c2.restore(blob0);
+    const res2 = c2.buyMixedSlot(hit.slot, Math.random);
+    r.ok(res2.ok && res2.transmuted && res2.transmuted.rank === rank, "Transmute: a restored buy targets the same rank");
   }
 
   /* ---- Flat Purge / Purge Coupon pricing -------------------------------- */
@@ -634,19 +664,21 @@ export function run() {
     r.ok(e3.baseActivate(0) && !e3.getRun().bonusEvents["Chorus"], "Chorus: an empty full deck is a no-op fire");
   }
   {
-    // Diamond Boost: +value size to a chosen ♦-topped pile in the column.
+    // Diamond Boost (v6.78: column-wide, no target pick): +value size to
+    // EVERY alive ♦-topped pile in the column on one activation.
     const val = num(BaseTypes.get("diamondBoost"), "value", 3);
     const e = game(null, { bases: ["diamondBoost", null, null] });
     for (const i of [0, 1, 2]) rigTop(e, i, 5, "♠");
     r.ok(!e.baseAvailable(0), "Diamond Boost: no ♦ top in the column → unavailable");
     rigTop(e, 1, 5, "♦");
     r.ok(e.baseAvailable(0), "Diamond Boost: a ♦ top enables it");
-    const s0 = e.getBoard().pileSize(1);
-    const res = e.baseActivate(0, 1);
-    r.ok(res && e.getBoard().pileSize(1) - s0 === val, "Diamond Boost: +value pile size to the chosen pile");
-    const e2 = game(null, { bases: ["diamondBoost", null, null] });
-    rigTop(e2, 0, 5, "♦"); rigTop(e2, 1, 6, "♠");
-    r.eq(e2.baseActivate(0, 1), null, "Diamond Boost: a non-♦ target is rejected");
+    rigTop(e, 2, 8, "♦");
+    const s1 = e.getBoard().pileSize(1), s2 = e.getBoard().pileSize(2), s0 = e.getBoard().pileSize(0);
+    const res = e.baseActivate(0);
+    r.ok(res && e.getBoard().pileSize(1) - s1 === val, "Diamond Boost: +value pile size to a ♦ pile");
+    r.ok(e.getBoard().pileSize(2) - s2 === val, "Diamond Boost: …and to EVERY other ♦ pile in the column");
+    r.eq(e.getBoard().pileSize(0), s0, "Diamond Boost: the ♠ pile is untouched");
+    r.ok(res.boostedPiles && res.boostedPiles.length === 2, "Diamond Boost: the result names the boosted piles");
   }
 
   /* ---- R5 source-contract pins (telemetry chokepoints) ------------------- */

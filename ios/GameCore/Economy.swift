@@ -80,15 +80,20 @@ public struct Economy: Sendable {
     }
 
     /// The FLAT coin payout for clearing a deal:
-    ///   `dealBase + stage × (1 + rating)`   (items.js `economy` section)
+    ///   `dealBase + min(stage, stageCap) × (1 + rating)`   (items.js `economy`)
     /// A boss forces rating 3 and adds `bossBonus`. No stage context
     /// (ambush/subset deals, a missing rating) pays NO flat base — returns 0.
+    /// ENDLESS FREEZE (v6.78): `stageCap` (3) pins the stage term at phase-3
+    /// rates — endless deals never out-earn the climb's last phase. Clamped
+    /// HERE so every reader (map reward chips, the deal plan, the payout
+    /// fold, help copy) agrees without repeating the rule.
     public func dealFlat(stage: Int, rating: Int, isBoss: Bool) -> Double {
         guard stage > 0 else { return 0 }
         let r = isBoss ? 3 : rating
         guard r > 0 else { return 0 }
+        let cappedStage = min(stage, Int(economyConfig.num("stageCap", 3)))
         return economyConfig.num("dealBase", 1)
-            + Double(stage) * Double(1 + r)
+            + Double(cappedStage) * Double(1 + r)
             + (isBoss ? economyConfig.num("bossBonus", 1) : 0)
     }
 

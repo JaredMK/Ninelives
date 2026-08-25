@@ -110,8 +110,9 @@ public final class PileFanOverlayView: UIView {
 
     private func buildCards() {
         let artW: CGFloat = 76   // 72 + the baked 4px hard shadow
+        let cardFaceW: CGFloat = 72
         let topPad: CGFloat = 12 // clears the TOP pill above the first card
-        let chipSize: CGFloat = 16, chipGap: CGFloat = 2, chipsPerRow = 3, chipsMax = 6
+        let stkMax = GameData.shared.items.maxStickersPerCard
 
         for (i, c) in cards.enumerated() {
             let box = UIView()
@@ -133,18 +134,21 @@ public final class PileFanOverlayView: UIView {
 
             // Sticker chips ride the card's TOP-RIGHT corner (v6.52), fanning
             // leftward with the deal board's lean — ONE idiom wherever a card
-            // is shown; the below-the-card rows read as separate objects.
-            let stickers = Array(c.stickers.prefix(chipsMax))
-            for (s, rec) in stickers.enumerated() {
-                guard let def = GameData.shared.stickerTypes.get(rec.type) else { continue }
-                let chip = UIImageView(image: ItemArt.sticker(def, size: chipSize))
+            // is shown. v6.78: geometry via StickerChipLayout (master comment
+            // in PileNode.swift) — the fan had kept a private 16pt chip, half
+            // the canonical 44%-of-card size, and a fixed step that could
+            // shed the 4th chip (the pre-v6.72 bug, lingering here).
+            let defs = Array(c.stickers.prefix(stkMax))
+                .compactMap { GameData.shared.stickerTypes.get($0.type) }
+            let placed = StickerChipLayout.frames(count: defs.count, cardWidth: cardFaceW)
+            for (s, def) in defs.enumerated() {
+                let (rect, deg) = placed[s]
+                let chip = UIImageView(image: ItemArt.sticker(def, size: rect.width))
                 chip.layer.magnificationFilter = .nearest
                 chip.contentMode = .scaleAspectFit
-                chip.frame = CGRect(x: artW + 3 - chipSize - CGFloat(s) * (chipSize * 0.62),
-                                    y: topPad - 4,
-                                    width: chipSize, height: chipSize)
-                let deg = max(-15, min(15, -11 + s * 8))
-                chip.transform = CGAffineTransform(rotationAngle: CGFloat(deg) * .pi / 180)
+                chip.frame = rect.offsetBy(dx: 0, dy: topPad)
+                chip.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
+                chip.layer.zPosition = CGFloat(-s)   // first sticker on top
                 box.addSubview(chip)
             }
             var boxH = topPad + artH + 8
@@ -160,27 +164,49 @@ public final class PileFanOverlayView: UIView {
             // .pf-card (chips ride along); a static transform, no animation.
             box.transform = CGAffineTransform(rotationAngle: Self.tilts[i % 4] * .pi / 180)
             // Hold a fanned card → its info (rank/suit + sticker help), the
-            // same cardPeekHtml idiom as the board's pile hold.
+            // same cardPeekHtml idiom as the board's pile hold. A plain TAP
+            // (v6.78) shows the same info as a toggle — tap again (or tap
+            // another card) to move on; both gestures work.
             let hold = UILongPressGestureRecognizer(target: self, action: #selector(cardHeld(_:)))
             hold.minimumPressDuration = 0.35
             box.tag = i
             box.addGestureRecognizer(hold)
+            let tap = UITapGestureRecognizer(target: self, action: #selector(cardTapped(_:)))
+            box.addGestureRecognizer(tap)
             scroll.addSubview(box)
             boxes.append(box)
             rowHeight = max(rowHeight, boxH)
         }
     }
 
+    /// The card a TAP pinned the info panel open for (nil = hold-driven).
+    private var tappedInfoIndex: Int?
+
     @objc private func cardHeld(_ g: UILongPressGestureRecognizer) {
         switch g.state {
         case .began:
             let i = g.view?.tag ?? -1
             guard i >= 0, i < cards.count else { return }
+            tappedInfoIndex = nil            // a hold takes over from any tap-pin
             showInfo(for: cards[i])
         case .ended, .cancelled, .failed:
-            infoPanel.isHidden = true
+            if tappedInfoIndex == nil { infoPanel.isHidden = true }
         default: break
         }
+    }
+
+    /// TAP = the same info as the hold, pinned open (v6.78): tap the same
+    /// card again to dismiss, or tap another card to switch.
+    @objc private func cardTapped(_ g: UITapGestureRecognizer) {
+        let i = g.view?.tag ?? -1
+        guard i >= 0, i < cards.count else { return }
+        if tappedInfoIndex == i, !infoPanel.isHidden {
+            infoPanel.isHidden = true
+            tappedInfoIndex = nil
+            return
+        }
+        tappedInfoIndex = i
+        showInfo(for: cards[i])
     }
 
     private func showInfo(for card: LiveCard) {

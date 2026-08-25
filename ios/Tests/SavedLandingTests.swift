@@ -54,11 +54,11 @@ final class SavedLandingTests: XCTestCase {
         XCTAssertTrue(logLines(e).contains { $0.contains("⚡ Deep Pockets [sticker]") })
     }
 
-    func testQuickBuryBuriesOnASameChargeSave() {
-        // PILE-TOP (v6.75): the carrier is the pile's PRE-LANDING top. The
-        // saved landing physically lands on it, so it fires — the same rule
-        // as the pile-top snobs (a saved landing IS a landing).
-        let e = savedEngine(drawnStickers: [], topStickers: ["quickBury"])
+    func testQuickBuryCarrierFiresOnASameChargeSave() {
+        // LANDING-FIRED (v6.78): the DRAWN carrier still LANDS on a
+        // Same-Charge save (a saved landing IS a landing — the v6.57 rule),
+        // so its own landing fires the bury.
+        let e = savedEngine(drawnStickers: ["quickBury"])
         let deckBefore = e.deck.remaining()
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
@@ -66,15 +66,14 @@ final class SavedLandingTests: XCTestCase {
         XCTAssertEqual(e.board.piles[0].cards.count, 3, "9 + buried card + the landed 2")
     }
 
-    func testQuickBuryCarrierDoesNotFireOnASameChargeSave() {
-        // The DRAWN card carrying Quick Bury fires NOTHING on its own landing
-        // — saved or not (v6.75 regression pin: the reported bug was a drawn
-        // carrier burying on its own correct landing).
-        let e = savedEngine(drawnStickers: ["quickBury"])
+    func testQuickBuryTopDoesNotFireOnASameChargeSave() {
+        // A saved landing ON a Quick Bury top fires nothing (v6.78 — the
+        // v6.75 pile-top trigger is retired).
+        let e = savedEngine(drawnStickers: [], topStickers: ["quickBury"])
         let deckBefore = e.deck.remaining()
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
-        XCTAssertEqual(e.deck.remaining(), deckBefore - 1, "only the draw — the carrier's own landing never fires it")
+        XCTAssertEqual(e.deck.remaining(), deckBefore - 1, "only the draw — a landing ON the carrier fires nothing")
         XCTAssertEqual(e.board.piles[0].cards.count, 2, "9 + the landed 2, nothing buried")
     }
 
@@ -177,12 +176,13 @@ final class SavedLandingTests: XCTestCase {
     // MARK: - The exceptions: PILLAR landing effects reward a CORRECT landing
 
     func testPillarLandingEffectsStayCorrectOnlyOnASave() {
-        // Fibonacci pays on a correct Fibonacci-rank landing; 2 qualifies, but
-        // the guess was WRONG — the saved landing must not pay it.
-        let e = savedEngine(drawnStickers: [], pillars: ["fibonacci", nil, nil])
+        // Prime pays on a correct prime-rank landing; 2 qualifies, but the
+        // guess was WRONG — the saved landing must not pay it. (This case
+        // rode Fibonacci until its v6.78 retirement.)
+        let e = savedEngine(drawnStickers: [], pillars: ["prime", nil, nil])
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
-        XCTAssertEqual(e.run.bonusCoins, 0, "Fibonacci is the column's reward for a CORRECT landing")
+        XCTAssertEqual(e.run.bonusCoins, 0, "Prime is the column's reward for a CORRECT landing")
     }
 
     // MARK: - Non-landing saves: the card never lands, so NOTHING fires

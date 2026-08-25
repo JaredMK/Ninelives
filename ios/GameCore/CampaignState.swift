@@ -199,10 +199,11 @@ public final class CampaignState {
     var allSuits: [String] { DeckManager.suits.map(\.symbol) }
 
     /// THE CLIMB-FIXED VARIANT for a variant-rolling Same-Power: Burrow rolls
-    /// a suit, Second Sight rolls red-or-black. A pure function of the run
-    /// seed, so the roll "happens" the first time the item shows in a shop
-    /// and then never changes for the climb — every appearance, the shelf,
-    /// the detail sheet and the deal all agree. Nil for the fixed powers.
+    /// a suit. A pure function of the run seed, so the roll "happens" the
+    /// first time the item shows in a shop and then never changes for the
+    /// climb — every appearance, the shelf, the detail sheet and the deal
+    /// all agree. Nil for the fixed powers. (Second Sight's red-or-black
+    /// roll retired in v6.78 — its tell is colour-blind now.)
     public func samePowerVariant(_ id: String?) -> String? {
         guard let id else { return nil }
         var h: UInt32 = 0x9e37
@@ -210,7 +211,6 @@ public final class CampaignState {
         let rng = RNG(seed: runSeed &+ h)
         switch id {
         case "linkBury": return allSuits[rng.index(allSuits.count)]
-        case "linkTell": return rng.next() < 0.5 ? "red" : "black"
         default: return nil
         }
     }
@@ -262,28 +262,57 @@ public final class CampaignState {
         return roll
     }
 
+    /// RANK SHIELD (dynamic, v6.78): adopt the deal engine's protected-rank
+    /// pick as the climb's INCUMBENT — the "most common longest" rank the
+    /// next deal's tie rule leans on. Rides the existing `shopRolls`
+    /// persistence, so old saves' shop-rolled rank simply seeds the first
+    /// incumbency. No-op when no pick was made (no Rank Shield equipped).
+    public func adoptRankShieldPick(_ roll: ShopRoll?) {
+        guard let roll, roll.rank != nil else { return }
+        shopRolls["rankShield"] = roll
+    }
+
+    /// The rank the FULL owned deck holds the most copies of, ties → the
+    /// LOWEST rank (the Chorus rule). Nil on an empty/rankless deck.
+    /// Recomputed live — Transmute's shelf text and its buy both read the
+    /// deck of the moment, so purchases mid-visit move the target with them.
+    public func mostCommonRank() -> Int? {
+        var counts: [Int: Int] = [:]
+        for c in getRunDeck() where !c.joker && !c.blank { counts[c.currentRank, default: 0] += 1 }
+        var best: Int? = nil
+        for r in minRank...maxRank {
+            let n = counts[r] ?? 0
+            if n > 0 && (best == nil || n > (counts[best!] ?? 0)) { best = r }
+        }
+        return best
+    }
+
     /// An item's description with its climb variant substituted in —
     /// `{suit}` / `{color}` / `{rank}` templates come from items.js.
-    /// Non-templated descriptions pass through untouched.
+    /// Non-templated descriptions pass through untouched. Substitution
+    /// order matters (v6.78 fix): concrete values (Same-Power variants,
+    /// composition-driven ranks, shop locks, rank-variant pillars) go
+    /// FIRST; the generic can't-know-yet wording is the LAST resort — the
+    /// old order let the generic fallback consume `{rank}` before the shop
+    /// lock could name the real value.
     public func itemDescription(_ def: ItemDef) -> String {
         var out = def.description
         if let v = samePowerVariant(def.id) {
             out = out.replacingOccurrences(of: "{suit}", with: v)
                      .replacingOccurrences(of: "{color}", with: v)
         }
-        if let r = pillarRankVariants[def.id] {
-            let label = DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)"
-            out = out.replacingOccurrences(of: "{rank}", with: label)
-        } else if out.contains("{rank}") {
-            // Not locked yet (unlock popup, pre-shelf display): say what the
-            // roll WILL read instead of leaking the raw template (v6.58).
-            let words = def.effect == "rankBury" ? "your deck's scarcest rank"
-                                                 : "your deck's most common rank"
-            out = out.replacingOccurrences(of: "{rank}", with: words)
+        // COMPOSITION-DRIVEN {rank} (v6.78): Transmute names the full
+        // deck's LIVE most common rank; Rank Shield names the rank it
+        // protects — the climb's incumbent when one exists, else the live
+        // leader it would protect at the next deal's start.
+        if def.effect == "transmute" || def.effect == "rankShield", out.contains("{rank}") {
+            let r = (def.effect == "rankShield" ? shopRolls[def.id]?.rank : nil) ?? mostCommonRank()
+            if let r, let label = DeckManager.ranks.first(where: { $0.value == r })?.label {
+                out = out.replacingOccurrences(of: "{rank}", with: label)
+            }
         }
-        // SHOP-ROLLED items (v6.76): the climb-locked {rank}/{suit} from the
-        // item's first shelf appearance. Unlocked yet → generic wording, never
-        // a raw template.
+        // SHOP-ROLLED items (v6.76): the climb-locked {rank}/{suit} from
+        // the item's first shelf appearance.
         if let lock = shopRolls[def.id] {
             if let r = lock.rank {
                 let label = DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)"
@@ -292,9 +321,23 @@ public final class CampaignState {
             if let s = lock.suit {
                 out = out.replacingOccurrences(of: "{suit}", with: s)
             }
-        } else if def.shopRoll != nil {
-            out = out.replacingOccurrences(of: "{rank}", with: "a rolled rank")
-            out = out.replacingOccurrences(of: "{suit}", with: "a rolled suit")
+        }
+        if let r = pillarRankVariants[def.id] {
+            let label = DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)"
+            out = out.replacingOccurrences(of: "{rank}", with: label)
+        }
+        // Still templated (unlock popup, Collection, pre-shelf display):
+        // say what the value WILL be instead of leaking the raw template —
+        // and never the word "rolled" (v6.78 sweep).
+        if out.contains("{rank}") {
+            let words: String
+            if def.effect == "rankBury" { words = "your deck's scarcest rank" }
+            else if def.shopRoll == "rank" || def.shopRoll2 == "rank" { words = "a rank chosen at the store" }
+            else { words = "your deck's most common rank" }
+            out = out.replacingOccurrences(of: "{rank}", with: words)
+        }
+        if out.contains("{suit}") {
+            out = out.replacingOccurrences(of: "{suit}", with: "a suit chosen at the store")
         }
         return out
     }
@@ -2136,13 +2179,15 @@ public final class CampaignState {
             if let def = data.baseTypes.get(s.id), def.shopRoll != nil {
                 shopRoll = lockShopRoll(for: def, slot: s)
             }
-            // TRANSMUTE (v6.76): an ON-PURCHASE effect — every full-deck card
-            // of the rolled rank takes the rolled suit, at buy time. It never
-            // activates in a deal (baseCanActivate keeps it amber).
+            // TRANSMUTE (v6.78): an ON-PURCHASE effect — every full-deck
+            // card of your deck's LIVE most common rank (ties → lowest,
+            // computed at this instant, exactly what the shelf text names)
+            // takes the shop-rolled suit, at buy time. It never activates
+            // in a deal (baseCanActivate keeps it amber).
             if let def = data.baseTypes.get(s.id), def.effect == "transmute",
-               let rank = shopRoll?.rank, let suit = shopRoll?.suit {
+               let rank = mostCommonRank(), let suit = shopRoll?.suit {
                 let n = transmuteRankToSuit(rank, suit: suit)
-                DebugEventLog.shared.add("store: \(def.label) set \(n) × rank \(rank) to \(suit) on purchase")
+                DebugEventLog.shared.add("store: \(def.label) set \(n) × rank \(rank) (most common) to \(suit) on purchase")
                 var r = BuyResult(ok: true, kind: s.kind)
                 r.transmutedCount = n
                 offer.slots[i] = nil

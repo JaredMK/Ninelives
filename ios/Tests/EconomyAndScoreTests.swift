@@ -12,15 +12,17 @@ final class EconomyAndScoreTests: XCTestCase {
     func testDealFlatFormula() {
         let base = data.items.economy.dealBase
         let bossBonus = data.items.economy.bossBonus
+        let cap = Int(data.items.economy.num("stageCap", 3))
         for stage in 1...5 {
+            let s = min(stage, cap)   // ENDLESS FREEZE (v6.78): the stage term caps
             for rating in 1...3 {
                 XCTAssertEqual(eco.dealFlat(stage: stage, rating: rating, isBoss: false),
-                               base + Double(stage) * Double(1 + rating),
-                               "dealBase + stage × (1 + rating)")
+                               base + Double(s) * Double(1 + rating),
+                               "dealBase + min(stage, stageCap) × (1 + rating)")
             }
             // A boss forces rating 3 and adds bossBonus.
             XCTAssertEqual(eco.dealFlat(stage: stage, rating: 0, isBoss: true),
-                           base + Double(stage) * 4 + bossBonus)
+                           base + Double(s) * 4 + bossBonus)
             XCTAssertEqual(eco.dealFlat(stage: stage, rating: 1, isBoss: true),
                            eco.dealFlat(stage: stage, rating: 3, isBoss: true),
                            "a boss ignores the node's own rating")
@@ -34,9 +36,23 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(eco.dealFlat(stage: 2, rating: 0, isBoss: false), 0)
     }
 
-    func testEndlessStagesKeepCounting() {
-        XCTAssertGreaterThan(eco.dealFlat(stage: 6, rating: 2, isBoss: false),
-                             eco.dealFlat(stage: 3, rating: 2, isBoss: false))
+    /// ENDLESS FREEZE (v6.78): past phase 3 the per-deal payout stops
+    /// growing — every endless stage pays exactly the phase-3 rate for its
+    /// difficulty, boss or not.
+    func testEndlessStagesFreezeAtPhaseThreeRates() {
+        for rating in 1...3 {
+            let phase3 = eco.dealFlat(stage: 3, rating: rating, isBoss: false)
+            for stage in [4, 6, 12, 40] {
+                XCTAssertEqual(eco.dealFlat(stage: stage, rating: rating, isBoss: false), phase3,
+                               "stage \(stage) pays phase-3 rates, forever")
+            }
+            XCTAssertEqual(eco.dealFlat(stage: 9, rating: rating, isBoss: true),
+                           eco.dealFlat(stage: 3, rating: rating, isBoss: true),
+                           "endless bosses freeze too")
+        }
+        // …while the climb itself still grows to the cap.
+        XCTAssertLessThan(eco.dealFlat(stage: 2, rating: 2, isBoss: false),
+                          eco.dealFlat(stage: 3, rating: 2, isBoss: false))
     }
 
     // MARK: - breakdown

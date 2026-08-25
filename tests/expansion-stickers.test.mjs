@@ -293,20 +293,26 @@ export function run() {
     r.ok(!fired2, "Diamond Ripple does nothing with no other \u2666 tops");
   }
   {
-    // Club Roots: buries digCount under EACH OTHER \u2663-topped pile \u2014 never the
-    // LANDING pile (even if its own top is \u2663 after the land).
+    // RANK ROOTS (renamed from Club Roots, v6.78): buries digCount under
+    // EACH OTHER pile whose TOP matches the landing card's RANK \u2014 never
+    // the LANDING pile.
     const dig = StickerTypes.get("clubRoots").digCount ?? 1;
     const e = game();
     const b = e.getBoard();
-    for (let i = 0; i < b.size; i++) { b.top(i).suit = "\u2660"; b.top(i).wildSuit = false; }
-    b.top(0).suit = "\u2663"; b.top(4).suit = "\u2663"; b.top(8).suit = "\u2663";   // three OTHER clubs
+    // The landing: a 6 lands on pile 1's 5 (higher). Piles 0/4/8 hold 6-tops
+    // (the landing rank); every other top is a non-6.
+    for (let i = 0; i < b.size; i++) { b.top(i).value = 3; }
+    b.top(1).value = 5;
+    b.top(0).value = 6; b.top(4).value = 6; b.top(8).value = 6;   // three OTHER 6-tops
     const l0 = b.piles[0].cards.length, l4 = b.piles[4].cards.length, l8 = b.piles[8].cards.length;
     const l1 = b.piles[1].cards.length;
-    land(e, 1, ["clubRoots"]);
-    r.eq(e.getBoard().piles[1].cards.length, l1 + 1, "Club Roots buries nothing under the LANDING pile (drawn card only)");
-    r.eq(e.getBoard().piles[0].cards.length, l0 + dig, "\u2026buries " + dig + " under other \u2663 pile 0");
-    r.eq(e.getBoard().piles[4].cards.length, l4 + dig, "\u2026and under \u2663 pile 4");
-    r.eq(e.getBoard().piles[8].cards.length, l8 + dig, "\u2026and under \u2663 pile 8");
+    const nc = e.debug.setNextCard(6);
+    nc.stickers = [{ type: "clubRoots" }];
+    e.guess(1, "higher");
+    r.eq(e.getBoard().piles[1].cards.length, l1 + 1, "Rank Roots buries nothing under the LANDING pile (drawn card only)");
+    r.eq(e.getBoard().piles[0].cards.length, l0 + dig, "\u2026buries " + dig + " under other 6-topped pile 0");
+    r.eq(e.getBoard().piles[4].cards.length, l4 + dig, "\u2026and under 6-topped pile 4");
+    r.eq(e.getBoard().piles[8].cards.length, l8 + dig, "\u2026and under 6-topped pile 8");
   }
   {
     // Spade Whispers: the next X draws hint on EVERY pile, X = other \u2660 tops.
@@ -418,16 +424,16 @@ export function run() {
       if (t === "buried" && p.source === "Quick Bury") buried += p.count;
       if (t === "sticker-peeled") peeled++;
     });
-    // Regression: the carrier's OWN landing must NOT fire (the reported bug).
+    // LANDING-FIRED (v6.78, reversing v6.75): the carrier's OWN landing
+    // fires the bury.
     land(e, 0, ["quickBury"]);
-    r.eq(buried, 0, "the carrier's own landing does not fire Quick Bury");
-    // A card landing ON the carrier (now the pile top) fires it.
+    r.eq(buried, 1, "the carrier's own landing fires Quick Bury");
+    // A card landing ON the carrier (now the pile top) fires nothing.
     land(e, 0, []);
-    r.eq(buried, 1, "a landing on the carrier's pile buries 1");
-    // Multiple instances on the pile top fire per instance.
-    e.getBoard().top(1).stickers.push({ type: "quickBury" }, { type: "quickBury" });
-    land(e, 1, []);
-    r.eq(buried, 3, "two instances on the pile top bury 2 on one landing");
+    r.eq(buried, 1, "a landing ON the carrier buries nothing");
+    // Multiple instances on the LANDING card fire per instance.
+    land(e, 1, ["quickBury", "quickBury"]);
+    r.eq(buried, 3, "two instances on the landing card bury 2 on one landing");
     r.eq(peeled, 0, "Quick Bury never peels — the sticker persists (peelChance gone)");
   }
 

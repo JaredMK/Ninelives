@@ -348,6 +348,8 @@ public struct BaseResult {
     public var refreshed: [Int]?
     public var piles: Int?
     public var destroyedPiles: [Int]?
+    /// Diamond Boost (v6.78, column-wide): every ♦-topped pile that gained size.
+    public var boostedPiles: [Int]?
     public var demolishedCol: Int?
     public var demolishedPillar: String?
     public var gained: Double?

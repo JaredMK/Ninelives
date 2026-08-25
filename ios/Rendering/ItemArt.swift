@@ -1738,22 +1738,6 @@ public enum ItemArt {
             "....XXXX....",
             "............",
             "............"],
-        // Fibonacci: A/2/3/5/8 → +1 (a square spiral — the golden spiral's
-        // pixel silhouette; the old scribble and the nested rects both read
-        // as noise at emblem size).
-        "fibonacci": [
-            "............",
-            "............",
-            "..XXXXXXXXX.",
-            "..........X.",
-            "..X.XXXXX.X.",
-            "..X.X...X.X.",
-            "..X.X.X.X.X.",
-            "..X.X...X.X.",
-            "..X.XXXXX.X.",
-            "..X.......X.",
-            "..XXXXXXXXX.",
-            "............"],
         // Highest Heart: coins = highest ♥ top (heart + up arrow).
         "highestEven": [
             "..RR..RR....",

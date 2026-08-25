@@ -289,7 +289,8 @@ public final class DealController {
         scene.slotsVisible = true   // debug deals are campaign-shaped
         scene.isZen = false
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
-        scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits)
+        scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits,
+                         rankShieldRank: rankShieldLabel())
         refreshAll()
         startCascade()
     }
@@ -332,6 +333,16 @@ public final class DealController {
         // this closure — never a snapshot (captures the shared campaign, not self,
         // so no retain cycle).
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
+        // FULL-DECK composition hook (v6.78, web setCompositionHook parity):
+        // campaign deals read composition off the LIVE owned deck — the deck
+        // the histogram shows — even on subset deals. Zen keeps the deal-deck
+        // fallback (its drill deck IS its whole world). Set BEFORE startRun:
+        // Rank Shield and Crazy Eights read it there.
+        if !isZen {
+            engine.fullDeckProvider = { [campaign] in
+                campaign.getRunDeck().map { DeckManager.toCard($0, data: GameData.shared) }
+            }
+        }
         engine.start(seedOverride: p.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
         DebugEventLog.shared.resetEngineCursor()
@@ -355,13 +366,18 @@ public final class DealController {
             }
             resumeMidDeal = nil
         }
+        // RANK SHIELD (v6.78): adopt the deal's protected-rank pick as the
+        // climb's incumbent (after any snapshot restore, so a resumed deal
+        // adopts its true rank, not a fresh re-roll).
+        if isCampaign { campaign.adoptRankShieldPick(engine.run.shopRolls["rankShield"]) }
         scene.slotsVisible = !isZen   // Zen collapses the artifact slot rows
         scene.isZen = isZen
         // Every boot deals out (first deal AND reshuffle re-deals route
         // here): hold the assist glow until the cascade lands.
         assistGate.dealOutStarted()
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
-        scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits)
+        scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits,
+                         rankShieldRank: rankShieldLabel())
         refreshAll()
         onCheckpoint?(self)   // "run" durability point: a kill now resumes this deal
         if restoredMidDeal {
@@ -574,7 +590,8 @@ public final class DealController {
                 self.scene.floatCueAtPillar("DESTROYED", col: col, color: CRT.suitRed)
                 self.scene.setPillars(self.isZen ? [] : self.campaign.columnPillars,
                                       bases: self.isZen ? [] : self.campaign.columnBases,
-                                      dailySuits: self.engine?.run.dailySuits ?? nil)
+                                      dailySuits: self.engine?.run.dailySuits ?? nil,
+                                      rankShieldRank: self.rankShieldLabel())
                 done()
             }
 
@@ -915,7 +932,8 @@ public final class DealController {
                 campaign.setColumnPillar(col: dcol, typeId: nil)
                 if let old = res.demolishedPillar { _ = campaign.discardPillarFromInventory(old) }
                 scene.setPillars(campaign.columnPillars, bases: campaign.columnBases,
-                                 dailySuits: engine?.run.dailySuits ?? nil)
+                                 dailySuits: engine?.run.dailySuits ?? nil,
+                                 rankShieldRank: rankShieldLabel())
             }
         case "shuffleColumn", "evenOut":
             // A column being reshuffled is still a SHUFFLE — the riffle's
@@ -967,7 +985,8 @@ public final class DealController {
                     campaign.setColumnBase(col: c, typeId: nil)
                 }
                 scene.setPillars(campaign.columnPillars, bases: campaign.columnBases,
-                                 dailySuits: engine?.run.dailySuits ?? nil)
+                                 dailySuits: engine?.run.dailySuits ?? nil,
+                                 rankShieldRank: rankShieldLabel())
             }
             if let target = res.index {
                 Sound.shared.bury()
@@ -998,7 +1017,8 @@ public final class DealController {
                 scene.floatCue("CLEANSED ×\(n)", at: p, color: CRT.phosphor)
             }
         case "diamondBoost":
-            if let i = res.index { scene.goodPulse(at: i) }
+            // v6.78: column-wide — every boosted ♦ pile pulses.
+            for i in res.boostedPiles ?? [] { scene.goodPulse(at: i) }
         case "purgeDiscount":
             // A store-side lever fired from a board plaque — nothing on the
             // board changes, so say out loud what it did (the write-back
@@ -1578,12 +1598,10 @@ public final class DealController {
             var targets = baseTargetPiles(col: col)
             // v6.76 archetype bases: the pick list offers only piles the engine
             // itself would accept — a pile the effect can't touch is never
-            // highlighted (Diamond Boost's ♦-top gate is validated engine-side
-            // too; Devil's Deal would otherwise silently curse the FIRST
-            // eligible pile when the pick was a joker/blank top).
+            // highlighted (Devil's Deal would otherwise silently curse the
+            // FIRST eligible pile when the pick was a joker/blank top).
+            // (Diamond Boost lost its pick in v6.78 — it fires column-wide.)
             switch def.effect {
-            case "diamondBoost":
-                targets = targets.filter { engine.board.top($0)?.suit == "♦" }
             case "devilsDeal":
                 targets = targets.filter {
                     guard let t = engine.board.top($0) else { return false }
@@ -1595,8 +1613,6 @@ public final class DealController {
             switch def.effect {
             case "sacrifice":
                 prompt = "Sacrifice: tap a pile — its top card leaves your deck for good, and the pile dies."
-            case "diamondBoost":
-                prompt = "Diamond Boost: tap a ♦-topped pile — +\(def.int("value", 3)) pile size."
             case "devilsDeal":
                 prompt = "Devil's Deal: tap a top card to take the curse."
             default:
@@ -1676,6 +1692,16 @@ public final class DealController {
     public func deckCounts() -> [Int: Int] { engine.deck.remainingCounts() }
     /// Ids still in the draw pile — DeckInspect's remaining-vs-full shadow.
     public func remainingCardIds() -> Set<Int> { Set(engine.deck.peekAll().map(\.id)) }
+    /// Ids of every card in THIS deal (draw pile + board piles) — the
+    /// subset-deal boundary DeckInspect's shadow respects (v6.78): a card
+    /// outside the deal entirely is never shadowed, matching the histogram's
+    /// full-deck framing.
+    public func dealCardIds() -> Set<Int> {
+        var out = Set(engine.deck.peekAll().map(\.id))
+        for p in engine.board.piles { for c in p.cards { out.insert(c.id) } }
+        if let sw = engine.run.pendingSecondWind { out.insert(sw.killingCard.id) }
+        return out
+    }
     public var deckIsEmpty: Bool { engine.deck.isEmpty }
     public var promptIsUp: Bool { promptActive }
 
@@ -1733,11 +1759,14 @@ public final class DealController {
                     ? "Empty. No card on this pile."
                     : "Dead. This pile is out of the deal.")
         }
-        let count = engine.board.piles[index].cards.count
+        // v6.78: the header IS the top card — "{card} • X buried" (the old
+        // "Pile N · Y cards" head and its separate "Top: {card}" line are
+        // gone; the sticker list below keeps the card-info law's bold-name +
+        // description rows).
+        let buried = max(0, engine.board.piles[index].cards.count - 1)
         let info = CardInfoText.make(top)
-        var body = "Top: \(top.joker ? "★ Joker" : "\(top.label)\(top.suit)")"
-        if !info.body.isEmpty { body += "\n" + info.body }
-        return ("Pile \(index + 1) · \(count) card\(count == 1 ? "" : "s")", body)
+        let head = top.joker ? "★ Joker" : "\(top.label)\(top.suit)"
+        return ("\(head) • \(buried) buried", info.body)
     }
 
     /// The Pillar plaque's hold-help (the web's pillarPeekHtml): name + effect,
@@ -1842,6 +1871,13 @@ public final class DealController {
         sink(blob)
     }
 
+    /// RANK SHIELD (v6.78): the label of the rank the shield protects this
+    /// deal — read off the engine's per-deal pick; nil when none was made.
+    private func rankShieldLabel() -> String? {
+        guard let r = engine?.run.shopRolls["rankShield"]?.rank else { return nil }
+        return DeckManager.ranks.first { $0.value == r }?.label
+    }
+
     public func refreshBoard() {
         guard let engine, engine.board != nil else { return }
         let n = engine.board.size
@@ -1866,7 +1902,7 @@ public final class DealController {
         // gate and re-runs this refresh).
         let assistOn = campaign.saveStore.pref("oddsAssist") == "1"
             && campaign.deckUnlocks.wonAnyStraight()
-        scene.syncAssist(assistGate.allows(assistOn) ? engine.assistRecommendation() : nil)
+        scene.syncAssist(assistGate.allows(assistOn) ? engine.assistRecommendations() : nil)
         scene.syncPillarBadges(pillarBadges())
         scene.syncBaseBadges(baseBadges())
         scene.syncBaseLights(baseLights())

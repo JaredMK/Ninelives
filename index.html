@@ -6994,7 +6994,7 @@ document.write('<script src="tutorial.js?t=' + Date.now() + '"><\/script>');
    Bump this on every commit that changes the page so you can confirm
    at a glance that the browser is showing the latest version.
 ---------------------------------------------------------------- */
-const APP_VERSION = "v6.76 · ARCHETYPE BATCH: 31 new items live (22 pillars, 7 bases, Rank Flood) — same-tolerance family, shop-rolled shields, composition conditions, pauper kit, on-purchase purge/transmute";
+const APP_VERSION = "v6.78 · dynamic Rank Shield, live-most-common Transmute, landing-fired Quick Bury, Rank Roots, one-draw Second Sight, column-wide Diamond Boost, Fibonacci retired, endless payouts frozen at phase 3";
 
 /* Fire a GA4 event for anonymous playtesting analytics. Fully defensive: if
    gtag/dataLayer never loaded (or the browser blocks it), this is a silent no-op
@@ -10443,17 +10443,22 @@ const Economy = (() => {
     EXTRA_COIN_VALUE: itemNum(StickerTypes.get("extraCoin"), "value", 1),
   };
   /** The FLAT coin payout for clearing a deal:
-        dealBase + stage × (1 + rating)        (items.js `economy` section)
+        dealBase + min(stage, stageCap) × (1 + rating)   (items.js `economy`)
       stage = the 1-based map phase (endless phases keep counting: 4, 5, …);
       rating = the deal's 1..3 stage-relative difficulty score. A boss forces
       rating 3 and adds bossBonus. No stage context (ambush/subset deals,
-      a missing rating) pays NO flat base — returns 0. */
+      a missing rating) pays NO flat base — returns 0.
+      ENDLESS FREEZE (v6.78): `stageCap` (3) pins the stage term at phase-3
+      rates — endless deals never out-earn the climb's last phase. Clamped
+      HERE so every reader (map chips, the deal plan, the payout fold)
+      agrees without repeating the rule. */
   function dealFlat(stage, rating, isBoss) {
     if (!(stage > 0)) return 0;
     const r = isBoss ? 3 : (rating || 0);
     if (!(r > 0)) return 0;
+    const capped = Math.min(stage, itemNum(ItemData.economy, "stageCap", 3));
     return itemNum(ItemData.economy, "dealBase", 1)
-      + stage * (1 + r)
+      + capped * (1 + r)
       + (isBoss ? itemNum(ItemData.economy, "bossBonus", 1) : 0);
   }
   /** stats: { won, flat, stage, rating, aliveCount, minAliveCards,
@@ -13285,18 +13290,20 @@ const GameEngine = (() => {
           recT("sticker", "diamondRipple", "Diamond Ripple", { shuffled: sh });
         }
       }
-      // Club Roots — bury digCount under EACH OTHER alive ♣-topped pile (Wild
-      // Suit tops count). The landing pile is EXCLUDED even if its own top is
-      // now ♣ — the burial radiates outward, never onto itself.
+      // Rank Roots (renamed from Club Roots, rank-match v6.78) — bury
+      // digCount under EACH OTHER alive pile whose TOP matches the landing
+      // card's RANK. The landing pile is EXCLUDED (the synergy-family rule);
+      // a rankless top (★/Removal) never matches.
       const crn = n("clubRoots");
-      if (crn > 0) {
+      if (crn > 0 && !drawn.joker && !drawn.blank) {
         const per = crn * itemNum(StickerTypes.get("clubRoots"), "digCount", 1);
         let cr = 0;
         for (let i = 0; i < board.size; i++) {
           if (i === index || !board.isActive(i)) continue;
-          if (cardMatchesSuit(board.top(i), "♣")) cr += buryTribute(i, per, "Club Roots");
+          const t2 = board.top(i);
+          if (t2 && !t2.joker && !t2.blank && t2.value === drawn.value) cr += buryTribute(i, per, "Rank Roots");
         }
-        if (cr > 0) recT("sticker", "clubRoots", "Club Roots", { buried: cr });
+        if (cr > 0) recT("sticker", "clubRoots", "Rank Roots", { buried: cr });
       }
       // Spade Whispers — the next X draws each carry a Tell-style hint (every
       // pile shows higher/lower/same vs the true next card until X draws are
@@ -13310,14 +13317,14 @@ const GameEngine = (() => {
         }
       }
       // --- burials ---
-      // Quick Bury (PILE-TOP, v6.75): the sticker sits on the pile's
-      // PRE-LANDING top (`current`) and fires when ANY card lands on that
-      // pile — bury 1 deck card per instance under this pile (the sticker
-      // persists; it never peels). The carrier's OWN landing does NOT fire
-      // it — it fires from underneath the NEXT landing. A saved landing
-      // (Same-Charge backstop) lands on it too (same rule as the pile-top
-      // snobs); a fatal landing never reaches here.
-      const qb = cn("quickBury");
+      // Quick Bury (LANDING-FIRED, v6.78 — reverses the v6.75 pile-top
+      // rule): the sticker rides the LANDING card (`drawn`) and fires the
+      // moment its carrier lands — bury 1 deck card per instance under this
+      // pile (the sticker persists; it never peels). A card landing ON a
+      // Quick Bury top fires nothing; a saved landing still lands the
+      // carrier (the v6.57 rule) so it fires; a fatal landing never
+      // reaches here.
+      const qb = n("quickBury");
       let qbBuried = 0;
       for (let k = 0; k < qb; k++) qbBuried += buryTribute(index, 1, "Quick Bury");
       if (qb > 0) recT("sticker", "quickBury", "Quick Bury", { buried: qbBuried });
@@ -13700,7 +13707,6 @@ const GameEngine = (() => {
       // supplied targetIndex is honored when valid, else the curse lands on a
       // seeded pick (documented v6.76 choice).
       if (targetIndex != null && board.isActive(targetIndex) && run.pileColumns && run.pileColumns[targetIndex] === col) {
-        if (base.effect === "diamondBoost" && !cardMatchesSuit(board.top(targetIndex), "♦")) return null;
         if (base.effect === "sacrifice" && !board.top(targetIndex)) return null;
         if (base.effect === "devilsDeal" && !cursedStickerPoolFor(board.top(targetIndex)).length) targetIndex = null;   // can't curse it → re-pick below
       } else if (base.effect === "devilsDeal") {
@@ -14087,13 +14093,21 @@ const GameEngine = (() => {
           break;
         }
         case "diamondBoost": {
-          // DIAMOND BOOST (v6.76, target pile — ♦-topped, validated above):
-          // +value pile size (deal-persistent size bonus).
+          // DIAMOND BOOST (v6.78: column-wide, no target pick) — +value pile
+          // size to EVERY alive ♦-topped pile in this column (Wild Suit
+          // counts, matching the availability check).
           const add = itemNum(base, "value", 3);
-          board.addSizeBonus(targetIndex, add);
-          res.index = targetIndex;
-          res.sizeAdded = add;
-          logLine("+" + add + " pile size to pile " + (targetIndex + 1));
+          const boosted = [];
+          for (let i = 0; i < board.size; i++) {
+            if (!board.isActive(i) || (run.pileColumns && run.pileColumns[i] !== col)) continue;
+            if (!cardMatchesSuit(board.top(i), "♦")) continue;
+            board.addSizeBonus(i, add);
+            boosted.push(i);
+          }
+          res.boostedPiles = boosted;
+          res.index = boosted.length ? boosted[0] : null;
+          res.sizeAdded = add * boosted.length;
+          logLine(boosted.length + " ♦ pile" + (boosted.length === 1 ? "" : "s") + " gain +" + add + " pile size");
           break;
         }
         default:
@@ -14212,6 +14226,21 @@ const GameEngine = (() => {
           // Peek the next upcoming card (deck-reveal treatment, like Scout).
           run.revealNextActive = true;
           result.amount = 1;
+          break;
+        }
+        case "linkTell": {
+          // SECOND SIGHT (v6.78): one draw of total vision — EVERY alive
+          // pile shows its tell for the NEXT draw only. Rides the shared
+          // `tellPiles` window (the Tell/Club Oracle mechanic): the next
+          // draw consumes every armed tell at once. (The web previously had
+          // NO case here — the power fired as a silent no-op.)
+          const targets = powerPiles("alive");
+          if (targets.length && run.tellPiles) {
+            for (const j of targets) run.tellPiles.add(j);
+            recT("samePower", def.id, def.label, { hints: targets.length });
+          }
+          result.targets = targets;
+          result.amount = targets.length;
           break;
         }
         case "linkHeavy": {
@@ -14667,6 +14696,51 @@ const GameEngine = (() => {
           }
         }
       }
+      // RANK SHIELD (dynamic, v6.78): at Start Run the shield re-reads the
+      // FULL deck and protects its most common rank. TIE RULE: the INCUMBENT
+      // (the campaign's previous pick, riding in via pillarRolls) keeps the
+      // shield until STRICTLY surpassed; a tie with no surviving incumbent
+      // picks among the leaders off the deal's seeded rng (the Daily Suit
+      // precedent — only deals carrying the pillar ever draw, and only on a
+      // real multi-way tie). The pick overwrites every rankShield column's
+      // pillarRolls entry (so pillarShopRoll keeps one read path) and is
+      // exposed as run.rankShieldRank for the campaign to adopt as the next
+      // incumbent.
+      if (run.pillars) {
+        const shieldCols = [];
+        for (let c = 0; c < run.pillars.length; c++) {
+          const def = resolvePillarDef(c);
+          if (def && def.effect === "rankShield") shieldCols.push(c);
+        }
+        if (shieldCols.length) {
+          const counts = fullRankCounts();
+          let maxCount = 0;
+          for (let v = 2; v <= 14; v++) if (counts[v] > maxCount) maxCount = counts[v];
+          if (maxCount > 0) {
+            let incumbent = null;
+            for (const c of shieldCols) {
+              const r = run.pillarRolls ? run.pillarRolls[c] : null;
+              if (r && r.roll != null) { incumbent = r.roll; break; }
+            }
+            let chosen;
+            if (incumbent != null && counts[incumbent] >= maxCount) {
+              chosen = incumbent;                     // never strictly surpassed
+            } else {
+              const leaders = [];
+              for (let v = 2; v <= 14; v++) if (counts[v] === maxCount) leaders.push(v);
+              chosen = leaders.length === 1 ? leaders[0] : leaders[Math.floor(rng() * leaders.length)];
+            }
+            run.rankShieldRank = chosen;
+            for (const c of shieldCols) {
+              if (run.pillarRolls) run.pillarRolls[c] = { roll: chosen, roll2: null };
+            }
+            const rkDef = PillarTypes.get("rankShield");
+            if (rkDef) recT("pillar", rkDef.id, rkDef.label, { fires: 1 });
+            const rkLabel = (DeckManager.RANKS.find(x => x.value === chosen) || {}).label || chosen;
+            startNotes.push("Rank Shield: protecting " + rkLabel + "s (most common in deck)");
+          }
+        }
+      }
       const bound = (run.pillars || [])
         .map((pid, c) => pid ? "col " + (c + 1) + "=" + ((PillarTypes.get(pid) || {}).label || pid) : null)
         .filter(Boolean);
@@ -14817,13 +14891,8 @@ const GameEngine = (() => {
         peekPillar(col, pillar);   // the static crackles → peek the next card
       }
 
-      // Fibonacci: +value when a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) lands
-      // CORRECTLY in this column — paid live, a running total across the deal. A
-      // wrong placement pays nothing.
-      if (correct && pillar && pillar.effect === "fibonacci"
-          && (drawn.value === 14 || drawn.value === 2 || drawn.value === 3 || drawn.value === 5 || drawn.value === 8)) {
-        payPillar(col, "fibonacci", pillar.label, pillar.value || 1);
-      }
+      // (Fibonacci retired in v6.78 — entry removed from items.js; restore
+      // strips the id from old saves.)
 
       // Column Tie-Safe Pillar: a directional guess that hit a tie and survived
       // ONLY because the column carries a Tie-Safe Pillar (no Tie-Safe sticker in
@@ -17634,9 +17703,18 @@ const CampaignState = (() => {
           // the shop-rolled rank becomes the shop-rolled suit, NOW. Never fires
           // in a deal (baseCanActivate has no case for it → always false).
           const bdef = BaseTypes.get(s.id);
-          if (bdef && bdef.effect === "transmute" && s.shopRolled != null && s.shopRolled2) {
-            res.transmuted = { rank: s.shopRolled, suit: s.shopRolled2,
-              count: this.transmuteRankToSuit(s.shopRolled, s.shopRolled2) };
+          if (bdef && bdef.effect === "transmute" && s.shopRolled) {
+            // v6.78: the target rank is the LIVE most common in the full
+            // owned deck (ties → lowest, the Chorus rule) — only the SUIT
+            // shop-rolls now, riding the slot's single axis (`shopRolled`).
+            const counts = {};
+            for (const c of this.getRunDeckLive()) if (!c.joker && !c.blank) counts[c.currentRank] = (counts[c.currentRank] || 0) + 1;
+            let rank = null;
+            for (let v = 2; v <= 14; v++) if ((counts[v] || 0) > (rank == null ? 0 : counts[rank])) rank = v;
+            if (rank != null) {
+              res.transmuted = { rank, suit: s.shopRolled,
+                count: this.transmuteRankToSuit(rank, s.shopRolled) };
+            }
           }
           return res;
         }
@@ -17726,12 +17804,30 @@ const CampaignState = (() => {
       getColumnPillarRolls() {
         return columnPillars.map(pid => {
           const d = pid ? PillarTypes.get(pid) : null;
-          if (!d || !d.shopRoll) return null;
+          if (!d) return null;
+          // RANK SHIELD (dynamic, v6.78): no shop roll any more — the engine
+          // re-picks the protected rank at Start Run; the campaign's persisted
+          // INCUMBENT (the previous pick) rides in as `roll` for the tie rule.
+          if (d.effect === "rankShield") {
+            const r = shopRolls[pid];
+            return r != null ? { roll: r, roll2: null } : null;
+          }
+          if (!d.shopRoll) return null;
           const r = shopRolls[pid];
           if (r == null) return null;
           const r2 = shopRolls[pid + "#2"];
           return { roll: r, roll2: r2 != null ? r2 : null };
         });
+      },
+      /** RANK SHIELD (dynamic, v6.78): adopt the deal engine's protected-rank
+          pick as the climb's INCUMBENT — the "most common longest" rank the
+          next deal's tie rule leans on. Rides the persisted shopRolls map, so
+          old saves' shop-rolled rank simply seeds the first incumbency. */
+      adoptRankShieldPick(rank) {
+        if (rank == null) return;
+        shopRolls.rankShield = rank;
+        // Persistence rides the flow's normal deal-entry checkpoint (the
+        // same rule as addPurgeDiscount — mutators never self-persist).
       },
       /** RANK PURGE (v6.76): permanently remove EVERY owned card of rank
           `rank` (currentRank) from the deck. Returns how many were purged. */
@@ -18246,6 +18342,22 @@ const CampaignState = (() => {
           ? s.columnBases.slice() : new Array(COLUMN_SLOTS).fill(null);
         samePowerInventory = { ...(s.samePowerInventory || {}) };   // default {} for pre-Same-Power saves
         equippedSamePower = s.equippedSamePower || null;
+        // RETIRED-ITEM STRIP (v6.78, the Fibonacci removal): an old save may
+        // still equip or hold an item id the registry no longer knows. Drop
+        // it quietly — the alternative is a raw id on a plaque and a null def
+        // everywhere the column fires. Registry-driven, so any future
+        // retirement rides the same path (the sticker strip below already
+        // covers sticker instances).
+        const knownOnly = (inv, reg) => {
+          for (const id in inv) if (!reg.get(id)) delete inv[id];
+        };
+        knownOnly(stickerInventory, StickerTypes);
+        knownOnly(pillarInventory, PillarTypes);
+        knownOnly(baseInventory, BaseTypes);
+        knownOnly(samePowerInventory, SamePowerTypes);
+        columnPillars = columnPillars.map(id => (id && PillarTypes.get(id)) ? id : null);
+        columnBases = columnBases.map(id => (id && BaseTypes.get(id)) ? id : null);
+        if (equippedSamePower && !SamePowerTypes.get(equippedSamePower)) equippedSamePower = null;
         storeOffer = s.storeOffer || null;
         // Pre-unification saves used sectioned offer shapes ({stickers, mixed}
         // or older). The store is one unified { slots } now; drop any old-shape
@@ -21762,7 +21874,13 @@ const UIRenderer = (() => {
     // never reach a Zen engine — no Pillars, no Bases, no Same-Power.
     if (!engine) return;
     if (zenMode) engine.startRun([], [], null);
-    else engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower(), campaign.getColumnPillarRolls());
+    else {
+      engine.startRun(campaign.getColumnPillars(), campaign.getColumnBases(), campaign.getSamePower(), campaign.getColumnPillarRolls());
+      // RANK SHIELD (v6.78): adopt the deal's protected-rank pick as the
+      // climb's incumbent for the next deal's tie rule.
+      const r = engine.getRun && engine.getRun();
+      if (r && r.rankShieldRank != null) campaign.adoptRankShieldPick(r.rankShieldRank);
+    }
   }
 
   /* Help slot for the armed setup item. Whichever family is armed (card, sticker,
@@ -32487,7 +32605,6 @@ const UIRenderer = (() => {
     for (let i = 0; i < board.size; i++) {
       if (!board.isActive(i)) continue;
       if (engine.getRun().pileColumns[i] !== col) continue;
-      if (base && base.effect === "diamondBoost" && !cardMatchesSuit(board.top(i), "♦")) continue;
       out.push(i);
     }
     return out;
@@ -32497,7 +32614,6 @@ const UIRenderer = (() => {
     switch (base && base.effect) {
       case "stickerHarvest": return "Choose a pile in this column to harvest its pile card.";
       case "sacrifice":      return "Choose a pile — its top card is purged from your deck and the pile dies.";
-      case "diamondBoost":   return "Choose a ♦-topped pile in this column.";
       default:               return "Choose a target pile.";
     }
   }

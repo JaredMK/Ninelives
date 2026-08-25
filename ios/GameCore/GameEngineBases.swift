@@ -212,9 +212,6 @@ extension GameEngine {
         if base.target == "pile" {
             guard let targetIndex else { return nil }
             guard board.isActive(targetIndex), run.pileColumns?[targetIndex] == col else { return nil }
-            // DIAMOND BOOST (v6.76) further requires a ♦ top on the pick —
-            // a bad target refuses WITHOUT spending the charge.
-            if base.effect == "diamondBoost", !matchesSuit(board.top(targetIndex), "♦") { return nil }
         }
 
         var res = BaseResult(col: col, effect: base.effect ?? "", label: base.label)
@@ -606,13 +603,18 @@ extension GameEngine {
             logLine("set \(applied.count) top card\(applied.count == 1 ? "" : "s") to \(rk?.label ?? "?") — the full deck's most-copied rank")
 
         case "diamondBoost":
-            // DIAMOND BOOST: +value pile size to the chosen ♦-topped pile
-            // (target validated above, before the charge is spent).
-            guard let ti = targetIndex else { break }
+            // DIAMOND BOOST (v6.78: column-wide, no target pick) — +value
+            // pile size to EVERY alive ♦-topped pile in this column (Wild
+            // Suit counts, matching the availability check).
             let boost = base.int("value", 3)
-            board.addSizeBonus(ti, boost)
-            res.index = ti
-            logLine("pile \(ti + 1) gains +\(boost) pile size")
+            var boosted: [Int] = []
+            for i in colAlivePiles(col) where matchesSuit(board.top(i), "♦") {
+                board.addSizeBonus(i, boost)
+                boosted.append(i)
+            }
+            res.boostedPiles = boosted
+            res.index = boosted.first
+            logLine("\(boosted.count) ♦ pile\(boosted.count == 1 ? "" : "s") gain\(boosted.count == 1 ? "s" : "") +\(boost) pile size")
 
         default:
             currentEntry = nil
@@ -645,7 +647,9 @@ extension GameEngine {
         if res.purgedCardId != nil { imp["purged"] = 1; imp["killed"] = 1 }
         if let cl = res.cleansed, cl != 0 { imp["peeled"] = Double(cl) }
         if base.effect == "purgeDiscount", res.purgePriceCut != nil { imp["fires"] = 1 }
-        if base.effect == "diamondBoost", res.index != nil { imp["size"] = Double(base.int("value", 3)) }
+        if base.effect == "diamondBoost", let bp = res.boostedPiles, !bp.isEmpty {
+            imp["size"] = Double(base.int("value", 3) * bp.count)
+        }
         recT("base", base.id, base.label, imp)
 
         currentEntry = nil
@@ -731,26 +735,15 @@ extension GameEngine {
             result.amount = 1
 
         case "linkTell":
-            // A hint on the next card per ALIVE PILE — a wide board buys a
-            // long look ahead, a board down to one pile buys almost nothing.
-            // The window length is the counted-pile tally; the hint itself
-            // shows only on the most recently landed top card (v6.58).
-            // X counts only the alive piles whose top wears the climb's
-            // rolled COLOUR (v6.38; Wild Suit counts as both). No variant on
-            // an old save → every alive pile, the pre-roll behaviour.
-            let colour = run.samePowerVariant
-            let alive = powerPiles("alive").filter { j in
-                guard let colour, let top = board.top(j) else { return colour == nil }
-                if CardRules.isWildSuit(top, data: data) { return true }
-                let red = top.suit == "♥" || top.suit == "♦"
-                return colour == "red" ? red : !red
-            }
+            // SECOND SIGHT (v6.78): one draw of total vision — EVERY alive
+            // pile shows its tell for the NEXT draw only. Rides the shared
+            // `tellPiles` window (the Tell/Club Oracle mechanic): the next
+            // draw consumes every armed tell at once, so there is no
+            // multi-draw window and no colour filter any more (the old
+            // X-draws/{color} rule retired with this batch).
+            let alive = powerPiles("alive")
             if !alive.isEmpty {
-                // v6.58: Second Sight rides its OWN window (sightDrawsLeft),
-                // and the hint shows on ONE pile only — the most recently
-                // landed top card — never on every counted pile at once.
-                // The fire still RESETS rather than stacks (the v6.52 rule).
-                run.sightDrawsLeft = alive.count
+                run.tellPiles.formUnion(alive)
                 recT("samePower", def.id, def.label, ["hints": Double(alive.count)])
             }
             result.targets = alive

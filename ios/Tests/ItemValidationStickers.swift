@@ -312,28 +312,43 @@ enum IVStickers {
                     })]
 
         case "clubRoots":
+            // RANK ROOTS (v6.78): the trigger is the landing card's RANK
+            // matching OTHER piles' tops — the ♣-tops rule is retired.
             let dig = def.int("digCount", 1)
             return [
-                IV.Scenario("trigger", allowed: [.board, .deck, .guesses],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6, "♣"), IV.spec(3, 6, "♣")],
+                IV.Scenario("trigger-rankMatch", allowed: [.board, .deck, .guesses],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 9, "♥"), IV.spec(3, 9, "♦")],
                                        deckOrder: [IV.spec(50, 9, "♠", ["clubRoots"]), IV.spec(51, 2),
                                                    IV.spec(52, 3), IV.spec(53, 4), IV.spec(54, 7)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
                         XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1] + dig,
-                                       "\(c): buried \(dig) under the OTHER ♣ pile 2")
+                                       "\(c): buried \(dig) under the OTHER 9-topped pile 2")
                         XCTAssertEqual(e.board.piles[2].cards.count, f.pileCounts[2] + dig,
-                                       "\(c): buried \(dig) under the OTHER ♣ pile 3")
+                                       "\(c): buried \(dig) under the OTHER 9-topped pile 3")
+                    }),
+                IV.Scenario("edge-landingPileExcluded", allowed: [.board, .deck, .guesses],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♦")],
+                                       deckOrder: [IV.spec(50, 9, "♠", ["clubRoots"]), IV.spec(51, 2),
+                                                   IV.spec(52, 3)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
+                                       "\(c): the landing pile only gains the landing itself")
+                        XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1] + dig,
+                                       "\(c): the matching pile buries")
+                        XCTAssertEqual(e.board.piles[2].cards.count, f.pileCounts[2],
+                                       "\(c): a non-matching top buries nothing")
                     }),
                 IV.Scenario("edge-emptyDeckBuriesNothing", allowed: [.board, .deck, .guesses],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6, "♣"), IV.spec(3, 6, "♣")],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 9, "♥"), IV.spec(3, 9, "♦")],
                                        deckOrder: [IV.spec(50, 9, "♠", ["clubRoots"])]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
                         XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1], "\(c)")
                     }, skipSnapshot: true),
-                IV.Scenario("mustNotFire", allowed: [.board, .deck, .guesses],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6, "♣"), IV.spec(3, 6, "♣")],
+                IV.Scenario("mustNotFire-noSticker", allowed: [.board, .deck, .guesses],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 9, "♥"), IV.spec(3, 9, "♦")],
                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
@@ -386,16 +401,16 @@ enum IVStickers {
                 })
 
         case "quickBury":
-            // PILE-TOP (v6.75): the carrier sits on the pile top and fires
-            // when a card LANDS ON it — never on the carrier's own landing.
-            return landingFamily(def, onTop: true, allowed: [.board, .deck],
+            // LANDING-FIRED (v6.78, reversing v6.75): the carrier fires the
+            // moment IT lands — a card landing ON a Quick Bury top fires
+            // nothing.
+            return landingFamily(def, allowed: [.board, .deck],
                 expect: { e, f, c in
                     XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 2,
                                    "\(c): the landing + 1 buried beneath")
                     // Web parity: Quick Bury PERSISTS — it never peels itself.
-                    XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == "quickBury" }
-                                    || e.board.piles[0].cards.contains { c2 in c2.stickers.contains { $0.type == "quickBury" } },
-                                  "\(c): the sticker stays on the card")
+                    XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == "quickBury" },
+                                  "\(c): the sticker stays on the landed carrier")
                 },
                 expectNoFire: { e, f, c in
                     XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1, "\(c): just the landing")
@@ -404,13 +419,13 @@ enum IVStickers {
                     XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
                                    "\(c): an empty deck buries nothing, the landing is fine")
                 })
-                + [IV.Scenario("mustNotFire-carrierLanding", allowed: [.guesses, .deck, .board],
-                        build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
-                                           deckOrder: [IV.spec(50, 9, "♠", ["quickBury"]), IV.spec(51, 2)]) },
+                + [IV.Scenario("mustNotFire-landingOnTheCarrier", allowed: [.guesses, .deck, .board],
+                        build: { IV.engine(tops: [IV.spec(1, 5, "♠", ["quickBury"]), IV.spec(2, 6), IV.spec(3, 6)],
+                                           deckOrder: [IV.spec(50, 9), IV.spec(51, 2)]) },
                         fire: { $0.guess(0, .higher) },
                         expect: { e, f, c in
                             XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
-                                           "\(c): the carrier's OWN landing does not fire it (v6.75 regression pin)")
+                                           "\(c): a card landing ON the carrier does not fire it (v6.78 pin)")
                         })]
 
         case "snowball":
@@ -485,7 +500,7 @@ enum IVStickers {
                 + [IV.Scenario("mustNotFire-slotFilled", allowed: [.guesses, .deck, .board, .coins],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)],
-                                       pillars: isPillar ? ["fibonacci", nil, nil] : nil,
+                                       pillars: isPillar ? ["prime", nil, nil] : nil,
                                        bases: isPillar ? nil : ["spadePeek", nil, nil]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
@@ -775,7 +790,7 @@ enum IVStickers {
             IV.Scenario("trigger-representative", allowed: .all,
                 build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
                                    deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)],
-                                   pillars: ["fibonacci", nil, nil], bases: ["spadePeek", nil, nil],
+                                   pillars: ["prime", nil, nil], bases: ["spadePeek", nil, nil],
                                    sameCharge: true) },
                 fire: { $0.guess(0, .higher) },
                 expect: { e, _, c in

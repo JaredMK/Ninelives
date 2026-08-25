@@ -615,6 +615,7 @@ public final class DealViewController: UIViewController {
                 // shows remaining-vs-full and shadows the dealt-away cards.
                 present(DeckInspectViewController(campaign: sharedCampaign!,
                                                   remainingIds: controller.remainingCardIds(),
+                                                  dealIds: controller.dealCardIds(),
                                                   remainingRanks: controller.deckCounts()),
                         animated: false)
             } else {

@@ -327,12 +327,21 @@ public final class GameEngine {
 
     // MARK: - Full-deck composition (v6.76 archetype batch, R3)
 
-    /// EVERY card still in this deal: the remaining draw deck + every pile's
-    /// cards (alive AND dead — a dead pile's cards are buried in the board,
-    /// not gone) + a parked Second Wind's held-out killer. The composition
-    /// conditions read this LIVE at each check, so mid-deal burials, purges
-    /// and deaths all move them.
+    /// FULL-OWNED-DECK hook (v6.78, the web's setCompositionHook parity):
+    /// campaign deals inject the LIVE owned deck here, so composition
+    /// conditions read the whole collection even on SUBSET deals — the
+    /// deck the histogram shows. Unset (zen, bare engine runs) falls back
+    /// to the deal's own cards, the pre-hook behaviour.
+    public var fullDeckProvider: (() -> [LiveCard])?
+
+    /// EVERY card the composition conditions count: the injected full
+    /// owned deck when the campaign provides it; otherwise the remaining
+    /// draw deck + every pile's cards (alive AND dead — a dead pile's
+    /// cards are buried in the board, not gone) + a parked Second Wind's
+    /// held-out killer. Read LIVE at each check, so mid-deal purges and
+    /// deck changes all move them.
     func fullDeckCards() -> [LiveCard] {
+        if let provider = fullDeckProvider { return provider() }
         var out = deck.peekAll()
         for p in board.piles { out.append(contentsOf: p.cards) }
         if let sw = run?.pendingSecondWind { out.append(sw.killingCard) }
@@ -525,6 +534,37 @@ public final class GameEngine {
                 }
             }
         }
+        // RANK SHIELD (dynamic, v6.78): at Start Run the shield re-reads the
+        // FULL deck and protects its most common rank, writing the pick into
+        // `run.shopRolls["rankShield"]` — the slot `landingSave` already
+        // reads, so the save rule itself is untouched. TIE RULE: the
+        // INCUMBENT (the entry carried in from the campaign — the rank
+        // that's been most common longest) keeps the shield until STRICTLY
+        // surpassed; a tie with no surviving incumbent picks among the
+        // leaders off the deal's seeded stream (the Daily Suit precedent —
+        // only deals carrying the pillar ever draw, and only on a real
+        // multi-way tie). The controller adopts the pick back into the
+        // campaign after startRun, so the incumbent persists across deals;
+        // a mid-deal restore overwrites run.shopRolls from the snapshot.
+        if let pillars = run.pillars,
+           (0..<pillars.count).contains(where: { resolvePillarDef($0)?.effect == "rankShield" }) {
+            let counts = fullDeckRankCounts()
+            if let maxCount = counts.values.max(), maxCount > 0 {
+                let incumbent = run.shopRolls["rankShield"]?.rank
+                let chosen: Int
+                if let inc = incumbent, (counts[inc] ?? 0) >= maxCount {
+                    chosen = inc                       // never strictly surpassed
+                } else {
+                    let leaders = (minRank...maxRank).filter { (counts[$0] ?? 0) == maxCount }
+                    chosen = leaders.count == 1 ? leaders[0] : leaders[rng.index(leaders.count)]
+                }
+                run.shopRolls["rankShield"] = ShopRoll(rank: chosen,
+                                                       suit: run.shopRolls["rankShield"]?.suit)
+                if let def = pillarTypes.get("rankShield") {
+                    recT("pillar", def.id, def.label, ["fires": 1])
+                }
+            }
+        }
         // CRAZY EIGHTS (v6.76): if 8s are the full deck's most common rank
         // (ties → lowest rank), each pile in the pillar's column STARTS at
         // pile SIZE 8 — latched as a per-pile size bonus at Start Run (the
@@ -662,12 +702,8 @@ public final class GameEngine {
             peekPillar(col, pillar)
         }
 
-        // Fibonacci: +value when a Fibonacci-rank card (A=14/1, 2, 3, 5, 8) lands
-        // CORRECTLY in this column — paid live. A wrong placement pays nothing.
-        if correct, let pillar, pillar.effect == "fibonacci",
-           [14, 2, 3, 5, 8].contains(drawn.value) {
-            payPillar(col, "fibonacci", pillar.label, pillar.num("value", 1) == 0 ? 1 : pillar.value)
-        }
+        // (Fibonacci retired in v6.78 — entry removed from items.js; restore
+        // strips the id from old saves.)
 
         // Column Tie-Safe Pillar: feedback only — the save already happened.
         if isTie, correct, g != .same, let pillar, pillar.effect == "columnTieSafe",
@@ -1186,73 +1222,64 @@ public final class GameEngine {
         return next.value > top.value ? .higher : (next.value < top.value ? .lower : .same)
     }
 
-    /// ODDS ASSIST (v6.72): the SINGLE best (pile, call) recommendation —
-    /// the call whose survival probability against the REMAINING deck is
-    /// highest across every alive pile, exactly the information the
-    /// histogram already offers, folded per pile. DISPLAY ONLY: a pure read
-    /// off `remainingCounts()` (order-free), never touching the rng, the
-    /// deck order, or any state — identical seeds play identical runs with
-    /// the assist on or off. Rules mirrored from `guess(_:_:)`'s
-    /// comparison: a ★ TOP makes every call safe (p = 1, shown as SAME),
-    /// and a DRAWN ★ is never wrong, so jokers left in the deck (value 0)
-    /// count as a success for every call. Deliberately histogram-blind to
-    /// pillar/sticker modifiers (Tie-Safe, Wild Aces) — the assist shows
-    /// what counting shows, not what the build engineers.
+    /// ODDS ASSIST (v6.72, all-best v6.78): EVERY (pile, call) pair whose
+    /// survival probability against the REMAINING deck ties the maximum —
+    /// exactly the information the histogram already offers, folded per
+    /// pile, with no tie-break ladder: at equal odds every best call glows.
+    /// DISPLAY ONLY: a pure read off `remainingCounts()` (order-free),
+    /// never touching the rng, the deck order, or any state — identical
+    /// seeds play identical runs with the assist on or off. Rules mirrored
+    /// from `guess(_:_:)`'s comparison: a ★ TOP makes every call safe
+    /// (all three calls at p = 1), and a DRAWN ★ is never wrong, so jokers
+    /// left in the deck (value 0) count as a success for every call.
+    /// Deliberately histogram-blind to pillar/sticker PROBABILITY modifiers
+    /// (Tie-Safe, Wild Aces, the tolerance family) — the assist shows what
+    /// counting shows, not what the build engineers. LEGALITY is respected,
+    /// though (v6.78): `guess()` refuses a SAME on a muted pile and any
+    /// call off the magnet piles while a Magnet is up, so those calls are
+    /// never candidates — a glow the player cannot play is a wrong glow.
     ///
-    /// TIES break in a fixed, rng-free order so runs stay reproducible:
-    ///   (a) a SAME call beats a directional call at equal probability
-    ///       (SAME banks the charge — strictly better value per point);
-    ///   (b) then the pile with the SMALLEST `pileSize` (fewest cards at
-    ///       risk if the run sours);
-    ///   (c) then "any" is implemented as FIRST-BY-INDEX — piles ascend and
-    ///       calls enumerate higher → lower → same, and the incumbent wins
-    ///       remaining ties — deterministic, never rng.
-    /// Candidates are enumerated as (pile, call) PAIRS — a pile whose
-    /// higher and same tie each other still lets rule (a) prefer the SAME.
-    /// nil when nothing is drawable.
-    public func assistRecommendation() -> (pile: Int, call: Guess)? {
+    /// Pairs return in ascending (pile, higher→lower→same) enumeration
+    /// order — deterministic, never rng. Empty when nothing is drawable.
+    public func assistRecommendations() -> [(pile: Int, call: Guess)] {
         guard let run, run.started, status == "playing", let deck, let board,
-              !deck.isEmpty else { return nil }
+              !deck.isEmpty else { return [] }
         let counts = deck.remainingCounts()
         let total = counts.values.reduce(0, +)
-        guard total > 0 else { return nil }
+        guard total > 0 else { return [] }
         let jokers = counts[0] ?? 0
-        var best: (p: Double, pile: Int, call: Guess, size: Int)?
+        // MAGNET: while any magnet top is up, only magnet piles take a guess.
+        let magnets = magnetPiles()
+        var cands: [(pile: Int, call: Guess, p: Double)] = []
+        var bestP = 0.0
         for i in 0..<board.size where board.isActive(i) {
             guard let top = board.top(i) else { continue }
-            let size = board.pileSize(i)
+            if !magnets.isEmpty, !magnets.contains(i) { continue }
+            let muted = pileMuted(i)
             // This pile's (call, probability) candidates. A ★ top is a
-            // certainty on ANY call — surfaced as SAME (rule (a)'s pick).
-            let cands: [(call: Guess, p: Double)]
+            // certainty on ANY call.
+            var higher = 0.0, lower = 0.0, same = 0.0
             if top.joker {
-                cands = [(.same, 1)]
+                higher = 1; lower = 1; same = 1
             } else {
-                var higher = 0, lower = 0, same = 0
+                var h = 0, l = 0, s = 0
                 for (v, n) in counts where v != 0 {
-                    if v > top.value { higher += n }
-                    else if v < top.value { lower += n }
-                    else { same += n }
+                    if v > top.value { h += n }
+                    else if v < top.value { l += n }
+                    else { s += n }
                 }
-                cands = [(.higher, Double(higher + jokers) / Double(total)),
-                         (.lower, Double(lower + jokers) / Double(total)),
-                         (.same, Double(same + jokers) / Double(total))]
+                higher = Double(h + jokers) / Double(total)
+                lower = Double(l + jokers) / Double(total)
+                same = Double(s + jokers) / Double(total)
             }
-            for (call, p) in cands {
-                guard let b = best else { best = (p, i, call, size); continue }
-                if p > b.p + 1e-9 { best = (p, i, call, size); continue }
-                guard abs(p - b.p) <= 1e-9 else { continue }
-                // (a) SAME beats a directional call.
-                if (call == .same) != (b.call == .same) {
-                    if call == .same { best = (p, i, call, size) }
-                    continue
-                }
-                // (b) smaller pile wins.
-                if size < b.size { best = (p, i, call, size); continue }
-                // (c) remaining ties keep the incumbent — the lowest pile
-                // index / earliest call, since enumeration is ascending.
-            }
+            cands.append((i, .higher, higher))
+            cands.append((i, .lower, lower))
+            // MUTE: Same cannot be called on a muted pile — not a candidate.
+            if !muted { cands.append((i, .same, same)) }
         }
-        return best.map { (pile: $0.pile, call: $0.call) }
+        for c in cands where c.p > bestP { bestP = c.p }
+        return cands.filter { abs($0.p - bestP) <= 1e-9 }
+                    .map { (pile: $0.pile, call: $0.call) }
     }
 
     /// Debug logbook: append a standalone entry for a non-engine action.

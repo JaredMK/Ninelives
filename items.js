@@ -220,8 +220,9 @@ const NINELIVES_ITEMS = {
       description: "Move 1 buried card from this pile to the smallest pile", suits: ["♦"]  },
     // UNGATED on purpose: with Bury 1 retired, Quick Bury is the cardsBuried
     // unlock ladder's only seed source (chicken-and-egg otherwise).
+    // v6.78: fires on the CARRIER's own landing (was pile-top since v6.75).
     { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 7,
-      description: "When a card lands on this card → bury 1 card under the pile", suits: ["♣"]  },
+      description: "When this card lands → bury 1 card under the pile", suits: ["♣"]  },
     { id: "twinSpark", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 4 }, label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "uncommon", price: 3,
       description: "Peek at the next card if another pile's top card matches this rank", suits: ["♠"]  },
     // max = the top of the random 0–max coin roll.
@@ -257,9 +258,13 @@ const NINELIVES_ITEMS = {
       description: "+1 coin per each pile with a ♥ top card", suits: ["♥"] },
     { id: "diamondRipple", unlock: { type: "behavior", stat: "perfectDeals", count: 8 }, label: "Diamond Ripple", icon: "🌊", kind: "behavior", behavior: "diamondRipple", tier: "uncommon", price: 2,
       description: "Shuffle every other pile with a ♦ top card", suits: ["♦"] },
-    // digCount = deck cards buried under THIS pile per other ♣-topped pile.
-    { id: "clubRoots", unlock: { type: "behavior", stat: "clubsPlayed", count: 120 }, label: "Club Roots", icon: "🌱", kind: "behavior", behavior: "clubRoots", digCount: 1, tier: "rare", price: 8,
-      description: "Bury 1 card under each pile with a ♣ top card", suits: ["♣"] },
+    // RANK ROOTS (renamed from Club Roots, v6.78 — same id, saves bind to
+    // it): the trigger is now RANK-match, not ♣-tops. digCount = deck cards
+    // buried under each OTHER pile whose top matches this card's rank when
+    // it lands (the landing pile itself never counts — the synergy-family
+    // rule).
+    { id: "clubRoots", unlock: { type: "behavior", stat: "clubsPlayed", count: 120 }, label: "Rank Roots", icon: "🌱", kind: "behavior", behavior: "clubRoots", digCount: 1, tier: "rare", price: 8,
+      description: "When this card lands → bury 1 card under each pile whose top card matches this card's rank", suits: ["♣"] },
     { id: "spadeWhispers", unlock: { type: "behavior", stat: "spadesPlayed", count: 200 }, label: "Spade Whispers", icon: "🌬️", kind: "behavior", behavior: "spadeWhispers", tier: "rare", price: 8,
       description: "The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card", suits: ["♠"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
@@ -369,10 +374,6 @@ const NINELIVES_ITEMS = {
     { id: "greedy", unlock: { type: "milestone", stat: "dealsSurvived", count: 6 }, label: "Greedy", icon: "🤑",
       kind: "scoring", effect: "greedy", value: 4, tier: "common", price: 5,
       description: "At deal end → +4 coins if this is the only equipped pillar" },
-    // value = coins per Fibonacci-rank (A/2/3/5/8) card drawn into the column.
-    { id: "fibonacci", unlock: { type: "milestone", stat: "bossesBeaten", count: 10 }, label: "Fibonacci", icon: "🌀",
-      kind: "live", effect: "fibonacci", value: 1, tier: "uncommon", price: 4,
-      description: "When a Fibonacci-rank card (A/2/3/5/8) lands correctly in this column → +1 coin" },
     { id: "highestEven", unlock: { type: "milestone", stat: "bestCampaignScore", count: 220 }, label: "Highest Heart", icon: "💗",
       kind: "scoring", effect: "highestHeart", tier: "rare", price: 8,
       description: "At deal end → earn coins equal to the highest numbered ♥ top card in this column (2–10 face value, Ace pays 1, royals pay 0)" },
@@ -540,19 +541,22 @@ const NINELIVES_ITEMS = {
       description: "A suit landing on its own suit is safe in this column, including Same calls. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
 
     // ---- SHIELDS ----------------------------------------------------------
-    // RANK SHIELD: {rank} pillar — the rank rolls the FIRST time the pillar
-    // shows in a shop this climb, is SHOWN before purchase, and is permanent
-    // (shopRoll: "rank").
+    // RANK SHIELD (dynamic, v6.78): at the START of each deal the shield
+    // re-reads your FULL deck and protects its most common rank. Tie rule:
+    // the INCUMBENT (the rank that's been most common longest) keeps the
+    // shield until strictly surpassed; a tie with no incumbent picks
+    // randomly (deal-seeded). The current rank shows on the plaque and in
+    // the {rank} template below.
     // TUNE: price 5 proposed (R4).
     { id: "rankShield", label: "Rank Shield", icon: "🔰",
-      kind: "guess", effect: "rankShield", shopRoll: "rank", tier: "uncommon", price: 5,
-      description: "Any {rank} landing in this column is safe. The rank is rolled at the shop and shown before purchase" },
+      kind: "guess", effect: "rankShield", tier: "uncommon", price: 5,
+      description: "Most common card in deck ({rank}) is always safe in this column" },
     // DAILY SUIT: the shielded suit re-rolls at the START of each deal (and
     // on redeal); the current suit shows on the pillar's plaque.
     // TUNE: price 6 proposed (R4).
     { id: "suitShield", label: "Daily Suit", icon: "📅",
       kind: "guess", effect: "suitShieldDaily", tier: "uncommon", price: 6,
-      description: "A suit rolled at the start of each deal (re-rolled on redeal, shown on the plaque) is safe when it lands in this column" },
+      description: "A new suit is chosen at the start of each deal (shown on the plaque). That suit is safe when it lands in this column" },
 
     // ---- ECONOMY / STORE --------------------------------------------------
     // FLAT PURGE: value = the fixed Purge price while equipped (overrides the
@@ -712,7 +716,7 @@ const NINELIVES_ITEMS = {
     // no match, no word. (v6.62: board-wide, was this-column-only.)
     { id: "sameTell", label: "Same Tell", icon: "🪞",
       kind: "active", effect: "sameTell", tier: "uncommon", price: 5,
-      description: "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card. No match, no word" },
+      description: "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card" },
     // LONE EYE: the no-Same-Power build's consolation — a plain peek that
     // only works while the Same slot stays EMPTY.
     { id: "lonePeek", unlock: { type: "behavior", stat: "samesCalled", count: 8 }, label: "Lone Eye", icon: "👁",
@@ -726,7 +730,7 @@ const NINELIVES_ITEMS = {
     // deal — it is a panic button you carry for the deals you did not choose.
     { id: "ambushOut", unlock: { type: "behavior", stat: "ambushesWon", count: 3 }, label: "Escape Hatch", icon: "🚪",
       kind: "active", effect: "ambushWin", tier: "rare", price: 8,
-      description: "Only usable in an ambush → clear the deal instantly. No effect during deal" },
+      description: "Only usable in an ambush from Just a Two → clear the deal instantly. No effect during deal" },
 
     /* ====================== ARCHETYPE BATCH v6.76 =======================
        NEW bases — DATA ONLY: the engine does not implement these effects
@@ -741,14 +745,17 @@ const NINELIVES_ITEMS = {
     // TUNE: price 5 proposed (R4).
     { id: "purgeDiscount", label: "Purge Coupon", icon: "🎟️",
       kind: "active", effect: "purgeDiscount", value: 3, min: 5, tier: "uncommon", price: 5,
-      description: "Activate → the store's Purge costs 3 less (minimum 5). No effect during deal" },
+      description: "Reduce the cost of the Store's Purge" },
     // TRANSMUTE: an ON-PURCHASE base — it fires at BUY time and never in a
-    // deal. {rank}/{suit} roll the first time the base shows in a shop this
-    // climb (shopRoll / shopRoll2), shown before purchase.
+    // deal. Its target {rank} is DERIVED LIVE — the rank your full deck
+    // holds the most copies of at buy time (ties → lowest; recomputed for
+    // every display, so the shelf always names the current leader). Only
+    // the {suit} rolls at the store (shopRoll, first shelf appearance this
+    // climb, shown before purchase).
     // TUNE: price 8 proposed (R4).
     { id: "transmute", label: "Transmute", icon: "⚗️",
-      kind: "active", effect: "transmute", shopRoll: "rank", shopRoll2: "suit", tier: "rare", price: 8,
-      description: "On purchase → set all {rank} cards in your deck to {suit}. No effect during deal" },
+      kind: "active", effect: "transmute", shopRoll: "suit", tier: "rare", price: 8,
+      description: "Change all {rank}s to {suit}" },
     // SACRIFICE: target: "pile" — the player picks the pile whose top card
     // is purged from the deck; the pile then dies. Thinning at a blood price.
     // TUNE: price 6 proposed (R4).
@@ -773,12 +780,12 @@ const NINELIVES_ITEMS = {
     { id: "chorus", label: "Chorus", icon: "🎼",
       kind: "active", effect: "chorus", tier: "rare", price: 8,
       description: "Set every top card in this column to the rank your full deck holds the most copies of" },
-    // DIAMOND BOOST: target: "pile" — the player picks one of this column's
-    // ♦-topped piles; value = the pile size added.
+    // DIAMOND BOOST (v6.78: column-wide, no target pick) — value = the pile
+    // size added to EVERY ♦-topped pile in the column.
     // TUNE: price 3 proposed (R4).
     { id: "diamondBoost", label: "Diamond Boost", icon: "💠",
-      kind: "active", effect: "diamondBoost", target: "pile", value: 3, tier: "common", price: 3,
-      description: "Choose a pile with a ♦ top card in this column → +3 pile size" },
+      kind: "active", effect: "diamondBoost", value: 3, tier: "common", price: 3,
+      description: "Every pile with a ♦ top card in this column → +3 pile size" },
   ],
 
   /* --------------------------------------------------------------------
@@ -806,14 +813,12 @@ const NINELIVES_ITEMS = {
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
       effect: "samePeek", tier: "rare", price: 9,
       description: "Peek the next card" },
-    // value = pile size added to EVERY alive pile (board-wide); hubValue = extra
-    // pile size added to the CALLED pile on top of that (both last the deal).
-    // The hint runs for ONE card per alive pile — a wide board pays a long
-    // look ahead, a board down to its last pile barely pays at all.
+    // SECOND SIGHT (v6.78): ONE draw of total vision — every alive pile
+    // shows its tell (higher/lower/same) for the next draw only, then the
+    // draw consumes them all (the Club Oracle window mechanic, board-wide).
     { id: "linkTell", unlock: { type: "behavior", stat: "correctSames", count: 16 }, label: "Second Sight", icon: "🔮",
       effect: "linkTell", tier: "rare", price: 9,
-      // {color} is the climb-fixed red-or-black roll (substituted live).
-      description: "For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a {color} top card" },
+      description: "Every alive pile shows a tell (higher/lower/same) for the next draw" },
     // Sprays the CALLED pile's whole column. Each sticker is rolled from the
     // grantable pool and is PERMANENT — it stays on the card after the deal.
     { id: "linkSticker", unlock: { type: "behavior", stat: "stickersApplied", count: 70 }, label: "Sticker Spray", icon: "🎨",
@@ -1024,6 +1029,10 @@ const NINELIVES_ITEMS = {
   economy: {
     dealBase: 2,    // flat base every cleared deal pays before the stage term
     bossBonus: 1,   // extra flat coins a cleared boss pays on top
+    // ENDLESS FREEZE (v6.78): the stage term never grows past this stage —
+    // endless deals (stage 4, 5, …) pay phase-3 rates for their difficulty
+    // forever. 3 = the campaign's last phase.
+    stageCap: 3,
   },
 
   /* --------------------------------------------------------------------

@@ -11,6 +11,11 @@ public final class DeckInspectViewController: UIViewController {
     /// pile, so the histogram shows remaining-vs-full and dealt-away cards
     /// render shadowed.
     private let remainingIds: Set<Int>?
+    /// SUBSET-DEAL boundary (v6.78): the ids actually IN the live deal. A
+    /// card outside it (a subset deal's benched cards) is never shadowed —
+    /// the page shows the full deck un-greyed, matching the histogram; only
+    /// a card dealt AWAY within the deal shadows out.
+    private let dealIds: Set<Int>?
     private let remainingRanks: [Int: Int]?
     private let scroll = UIScrollView()
     private let content = UIView()
@@ -24,9 +29,11 @@ public final class DeckInspectViewController: UIViewController {
 
     public init(campaign: CampaignState,
                 remainingIds: Set<Int>? = nil,
+                dealIds: Set<Int>? = nil,
                 remainingRanks: [Int: Int]? = nil) {
         self.campaign = campaign
         self.remainingIds = remainingIds
+        self.dealIds = dealIds
         self.remainingRanks = remainingRanks
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .fullScreen
@@ -285,7 +292,10 @@ public final class DeckInspectViewController: UIViewController {
             iv.frame = CGRect(x: x0 + CGFloat(col) * (cw + 8), y: y + CGFloat(row) * pitch,
                               width: cw, height: ch - 7)
             // Dealt-away cards shadow out (only with live-deal context).
-            if let ids = remainingIds, !ids.contains(c.id) { iv.alpha = 0.28 }
+            // v6.78: a card outside a SUBSET deal is not "dealt away" — it
+            // never shadows; only in-deal cards that left the draw pile do.
+            if let ids = remainingIds, !ids.contains(c.id),
+               dealIds?.contains(c.id) ?? true { iv.alpha = 0.28 }
             content.addSubview(iv)
             // Tap OR hold for help on every card (v6.52).
             iv.isUserInteractionEnabled = true

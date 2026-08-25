@@ -68,6 +68,9 @@ public final class DealScene: SKScene {
     /// deal. Set through `setPillars(_:bases:dailySuits:)`; read when a
     /// suitShieldDaily plaque is drawn.
     private var dailySuits: [Int: String]?
+    /// RANK SHIELD (v6.78): the rank label the shield protects this deal —
+    /// one shared rank, drawn on every rankShield plaque.
+    private var rankShieldRank: String?
     /// Zen deals run the slim chrome (the web hides `#dealStatus`, the coins
     /// and the SCORE chip in Zen): no reward band, a compacted centred board.
     public var isZen = false
@@ -596,12 +599,15 @@ public final class DealScene: SKScene {
         for (i, p) in piles.enumerated() { p.syncHint(i < dirs.count ? dirs[i] : nil) }
     }
 
-    /// ODDS ASSIST (v6.72): light the single recommended (pile, call) —
-    /// the pile's TOP edge glows for HIGHER, BOTTOM for LOWER, BOTH SIDES
-    /// for SAME. nil clears every pile. Display only.
-    public func syncAssist(_ rec: (pile: Int, call: Guess)?) {
+    /// ODDS ASSIST (v6.72, all-best v6.78): light EVERY recommended
+    /// (pile, call) — an inset strip along the pile's TOP edge for HIGHER,
+    /// BOTTOM for LOWER, an inset frame for SAME; a pile may carry several
+    /// at once when its calls tie. nil/empty clears every pile. Display only.
+    public func syncAssist(_ recs: [(pile: Int, call: Guess)]?) {
+        var byPile: [Int: Set<Guess>] = [:]
+        for r in recs ?? [] { byPile[r.pile, default: []].insert(r.call) }
         for (i, p) in piles.enumerated() {
-            p.syncAssist(i == rec?.pile ? rec?.call : nil)
+            p.syncAssist(byPile[i] ?? [])
         }
     }
 
@@ -741,11 +747,16 @@ public final class DealScene: SKScene {
         sameBlockChip = plate
     }
 
-    public func setPillars(_ ids: [String?], bases: [String?], dailySuits: [Int: String]? = nil) {
+    public func setPillars(_ ids: [String?], bases: [String?], dailySuits: [Int: String]? = nil,
+                           rankShieldRank: String? = nil) {
         // DAILY SUIT (v6.76): the suit each suitShieldDaily pillar shields THIS
         // deal, read live off the engine run state by the caller at deal start
         // / redeal (a redeal re-boots and re-calls this — no reset needed).
         self.dailySuits = dailySuits
+        // RANK SHIELD (v6.78): the rank the shield protects this deal, shown
+        // on every rankShield plaque (one shared rank — the most common in
+        // the full deck, picked at Start Run).
+        self.rankShieldRank = rankShieldRank
         pillarBadges.removeAll()   // the rebuild below drops the badge nodes too
         baseBadges.removeAll()
         for (c, node) in pillarPlaques.enumerated() {
@@ -804,6 +815,29 @@ public final class DealScene: SKScene {
                                         y: rect.midY - pip.size.height / 2,
                                         width: pip.size.width, height: pip.size.height))
                 }
+            }
+        }
+        // RANK SHIELD (v6.78): the plaque SHOWS the rank it protects this
+        // deal — the rank label replaces the generic emblem over the same
+        // ink halo the Daily Suit chip repaints.
+        if def.effect == "rankShield", let rank = rankShieldRank {
+            let h = img.size.height
+            let halo = (h * 0.46).rounded()
+            let hx = (img.size.width - halo) / 2
+            let hy = (h * 0.46 - halo / 2).rounded()
+            let inset = halo * 0.10
+            let rect = CGRect(x: hx + inset, y: hy + inset,
+                              width: halo - inset * 2, height: halo - inset * 2)
+            let text = NSAttributedString(string: rank, attributes: [
+                .font: CRT.Font.of(14, display: true), .foregroundColor: CRT.gold,
+            ])
+            let ts = text.size()
+            img = UIGraphicsImageRenderer(size: img.size).image { _ in
+                img.draw(at: .zero)
+                CRT.ink.setFill()
+                UIRectFill(rect)
+                text.draw(at: CGPoint(x: rect.midX - ts.width / 2,
+                                      y: rect.midY - ts.height / 2))
             }
         }
         let s = SKSpriteNode(texture: PixelTexture.texture(from: img))

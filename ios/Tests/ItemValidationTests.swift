@@ -224,24 +224,35 @@ final class ItemValidationTests: IVCase {
             }
         case "transmute":
             return {
-                // TRANSMUTE: on purchase every full-deck card of the rolled
-                // rank takes the rolled suit. Restore mid-store replays it.
+                // TRANSMUTE (v6.78): on purchase every full-deck card of the
+                // LIVE most common rank (ties → lowest — exactly what the
+                // shelf text names) takes the shop-rolled suit. Restore
+                // mid-store replays it (the deck is part of the save, so the
+                // most-common read replays too).
                 let c = self.campaign(); _ = c.addCoins(1000)
                 _ = c.openStore()
-                let rolled = 5, suit = "♣"
+                let suit = "♣"
                 c.storeOffer = StoreOffer(slots: [StoreSlot(kind: "base", id: def.id,
-                                                            rollRank: rolled, rollSuit: suit)],
+                                                            rollSuit: suit)],
                                           rerollCost: 0)
-                let effectiveRank = c.shopRolls[def.id]?.rank ?? rolled
                 let effectiveSuit = c.shopRolls[def.id]?.suit ?? suit
+                guard let targetRank = c.mostCommonRank() else {
+                    return XCTFail("\(def.id): a fresh deck always has a most common rank")
+                }
+                // The shelf text names the live target rank, never a template.
+                let text = c.itemDescription(def)
+                let rankLabel = DeckManager.ranks.first { $0.value == targetRank }?.label ?? "?"
+                XCTAssertTrue(text.contains(rankLabel),
+                              "\(def.id): the shelf text names the live most common rank")
+                XCTAssertFalse(text.contains("{rank}"), "\(def.id): no leaked template")
                 let blob = c.serialize()
-                let heldBefore = c.getRunDeck().filter { $0.currentRank == effectiveRank }.count
+                let heldBefore = c.getRunDeck().filter { $0.currentRank == targetRank }.count
                 let r = c.buyMixedSlot(0)
                 XCTAssertTrue(r.ok, "\(def.id): the buy completes")
                 XCTAssertEqual(r.transmutedCount, heldBefore, "\(def.id)")
-                XCTAssertTrue(c.getRunDeck().filter { $0.currentRank == effectiveRank }
+                XCTAssertTrue(c.getRunDeck().filter { $0.currentRank == targetRank }
                                 .allSatisfy { $0.suit == effectiveSuit },
-                              "\(def.id): every \(effectiveRank) is now \(effectiveSuit)")
+                              "\(def.id): every \(targetRank) is now \(effectiveSuit)")
                 XCTAssertEqual(c.baseInventory[def.id], 1, "\(def.id): the base still lands in inventory")
                 // …and it NEVER activates in a deal.
                 let e = IVBases.baseEngine(def)
@@ -429,7 +440,7 @@ final class ItemValidationTests: IVCase {
         // the data file is the ONE source, per tier).
         let s = campaign()
         let sellTable = data.items.store.raw["sell"]?.asObject ?? [:]
-        for def in [data.pillarTypes.get("fibonacci")!,           // common
+        for def in [data.pillarTypes.get("allHeartsCoin")!,       // common
                     data.pillarTypes.get("secondWind")!,          // its own tier
                     data.baseTypes.get("demolish")!] {
             let expected = Int(sellTable[def.tier]?.asNumber ?? -1)

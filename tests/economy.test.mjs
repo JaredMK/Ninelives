@@ -22,7 +22,9 @@ export function run() {
   const { EXTRA_COIN_VALUE } = Economy.COIN_CONFIG;
   const BASE = ItemData.economy.dealBase;
   const BOSS = ItemData.economy.bossBonus;
-  const flat = (stage, rating) => BASE + stage * (1 + rating);
+  const CAP = ItemData.economy.stageCap;
+  // ENDLESS FREEZE (v6.78): the stage term caps at stageCap (phase 3).
+  const flat = (stage, rating) => BASE + Math.min(stage, CAP) * (1 + rating);
 
   // Old coefficients are gone.
   r.ok(!("WIN_BONUS" in Economy.COIN_CONFIG), "flat win bonus coefficient is gone");
@@ -56,13 +58,15 @@ export function run() {
     r.eq(Economy.dealFlat(2, 1, false), flat(2, 1), "stage 2 easy");
     r.eq(Economy.dealFlat(2, 3, false), flat(2, 3), "stage 2 hard");
     r.eq(Economy.dealFlat(3, 2, false), flat(3, 2), "stage 3 mid");
-    // Endless: the stage index keeps counting past 3.
-    r.eq(Economy.dealFlat(4, 1, false), flat(4, 1), "endless stage 4 easy keeps counting");
-    r.eq(Economy.dealFlat(5, 3, false), flat(5, 3), "endless stage 5 hard keeps counting");
+    // ENDLESS FREEZE (v6.78): past phase 3 the payout stops growing — every
+    // endless stage pays exactly the phase-3 rate for its difficulty.
+    r.eq(Economy.dealFlat(4, 1, false), Economy.dealFlat(3, 1, false), "endless stage 4 pays phase-3 rates");
+    r.eq(Economy.dealFlat(5, 3, false), Economy.dealFlat(3, 3, false), "endless stage 5 pays phase-3 rates");
+    r.eq(Economy.dealFlat(40, 2, false), Economy.dealFlat(3, 2, false), "…forever");
     // Boss: rating forced 3 (whatever is passed) + bossBonus.
     r.eq(Economy.dealFlat(1, 1, true), flat(1, 3) + BOSS, "boss forces rating 3 (passed rating ignored) + bossBonus");
     r.eq(Economy.dealFlat(3, 3, true), flat(3, 3) + BOSS, "stage 3 boss");
-    r.eq(Economy.dealFlat(4, 2, true), flat(4, 3) + BOSS, "endless boss");
+    r.eq(Economy.dealFlat(4, 2, true), Economy.dealFlat(3, 2, true), "endless bosses freeze too");
     // Ambush / no stage context / no rating → no flat base.
     r.eq(Economy.dealFlat(0, 2, false), 0, "no stage → 0 (ambush/subset)");
     r.eq(Economy.dealFlat(2, 0, false), 0, "no rating → 0 (node without a difficulty)");

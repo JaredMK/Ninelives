@@ -341,10 +341,17 @@ public final class StoreViewController: UIViewController {
     /// The rolled {rank}/{suit} as short shelf text: "9S", "♠", "9S→♠" (R2).
     /// Reads the SLOT's rolled values — the climb lock has already reconciled
     /// them (openStore), so the shelf, the detail and the purchase agree.
+    /// TRANSMUTE (v6.78): its rank is the deck's LIVE most common, so the
+    /// tile computes it fresh — "9s→♣" tracks the deck of the moment.
     private func rolledText(_ s: StoreSlot) -> String? {
         guard s.rollRank != nil || s.rollSuit != nil else { return nil }
         var out = ""
-        if let r = rankLabel(s.rollRank) { out = r + "s" }
+        if GameData.shared.baseTypes.get(s.id)?.effect == "transmute",
+           let live = rankLabel(campaign.mostCommonRank()) {
+            out = live + "s"
+        } else if let r = rankLabel(s.rollRank) {
+            out = r + "s"
+        }
         if let suit = s.rollSuit { out += out.isEmpty ? suit : "→" + suit }
         return out
     }
@@ -681,8 +688,10 @@ public final class StoreViewController: UIViewController {
             }
             if let bdef = s.kind == "base" ? GameData.shared.baseTypes.get(s.id) : nil,
                bdef.effect == "transmute" {
+                // v6.78: the rank is the deck's LIVE most common — exactly
+                // what the buy will target this instant.
                 let lock = campaign.shopRolls[s.id]
-                let rl = rankLabel(lock?.rank ?? s.rollRank) ?? "?"
+                let rl = rankLabel(campaign.mostCommonRank()) ?? "?"
                 let suit = lock?.suit ?? s.rollSuit ?? "?"
                 prompt.show("Set all \(rl)s to \(suit)?",
                             help: "\(bdef.label) fires the moment you buy it — every \(rl) in your deck becomes \(suit), for good. It never activates in a deal.",
@@ -757,8 +766,10 @@ public final class StoreViewController: UIViewController {
                                      : "Your deck is \(n) card\(n == 1 ? "" : "s") thinner, permanently.",
                         actions: [.init("OK", role: .plain) { [weak self] in self?.prompt.hide() }])
         } else if let n = res.transmutedCount {
+            // v6.78: transmute recolors without re-ranking, so the deck's
+            // most common rank after the buy is still the rank it targeted.
             let lock = campaign.shopRolls[s.id]
-            let rl = rankLabel(lock?.rank ?? s.rollRank) ?? "?"
+            let rl = rankLabel(campaign.mostCommonRank()) ?? "?"
             let suit = lock?.suit ?? s.rollSuit ?? "?"
             let label = data.baseTypes.get(s.id)?.label ?? "Transmute"
             prompt.show("\(label): \(n) × \(rl)s became \(suit).",

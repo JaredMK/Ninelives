@@ -349,8 +349,11 @@ final class StoreDetailView: UIView {
         refresh()
     }
 
-    /// The climb-locked {rank}/{suit} as the detail's gold line: "Rolled this
-    /// climb: 9s" / "…: 9s → ♠". Rank labels come from the registry.
+    /// The climb-locked {rank}/{suit} as the detail's gold line: "This
+    /// climb: 9s" / "…: 9s → ♠". Rank labels come from the registry. (v6.78
+    /// sweep: the value is named plainly — never "rolled" language.
+    /// Transmute's rank axis is composition-driven now and shows through
+    /// the description, so this line carries just its suit.)
     private func shopRollLine() -> NSAttributedString? {
         guard let roll = shopRoll else { return nil }
         var text = ""
@@ -359,7 +362,7 @@ final class StoreDetailView: UIView {
         }
         if let suit = roll.suit { text += text.isEmpty ? suit : " → \(suit)" }
         guard !text.isEmpty else { return nil }
-        return CRTKit.attributed("Rolled this climb: \(text)", size: 14, color: CRT.gold)
+        return CRTKit.attributed("This climb: \(text)", size: 14, color: CRT.gold)
     }
 
     /// The id the current pick would DISPLACE (occupied slot / equipped Same).

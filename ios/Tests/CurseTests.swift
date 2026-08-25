@@ -209,17 +209,18 @@ final class CurseTests: XCTestCase {
     }
 
     func testJammerKnocksOutTheColumnPillarWhileTop() {
-        // Fibonacci pays on a correct fib-rank landing — jam it and it must not.
+        // Prime pays on a correct prime-rank landing — jam it and it must
+        // not. (This case rode Fibonacci until its v6.78 retirement.)
         let e = engine(deck: [
             spec(1, 4, "♠", ["jammer"]), spec(2, 4), spec(3, 4),
-            spec(4, 5), spec(5, 8),
-        ], pillars: ["fibonacci", nil, nil])
+            spec(4, 5), spec(5, 7),
+        ], pillars: ["prime", nil, nil])
         XCTAssertNil(e.resolvePillarDef(0), "jammer top: the pillar reads as absent")
-        e.guess(0, .higher)                        // 5 (fib) lands ON the jammer pile: covers it
+        e.guess(0, .higher)                        // 5 (prime) lands ON the jammer pile: covers it
         XCTAssertNotNil(e.resolvePillarDef(0), "covered jammer releases the pillar")
         let before = e.run.bonusCoins
-        e.guess(0, .higher)                        // 8 (fib) lands, pillar live again
-        XCTAssertGreaterThan(e.run.bonusCoins, before, "fibonacci pays once unjammed")
+        e.guess(0, .higher)                        // 7 (prime) lands, pillar live again
+        XCTAssertGreaterThan(e.run.bonusCoins, before, "prime pays once unjammed")
     }
 
     func testMalfunctionKillsThePileOnItsRoll() {

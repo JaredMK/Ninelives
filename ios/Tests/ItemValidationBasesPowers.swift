@@ -857,28 +857,32 @@ enum IVBases {
             ]
 
         case "diamondBoost":
+            // COLUMN-WIDE (v6.78): no target pick — every alive ♦-topped
+            // pile in the column grows by `value` on one activation.
             let boost = def.int("value", 3)
             return [
-                IV.Scenario("trigger-diamondPileGrows", allowed: .all,
-                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
-                    fire: { e in _ = e.baseActivate(col: 0, targetIndex: 0) },
+                IV.Scenario("trigger-everyDiamondPileGrows", allowed: .all,
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♦"), IV.spec(3, 6, "♣")]) },
+                    fire: { e in _ = e.baseActivate(col: 0) },
                     expect: { e, _, c in
                         XCTAssertEqual(e.board.pileSize(0), 1 + boost, "\(c): +\(boost) pile size")
-                        XCTAssertEqual(e.board.pileSize(1), 1, "\(c): the other pile is untouched")
+                        XCTAssertEqual(e.board.pileSize(1), 1 + boost, "\(c): EVERY ♦ pile in the column grows")
+                        XCTAssertEqual(e.board.pileSize(2), 1, "\(c): the other column is untouched")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-noTargetRefuses", allowed: [],
+                IV.Scenario("edge-nonDiamondPileUntouched", allowed: .all,
                     build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
-                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "diamondBoost needs a picked pile") },
+                    fire: { e in _ = e.baseActivate(col: 0) },
                     expect: { e, _, c in
-                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): a refused fire keeps the charge")
+                        XCTAssertEqual(e.board.pileSize(0), 1 + boost, "\(c): the ♦ pile grows")
+                        XCTAssertEqual(e.board.pileSize(1), 1, "\(c): the ♥ pile in the same column does not")
+                        assertSpent(e, c)
                     }),
-                IV.Scenario("mustNotFire-nonDiamondTarget", allowed: [],
-                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♣")]) },
-                    fire: { e in XCTAssertNil(e.baseActivate(col: 0, targetIndex: 1), "the ♥ pile is no target") },
+                IV.Scenario("mustNotFire-noDiamondTopInColumn", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♦")]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no ♦ top in the column → unavailable") },
                     expect: { e, _, c in
-                        XCTAssertEqual(e.board.pileSize(1), 1, "\(c)")
-                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): the charge survives a bad pick")
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): the charge survives")
                     }),
             ]
 
@@ -911,7 +915,7 @@ enum IVBases {
             XCTAssertEqual(result?.power, def.id, "\(c)")
             XCTAssertTrue(e.sameCharge, "\(c): the correct Same still banks")
         }
-        let variant: String? = ["linkBury": "♦", "linkTell": "red"][def.id] ?? nil
+        let variant: String? = ["linkBury": "♦"][def.id] ?? nil
         let trigger = IV.Scenario("trigger", allowed: .all,
             build: { powerEngine(def, variant: variant) },
             fire: { e in capture(e); fireSame(e) },
@@ -924,8 +928,8 @@ enum IVBases {
                     XCTAssertGreaterThanOrEqual((0..<3).map { e.board.piles[$0].cards.count }.reduce(0, +),
                                                 f.pileCounts.reduce(0, +) + 1, "\(c): buried somewhere")
                 case "samePeek", "linkTell":
-                    XCTAssertTrue(e.run.revealNextActive || e.run.tellDrawsLeft > 0
-                                    || e.run.sightDrawsLeft > 0
+                    XCTAssertTrue(e.run.revealNextActive || !e.run.tellPiles.isEmpty
+                                    || e.run.tellDrawsLeft > 0
                                     || !(e.run.whisperPiles.isEmpty), "\(c): a hint armed")
                 case "rankFlood":
                     // v6.76: the Same was called on a 7 — EVERY alive pile's

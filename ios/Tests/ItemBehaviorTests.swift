@@ -214,26 +214,9 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertEqual(e.run.bonusCoins, t.value, "the killing card pays a consolation")
     }
 
-    func testQuickBuryBuriesFromTheDeckBottomWithoutRevealing() {
-        // PILE-TOP (v6.75): the carrier tops the pile; a card LANDING ON it
-        // buries 1 from the deck bottom beneath that pile.
-        var specs = DeckManager.buildStandardDeck()
-        let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 10 }!
-        let e = engine(specs: specs)
-        let carrierTop = DeckManager.cardForValue(4)
-        carrierTop.stickers.append(StickerRecord(type: "quickBury"))
-        e.board.piles[0].cards = [carrierTop]
-        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
-        let before = e.deck.remaining()
-        e.guess(0, .higher)
-        XCTAssertEqual(e.deck.remaining(), before - 1 - 1, "one draw + one burial")
-        XCTAssertEqual(e.board.piles[0].cards.count, 3, "the buried card sits UNDER the pile")
-        XCTAssertEqual(e.board.piles[0].cards.last?.value, 10, "the landing card is still the top")
-    }
-
-    func testQuickBuryDoesNotFireWhenTheCarrierItselfLands() {
-        // Regression (v6.75, the reported bug): a DRAWN carrier landing
-        // CORRECTLY must NOT bury — the trigger is the NEXT landing on it.
+    func testQuickBuryFiresOnTheCarriersOwnLanding() {
+        // LANDING-FIRED (v6.78, reversing v6.75): the carrier fires the
+        // moment it LANDS — bury 1 from the deck bottom beneath that pile.
         var specs = DeckManager.buildStandardDeck()
         let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 10 }!
         specs[i].stickers.append(StickerRecord(type: "quickBury"))
@@ -242,14 +225,25 @@ final class ItemBehaviorTests: XCTestCase {
         e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
         let before = e.deck.remaining()
         e.guess(0, .higher)
-        XCTAssertEqual(e.deck.remaining(), before - 1, "the carrier's own landing buries nothing")
+        XCTAssertEqual(e.deck.remaining(), before - 1 - 1, "one draw + one burial")
+        XCTAssertEqual(e.board.piles[0].cards.count, 3, "the buried card sits UNDER the pile")
+        XCTAssertEqual(e.board.piles[0].cards.last?.value, 10, "the landing carrier is the top")
+    }
+
+    func testQuickBuryDoesNotFireWhenACardLandsOnTheCarrier() {
+        // The v6.75 pile-top trigger is GONE (v6.78): a card landing ON a
+        // Quick Bury top buries nothing — only the carrier's own landing does.
+        var specs = DeckManager.buildStandardDeck()
+        let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 10 }!
+        let e = engine(specs: specs)
+        let carrierTop = DeckManager.cardForValue(4)
+        carrierTop.stickers.append(StickerRecord(type: "quickBury"))
+        e.board.piles[0].cards = [carrierTop]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
+        let before = e.deck.remaining()
+        e.guess(0, .higher)                                   // 10 on 4 → correct
+        XCTAssertEqual(e.deck.remaining(), before - 1, "a landing ON the carrier buries nothing")
         XCTAssertEqual(e.board.piles[0].cards.count, 2, "just the landing")
-        // …and the NEXT card landing on the carrier (now the top) fires it.
-        let k = specs.firstIndex { $0.suit == "♠" && $0.currentRank == 13 }!
-        e.debug.setNextCardObj(DeckManager.toCard(specs[k], data: data))
-        e.guess(0, .higher)                                   // K on 10 → correct
-        XCTAssertEqual(e.board.piles[0].cards.count, 4, "the next landing on the carrier fires it (+1 buried)")
-        XCTAssertEqual(e.board.piles[0].cards.last?.value, 13, "the second landing is the top")
     }
 
     func testSnowballGrowsThenBuriesAndResetsOnAWrongPlacement() {
@@ -541,11 +535,10 @@ final class ItemBehaviorTests: XCTestCase {
     func testOnlyTheseBasesRequireAPlayerChosenTarget() {
         let targeted = data.items.bases.filter { $0.target != nil }
             .map { "\($0.id):\($0.target ?? "")" }.sorted()
-        // v6.76: Sacrifice and Diamond Boost join Sticker Harvest as
-        // pile-target Bases — their pickers wire in DealController with the
-        // batch's UI pass. Devil's Deal carries NO target: its curse lands on
-        // a seeded in-column pick.
-        XCTAssertEqual(targeted, ["diamondBoost:pile", "sacrifice:pile", "stickerHarvest:pile"],
+        // v6.76: Sacrifice joins Sticker Harvest as a pile-target Base.
+        // Devil's Deal carries NO target (seeded in-column pick); Diamond
+        // Boost lost its pick in v6.78 — it fires column-wide.
+        XCTAssertEqual(targeted, ["sacrifice:pile", "stickerHarvest:pile"],
                        "a Base with a target needs a picker in DealController.basePlaqueTapped")
     }
 
@@ -596,9 +589,8 @@ final class ItemBehaviorTests: XCTestCase {
         let suit = c.samePowerVariant("linkBury")
         XCTAssertEqual(suit, c2.samePowerVariant("linkBury"), "same climb, same roll")
         XCTAssertTrue(["♠", "♥", "♦", "♣"].contains(suit ?? ""), "Burrow rolls a real suit")
-        let colour = c.samePowerVariant("linkTell")
-        XCTAssertEqual(colour, c2.samePowerVariant("linkTell"))
-        XCTAssertTrue(["red", "black"].contains(colour ?? ""), "Second Sight rolls a colour")
+        XCTAssertNil(c.samePowerVariant("linkTell"),
+                     "Second Sight's colour roll retired in v6.78 — its tell is colour-blind")
         XCTAssertNil(c.samePowerVariant("linkCoins"), "fixed powers roll nothing")
         // …and the substituted description names it (no leaked template).
         if let def = data.items.samePowers.first(where: { $0.id == "linkBury" }), let suit {
@@ -618,54 +610,35 @@ final class ItemBehaviorTests: XCTestCase {
         let spadeTops = (0..<9).filter { e.board.isActive($0) && e.board.top($0)?.suit == "♠" }
         XCTAssertEqual(Set(res.targets), Set(spadeTops),
                        "Burrow's targets are exactly the ♠-topped alive piles")
-        // Second Sight counts only the rolled colour's piles.
+        // Second Sight (v6.78): one draw of total vision — every alive pile.
         let e2 = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
-                            runConfig: RunConfig(cols: [3, 3, 3], samePower: "linkTell",
-                                                 samePowerVariant: "red"))
+                            runConfig: RunConfig(cols: [3, 3, 3], samePower: "linkTell"))
         e2.start(seedOverride: 777)
         e2.startRun(pillars: [nil, nil, nil], bases: [nil, nil, nil], samePower: .some("linkTell"))
         var fired2: SamePowerResult?
         e2.on { if case .samePower(let r) = $0 { fired2 = r } }
         e2.debugFireSamePower(0)
         guard let res2 = fired2 else { XCTFail("Second Sight did not fire"); return }
-        let redTops = (0..<9).filter { j in
-            guard e2.board.isActive(j), let t = e2.board.top(j) else { return false }
-            return t.suit == "♥" || t.suit == "♦"
-        }
-        XCTAssertEqual(Set(res2.targets), Set(redTops),
-                       "Second Sight counts exactly the red-topped alive piles")
-        // v6.58: Second Sight rides its own window — the count still comes
-        // from the red-topped piles, but the DISPLAY anchors to the most
-        // recently landed top card, not the counted set.
-        XCTAssertEqual(e2.run.sightDrawsLeft, redTops.count)
-        XCTAssertEqual(e2.run.tellDrawsLeft, 0, "Second Sight no longer rides the whisper window")
+        let aliveTops = (0..<9).filter { e2.board.isActive($0) }
+        XCTAssertEqual(Set(res2.targets), Set(aliveTops),
+                       "Second Sight tells on EVERY alive pile — no colour filter")
+        XCTAssertEqual(e2.run.tellPiles, Set(aliveTops), "the tells ride the shared next-draw window")
+        XCTAssertEqual(e2.run.sightDrawsLeft, 0, "the old multi-draw window is retired")
     }
 
-    /// SECOND SIGHT (v6.58): during the window the hint shows ONLY on the
-    /// pile that most recently landed a living top card — a correct landing
-    /// moves the hint, a fatal landing clears it, and no other pile ever
-    /// hints (the batch-4 "tell shows on every pile" bug).
-    func testSecondSightHintsOnlyOnLastLandedPile() {
+    /// SECOND SIGHT (v6.78): every alive pile hints for the NEXT DRAW ONLY —
+    /// one draw, anywhere, consumes every armed tell (the Tell/Club Oracle
+    /// window rule).
+    func testSecondSightTellsEveryAlivePileForOneDrawOnly() {
         let e = IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♥")],
                           deckOrder: [IV.spec(50, 9), IV.spec(51, 3), IV.spec(52, 12), IV.spec(53, 4)],
-                          samePower: "linkTell", samePowerVariant: "red")
+                          samePower: "linkTell")
         e.debugFireSamePower(0)
-        XCTAssertEqual(e.run.sightDrawsLeft, 3, "three red tops bought three sighted draws")
-        XCTAssertNil(e.run.lastLandedPile, "nothing has landed yet — nowhere to hint")
+        XCTAssertTrue((0..<3).allSatisfy { e.pileHint($0) != nil },
+                      "every alive pile hints while the window is armed")
+        e.guess(0, .higher)                       // 9 on 5 — one draw, anywhere
         XCTAssertTrue((0..<3).allSatisfy { e.pileHint($0) == nil },
-                      "the window alone lights NO pile")
-        e.guess(0, .higher)                       // 9 on 5 — lands correctly
-        XCTAssertEqual(e.run.lastLandedPile, 0)
-        XCTAssertNotNil(e.pileHint(0), "the just-landed pile hints")
-        XCTAssertNil(e.pileHint(1), "no other pile hints")
-        XCTAssertNil(e.pileHint(2), "no other pile hints")
-        e.guess(1, .higher)                       // 3 on 8 — fatal
-        XCTAssertNil(e.run.lastLandedPile, "the landed top died with its pile")
-        XCTAssertTrue((0..<3).allSatisfy { e.pileHint($0) == nil },
-                      "a death shows no hint anywhere")
-        e.guess(2, .higher)                       // 12 on 6 — lands correctly
-        XCTAssertEqual(e.run.lastLandedPile, 2)
-        XCTAssertNil(e.pileHint(2), "the window (3 draws) is spent — no hint")
+                      "one draw consumed every tell — next-draw-only")
     }
 
     /// THE SIX SHOP ITEMS (router batch 3). Bulk Rate flattens the Purge

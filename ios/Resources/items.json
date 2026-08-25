@@ -467,7 +467,7 @@
       "behavior": "quickBury",
       "tier": "uncommon",
       "price": 7,
-      "description": "When a card lands on this card → bury 1 card under the pile",
+      "description": "When this card lands → bury 1 card under the pile",
       "suits": [
         "♣"
       ]
@@ -701,14 +701,14 @@
         "stat": "clubsPlayed",
         "count": 120
       },
-      "label": "Club Roots",
+      "label": "Rank Roots",
       "icon": "🌱",
       "kind": "behavior",
       "behavior": "clubRoots",
       "digCount": 1,
       "tier": "rare",
       "price": 8,
-      "description": "Bury 1 card under each pile with a ♣ top card",
+      "description": "When this card lands → bury 1 card under each pile whose top card matches this card's rank",
       "suits": [
         "♣"
       ]
@@ -1136,22 +1136,6 @@
       "tier": "common",
       "price": 5,
       "description": "At deal end → +4 coins if this is the only equipped pillar"
-    },
-    {
-      "id": "fibonacci",
-      "unlock": {
-        "type": "milestone",
-        "stat": "bossesBeaten",
-        "count": 10
-      },
-      "label": "Fibonacci",
-      "icon": "🌀",
-      "kind": "live",
-      "effect": "fibonacci",
-      "value": 1,
-      "tier": "uncommon",
-      "price": 4,
-      "description": "When a Fibonacci-rank card (A/2/3/5/8) lands correctly in this column → +1 coin"
     },
     {
       "id": "highestEven",
@@ -1616,10 +1600,9 @@
       "icon": "🔰",
       "kind": "guess",
       "effect": "rankShield",
-      "shopRoll": "rank",
       "tier": "uncommon",
       "price": 5,
-      "description": "Any {rank} landing in this column is safe. The rank is rolled at the shop and shown before purchase"
+      "description": "Most common card in deck ({rank}) is always safe in this column"
     },
     {
       "id": "suitShield",
@@ -1629,7 +1612,7 @@
       "effect": "suitShieldDaily",
       "tier": "uncommon",
       "price": 6,
-      "description": "A suit rolled at the start of each deal (re-rolled on redeal, shown on the plaque) is safe when it lands in this column"
+      "description": "A new suit is chosen at the start of each deal (shown on the plaque). That suit is safe when it lands in this column"
     },
     {
       "id": "purgeFlatFive",
@@ -2023,7 +2006,7 @@
       "effect": "sameTell",
       "tier": "uncommon",
       "price": 5,
-      "description": "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card. No match, no word"
+      "description": "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card"
     },
     {
       "id": "lonePeek",
@@ -2068,7 +2051,7 @@
       "effect": "ambushWin",
       "tier": "rare",
       "price": 8,
-      "description": "Only usable in an ambush → clear the deal instantly. No effect during deal"
+      "description": "Only usable in an ambush from Just a Two → clear the deal instantly. No effect during deal"
     },
     {
       "id": "purgeDiscount",
@@ -2080,7 +2063,7 @@
       "min": 5,
       "tier": "uncommon",
       "price": 5,
-      "description": "Activate → the store's Purge costs 3 less (minimum 5). No effect during deal"
+      "description": "Reduce the cost of the Store's Purge"
     },
     {
       "id": "transmute",
@@ -2088,11 +2071,10 @@
       "icon": "⚗️",
       "kind": "active",
       "effect": "transmute",
-      "shopRoll": "rank",
-      "shopRoll2": "suit",
+      "shopRoll": "suit",
       "tier": "rare",
       "price": 8,
-      "description": "On purchase → set all {rank} cards in your deck to {suit}. No effect during deal"
+      "description": "Change all {rank}s to {suit}"
     },
     {
       "id": "sacrifice",
@@ -2141,11 +2123,10 @@
       "icon": "💠",
       "kind": "active",
       "effect": "diamondBoost",
-      "target": "pile",
       "value": 3,
       "tier": "common",
       "price": 3,
-      "description": "Choose a pile with a ♦ top card in this column → +3 pile size"
+      "description": "Every pile with a ♦ top card in this column → +3 pile size"
     }
   ],
   "samePowers": [
@@ -2218,7 +2199,7 @@
       "effect": "linkTell",
       "tier": "rare",
       "price": 9,
-      "description": "For the next X draws, the last card to land shows a tell (higher/lower/same indicator), where X is the number of alive piles with a {color} top card"
+      "description": "Every alive pile shows a tell (higher/lower/same) for the next draw"
     },
     {
       "id": "linkSticker",
@@ -2445,7 +2426,8 @@
   },
   "economy": {
     "dealBase": 2,
-    "bossBonus": 1
+    "bossBonus": 1,
+    "stageCap": 3
   },
   "packs": [
     {

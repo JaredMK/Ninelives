@@ -17,9 +17,7 @@ export function run() {
 
   // --- registry presence -------------------------------------------------
   {
-    r.ok(!!PillarTypes.get("fibonacci"), "Fibonacci pillar registered");
-    r.eq(PillarTypes.get("fibonacci").tier, "uncommon", "Fibonacci is Uncommon (v6.53 retier)");
-    r.eq(PillarTypes.get("fibonacci").price, 4, "Fibonacci costs 4");
+    r.ok(!PillarTypes.get("fibonacci"), "Fibonacci is retired (v6.78) — gone from the registry");
     r.ok(!PillarTypes.get("highestOdd"), "Highest Odd is deleted from the registry");
     r.eq(PillarTypes.get("highestEven").effect, "highestHeart", "the highestEven id now runs the Highest Heart effect");
     r.eq(PillarTypes.get("highestEven").label, "Highest Heart", "…and reads Highest Heart");
@@ -32,32 +30,10 @@ export function run() {
     r.ok(!!StickerTypes.get("donate"), "Donate sticker registered");
     // Suit-gating is respected: none of the new items carry a `suit`, so they're
     // always eligible regardless of stage.
-    r.ok(!PillarTypes.get("fibonacci").suit && !PillarTypes.get("revive").suit, "new pillars are not suit-gated");
+    r.ok(!PillarTypes.get("revive").suit, "new pillars are not suit-gated");
   }
 
-  // --- Fibonacci: +1 per Fibonacci-rank (A,2,3,5,8) drawn card landed in this
-  //     column. No streak, no escalation, no reset. (Ace counts as 1.)
-  {
-    const e = GameEngine.create(deck(), 10, { cols: COLS });
-    e.start(); e.startRun(["fibonacci", null, null]);
-    // Land a card of `rank` correctly on pile `i` (sets a clear higher/lower top).
-    const landRank = (i, rank) => {
-      const top = rank > 2 ? rank - 1 : rank + 1;
-      e.getBoard().top(i).value = top;
-      e.debug.setNextCard(rank);
-      e.guess(i, rank > top ? "higher" : "lower");
-    };
-    landRank(0, 5);  r.eq(e.getRun().bonusCoins, 1, "a 5 (Fibonacci) lands → +1");
-    landRank(0, 9);  r.eq(e.getRun().bonusCoins, 1, "a 9 (not Fibonacci) → no pay");
-    landRank(0, 8);  r.eq(e.getRun().bonusCoins, 2, "an 8 (Fibonacci) → +1 (no escalation)");
-    landRank(0, 13); r.eq(e.getRun().bonusCoins, 2, "a King (13) → no pay (not in A/2/3/5/8)");
-    landRank(0, 14); r.eq(e.getRun().bonusCoins, 3, "an Ace (counts as 1) → +1");
-    landRank(0, 2);  r.eq(e.getRun().bonusCoins, 4, "a 2 (Fibonacci) → +1");
-    landRank(0, 3);  r.eq(e.getRun().bonusCoins, 5, "a 3 (Fibonacci) → +1");
-    // Column-scoped, and immune to streak/reset coupling.
-    landRank(3, 5);  r.eq(e.getRun().bonusCoins, 5, "a 5 in another column does not pay");
-    landRank(0, 5);  r.eq(e.getRun().bonusCoins, 6, "still +1 after an other-column guess (no reset/streak)");
-  }
+  // --- (Fibonacci behavior block removed with the v6.78 retirement.) ------
 
   // --- Highest Heart: end-of-deal column scoring -------------------------
   // Coins = the highest ♥ TOP card in the column: 2-10 pay rank, J/Q/K pay 10,
