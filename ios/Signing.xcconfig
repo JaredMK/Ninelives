@@ -1,7 +1,10 @@
-// Device signing. The simulator needs none; a real iPhone needs YOUR team.
+// Device signing. The simulator needs none; a real iPhone needs a team.
 //
-// Put your Team ID in a local, untracked override rather than editing this
-// file, so the setting never lands in a commit:
+// THE PROJECT'S OWN TEAM (JARED MATHEW KROSSER, QZF43AV37Q) is committed in
+// project.yml's base settings, so every generated target carries it and a
+// fresh clone — Xcode Cloud included — signs identically to this machine.
+//
+// To sign with a DIFFERENT Apple ID, override it locally and untracked:
 //
 //     echo 'DEVELOPMENT_TEAM = ABCDE12345' > ios/Local.xcconfig
 //

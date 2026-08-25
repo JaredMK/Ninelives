@@ -1624,15 +1624,15 @@
     },
     {
       "id": "sameTolSuit",
-      "label": "Suit Match",
-      "icon": "🧥",
+      "label": "Super Same Safe",
+      "icon": "🟰",
       "kind": "guess",
       "effect": "sameTolerance",
       "family": "sameTolerance",
-      "tol": "sameSuit",
+      "tol": "sameRank",
       "tier": "uncommon",
       "price": 6,
-      "description": "A suit landing on its own suit is safe in this column, including Same calls. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power"
+      "description": "A card landing on its own rank is safe in this column"
     },
     {
       "id": "rankShield",

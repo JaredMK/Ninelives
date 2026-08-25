@@ -521,15 +521,16 @@ public final class GameEngine {
         }
         // SCARCE SUIT (v6.81 — the Daily Suit rework): the shielded suit is
         // no longer a roll. Each deal start reads the FULL deck and shields
-        // the suit it holds the FEWEST of — among suits actually present
-        // (a suit you own zero of can never land, so it would be a dead
-        // shield); ties break by the canonical suit order, deterministically,
-        // so no rng is ever drawn. Recomputed here every Start Run (a redeal
-        // re-runs it; a mid-deal restore keeps the snapshot's value).
+        // the suit it holds the FEWEST of. A suit you hold NONE of counts as
+        // the scarcest and IS chosen (v6.82, user's call — zero is the
+        // smallest number; the shield then simply has nothing to catch until
+        // that suit re-enters the deck). Ties break by the canonical suit
+        // order, deterministically, so no rng is ever drawn. Recomputed here
+        // every Start Run (a redeal re-runs it; a mid-deal restore keeps the
+        // snapshot's value).
         if let pillars = run.pillars, run.dailySuits != nil {
             let counts = fullDeckSuitCounts()
             let scarce = DeckManager.suits.map(\.symbol)
-                .filter { (counts[$0] ?? 0) > 0 }
                 .min { (counts[$0] ?? 0) < (counts[$1] ?? 0) }
             for c in 0..<pillars.count {
                 if let def = resolvePillarDef(c), def.effect == "suitShieldDaily", let scarce {
@@ -677,7 +678,7 @@ public final class GameEngine {
         // banks the Same Charge, fires the equipped Same-Power and reports
         // `.resolved(correct: true)`, which is also where the flow's
         // correctSames bump reads from. ONE shared resolution for the whole
-        // family (and the sameSuit tolerance additionally shields ANY call on
+        // family (and the sameRank tolerance additionally shields ANY call on
         // a same-suit landing).
         if !correct, let pillar, let pcol = run.pileColumns?[index],
            let saveEffect = landingSave(pillar: pillar, g: g, current: current, drawn: drawn, col: pcol) {

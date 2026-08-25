@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.81"
-    static let note = "the deck view's one-sticker bug is root-caused and killed for good (all UIKit cards now bake face+chips through one CardComposite); deck-view taps open the store-style detail popup; the Old Joker hands a broke player drink money instead of an ambush; Daily Suit becomes SCARCE SUIT (shields your fewest-held suit, re-read each deal)."
+    static let version = "v6.82"
+    static let note = "Scarce Suit shields a suit you hold NONE of (zero is the fewest); Suit Match becomes SUPER SAME SAFE — a card landing on its own rank is safe; the deal-cleared coin line reads PAYOUT; and every target carries the signing team so a fresh clone (Xcode Cloud) matches this machine."
     static let line = "build \(version) · \(note)"
 }
 

@@ -11,8 +11,8 @@ extension GameEngine {
     /// ONE shared resolution for the whole sameTolerance family: a tolerated
     /// Same is promoted to a FULL correct Same by the caller, so it charges
     /// the Same Shield, fires the equipped Same-Power and counts as a correct
-    /// Same in the stats. The `sameSuit` tolerance additionally shields ANY
-    /// call on a same-suit landing. The shield pillars (Royal Sanctuary,
+    /// Same in the stats. The `sameRank` tolerance additionally shields ANY
+    /// call on a rank match (a tie), not just a Same call. The shield pillars (Royal Sanctuary,
     /// Rank Shield, Majority Rule, Daily Suit) read their composition
     /// conditions against the FULL deck, live, here (R3).
     func landingSave(pillar: ItemDef, g: Guess, current: LiveCard, drawn: LiveCard, col: Int) -> String? {
@@ -29,10 +29,14 @@ extension GameEngine {
             case "sum10":
                 // Ranks summing to 10 survive a Same call.
                 guard g == .same, drawn.value + current.value == 10 else { return nil }
-            case "sameSuit":
-                // A suit landing on its own suit is safe on ANY call, Same
-                // included (Wild Suit on either side counts as every suit).
-                guard matchesSuit(drawn, current.suit) || matchesSuit(current, drawn.suit) else { return nil }
+            case "sameRank":
+                // SUPER SAME SAFE (v6.82, replacing the sameSuit tolerance):
+                // a card landing on its own RANK is safe on ANY call, Same
+                // included. A rankless ★/Removal on either side never
+                // matches — the Joker rule already made those calls safe
+                // upstream, so this never has to consider them.
+                guard !drawn.joker, !drawn.blank, !current.joker, !current.blank,
+                      drawn.value == current.value else { return nil }
             default: return nil
             }
             return "sameTolerance"

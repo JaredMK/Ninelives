@@ -841,8 +841,8 @@ enum IVPillarsBases {
             // (rejected uses a non-royal top below)
         case "sum10":                          // ranks summing to 10
             top = IV.spec(1, 4, "♠"); tolerated = IV.spec(50, 6, "♥"); rejected = IV.spec(50, 9, "♥")
-        default:                               // sameSuit
-            top = IV.spec(1, 5, "♠"); tolerated = IV.spec(50, 9, "♠"); rejected = IV.spec(50, 9, "♥")
+        default:                               // sameRank (Super Same Safe)
+            top = IV.spec(1, 5, "♠"); tolerated = IV.spec(50, 5, "♥"); rejected = IV.spec(50, 9, "♥")
         }
         let filler = IV.spec(51, 3, "♦")
         let power = data.samePowerTypes.get("linkCoins")!
@@ -871,16 +871,18 @@ enum IVPillarsBases {
                 XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): no power fired")
             })
         let edge: IV.Scenario
-        if def.tol == "sameSuit" {
-            // The sameSuit tolerance shields ANY call on a same-suit landing —
-            // a wrong DIRECTIONAL call survives too (and banks no charge).
-            edge = IV.Scenario("edge-directionalSameSuitSurvives", allowed: [.guesses, .deck, .board],
+        if def.tol == "sameRank" {
+            // Super Same Safe shields ANY call on a RANK match — a wrong
+            // DIRECTIONAL call survives too (and banks no charge). This is
+            // the pillar's real work: a rank match called Same is already
+            // correct without it.
+            edge = IV.Scenario("edge-directionalRankMatchSurvives", allowed: [.guesses, .deck, .board],
                 build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 7, "♣")],
-                                   deckOrder: [IV.spec(50, 3, "♠"), filler],
+                                   deckOrder: [IV.spec(50, 5, "♥"), filler],
                                    pillars: [def.id, nil, nil]) },
-                fire: { $0.guess(0, .higher) },     // 3 on 5 called higher: wrong…
+                fire: { $0.guess(0, .higher) },     // 5 on 5 called higher: wrong…
                 expect: { e, f, c in
-                    XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): …but the same-suit landing is safe")
+                    XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): …but the rank match is safe")
                     XCTAssertFalse(e.sameCharge, "\(c): only a SAME call banks the charge")
                     XCTAssertEqual(e.run.correctGuesses, f.correctGuesses + 1, "\(c)")
                 })

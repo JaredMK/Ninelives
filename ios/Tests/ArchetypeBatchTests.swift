@@ -33,7 +33,10 @@ final class ArchetypeBatchTests: XCTestCase {
             ("sameTolNear",  spec(1, 5, "♠"),  spec(50, 6, "♥")),   // ±1 in value
             ("sameTolRoyal", spec(1, 11, "♠"), spec(50, 12, "♥")),  // royal on royal
             ("sameTolSum10", spec(1, 4, "♠"),  spec(50, 6, "♥")),   // ranks sum to 10
-            ("sameTolSuit",  spec(1, 5, "♠"),  spec(50, 9, "♠")),   // same-suit landing
+            // SUPER SAME SAFE (v6.82): a RANK match. This case is a genuine
+            // tie, so the Same call is correct even without the pillar — the
+            // pillar's own work is the DIRECTIONAL save, pinned below.
+            ("sameTolSuit",  spec(1, 5, "♠"),  spec(50, 5, "♥")),   // rank match
         ]
         for (id, top, drawn) in cases {
             let e = IV.engine(tops: [top, spec(2, 6, "♦"), spec(3, 7, "♣")],
@@ -57,19 +60,28 @@ final class ArchetypeBatchTests: XCTestCase {
         }
     }
 
-    /// The sameSuit tolerance's extra reach: ANY call is safe on a same-suit
-    /// landing — but only a SAME call banks the charge / fires the power.
-    func testSameSuitToleranceShieldsDirectionalCallsWithoutBanking() {
+    /// SUPER SAME SAFE's extra reach (v6.82): ANY call is safe on a RANK
+    /// match — the pillar's real job, since a rank match called Same is
+    /// already correct without it. Only a SAME call banks the charge /
+    /// fires the power.
+    func testSuperSameSafeShieldsDirectionalCallsWithoutBanking() {
         let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 7, "♣")],
-                          deckOrder: [spec(50, 3, "♠"), spec(51, 4, "♦")],
+                          deckOrder: [spec(50, 5, "♥"), spec(51, 4, "♦")],
                           pillars: ["sameTolSuit", nil, nil], samePower: "linkCoins")
         var sawPower = false
         e.on { if case .samePower = $0 { sawPower = true } }
-        e.guess(0, .higher)   // 3 on 5 called higher — wrong, but same-suit
-        XCTAssertTrue(e.board.isActive(0), "the same-suit landing survived a directional call")
+        e.guess(0, .higher)   // 5 on 5 called higher — wrong, but a rank match
+        XCTAssertTrue(e.board.isActive(0), "the rank match survived a directional call")
         XCTAssertEqual(e.run.correctGuesses, 1)
         XCTAssertFalse(e.sameCharge, "only a SAME call banks the charge")
         XCTAssertFalse(sawPower, "…and only a SAME call fires the power")
+        // A DIFFERENT rank on the same suit is no longer protected (the
+        // v6.81 suit-match reach is gone).
+        let e2 = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 7, "♣")],
+                           deckOrder: [spec(50, 3, "♠"), spec(51, 4, "♦")],
+                           pillars: ["sameTolSuit", nil, nil])
+        e2.guess(0, .higher)   // 3♠ on 5♠ — same suit, different rank
+        XCTAssertFalse(e2.board.isActive(0), "a same-SUIT landing is no longer safe")
     }
 
     /// The family placement guard lives engine-side, with a reason the UI can
@@ -278,28 +290,40 @@ final class ArchetypeBatchTests: XCTestCase {
     // MARK: - Scarce Suit (v6.81 — deal-start fewest-suit read, snapshot
     //         round-trip; was "Daily Suit", a per-deal random roll)
 
-    func testScarceSuitShieldsTheFewestHeldSuitAtDealStart() {
-        // Full deck at Start Run: tops ♠♥♣ + draw ♠♥ → ♠2 ♥2 ♣1 ♦0.
-        // ♦ is absent (a dead shield — excluded); ♣ is the scarcest PRESENT
-        // suit, whatever the seed.
+    /// v6.82 (user's rule): a suit you hold NONE of IS the scarcest and is
+    /// chosen — zero is the smallest number. Tops ♠♥♣ + draw ♠♥ leaves ♦
+    /// absent, so ♦ takes the shield whatever the seed.
+    func testScarceSuitPrefersASuitYouHoldNoneOf() {
         for seed: UInt32 in [7, 99, 4242] {
             let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣")],
                               deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♥")],
                               pillars: ["suitShield", nil, nil], seed: seed)
-            XCTAssertEqual(e.run.dailySuits?[0], "♣",
-                           "seed \(seed): the fewest PRESENT suit shields — never a roll")
+            XCTAssertEqual(e.run.dailySuits?[0], "♦",
+                           "seed \(seed): a suit held zero times is the scarcest")
         }
     }
 
-    func testScarceSuitRecomputesPerDealAndTiesBreakCanonically() {
-        // A different deck (the next deal, post-purge) shields a different
-        // suit: now ♥ is the singleton.
-        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♣"), spec(3, 6, "♥")],
-                          deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♣")],
+    /// With every suit present it takes the strict minimum — and re-reads the
+    /// deck each deal, so a different deck shields a different suit.
+    func testScarceSuitPicksTheFewestPresentSuitAndRecomputesPerDeal() {
+        // ♠2 ♥2 ♦2 ♣1 → ♣ (third in canonical order, so it cannot be an
+        // artifact of the tie-break).
+        let a = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♦")],
+                          deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♥"),
+                                      spec(52, 4, "♦"), spec(53, 2, "♣")],
                           pillars: ["suitShield", nil, nil])
-        XCTAssertEqual(e.run.dailySuits?[0], "♥", "the next deal re-reads the deck")
-        // A full standard deck ties all four suits at 13 → the canonical
-        // suit order (♦ first) breaks it, deterministically.
+        XCTAssertEqual(a.run.dailySuits?[0], "♣", "the strict minimum takes the shield")
+        // The NEXT deal (a different deck) re-reads: ♠2 ♥2 ♣2 ♦1 → ♦.
+        let b = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣")],
+                          deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♥"),
+                                      spec(52, 4, "♣"), spec(53, 2, "♦")],
+                          pillars: ["suitShield", nil, nil])
+        XCTAssertEqual(b.run.dailySuits?[0], "♦", "each deal re-reads the deck")
+    }
+
+    /// A full standard deck ties all four at 13 → the canonical suit order
+    /// breaks it, deterministically, with no rng draw.
+    func testScarceSuitTieBreaksCanonically() {
         let tie = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 3,
                              runConfig: RunConfig(cols: [1, 1, 1]))
         tie.start(seedOverride: 7)
@@ -309,10 +333,11 @@ final class ArchetypeBatchTests: XCTestCase {
     }
 
     func testScarceSuitReadsTheFullOwnedDeckThroughTheHook() {
-        // The owned deck says ♦ is scarce even though the deal subset holds
-        // none of it... it holds ONE ♦ — present and fewest.
+        // The OWNED deck holds all four suits with ♦ fewest — the deal's own
+        // cards (no ♦ at all) must not decide it.
         let owned = [spec(90, 4, "♠"), spec(91, 5, "♠"), spec(92, 6, "♥"),
-                     spec(93, 7, "♥"), spec(94, 8, "♦")]
+                     spec(93, 7, "♥"), spec(94, 8, "♣"), spec(95, 9, "♣"),
+                     spec(96, 10, "♦")]
             .map { DeckManager.toCard($0, data: GameData.shared) }
         let e = GameEngine(deckSpecs: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 6, "♣"),
                                        spec(50, 9, "♠")],

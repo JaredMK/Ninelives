@@ -448,8 +448,8 @@ public final class PhaseOverlayView: UIView {
         // "Deal reward" leads (an ambush has no flat base — its sub-row says
         // so), then "Sticker rewards" and "Pillar rewards" as their OWN main
         // rows with each bonus line as an italic sub-bullet ("None" when
-        // empty), then the deal's "Total" and the "Coins held" balance AFTER
-        // these earnings.
+        // empty), then the deal's "Payout" and the "Coins held" balance
+        // AFTER these earnings.
         let flatLine = info.lines.first(where: { $0.source == .flat })
         // summaryLines omits the flat row when it's 0 — only ambush/subset
         // deals have no flat base (Economy.dealFlat guards stage > 0).
@@ -637,7 +637,7 @@ public final class PhaseOverlayView: UIView {
         // the score's colour and was claiming the wrong family.
         // glow OFF (v6.52): the halo smudged the display face at this size —
         // Purse below was crisp for exactly this reason. Size keeps the rank.
-        rows.append(summaryRow("Total", info.earned,
+        rows.append(summaryRow("Payout", info.earned,
                                color: CRT.gold, size: 22, glow: false)); kinds.append(.total)
         py += 6
         rows.append(summaryRow("Purse", info.balance,

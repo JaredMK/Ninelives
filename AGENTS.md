@@ -402,11 +402,14 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
 ### Archetype batch v6.76 — the mechanics contracts
 
 - **Same-tolerance = full Same (R1).** ONE shared resolution in `guess()`
-  (`pillar.effect === "sameTolerance"`, `tol` ∈ near/royalPair/sum10/sameSuit)
+  (`pillar.effect === "sameTolerance"`, `tol` ∈ near/royalPair/sum10/sameRank)
   flips a would-be-wrong Same to correct; the ordinary correct branch then
   banks the charge + fires the Same-Power + bumps stats. Never branch around
-  it. `sameSuit` also makes NON-Same calls safe on a same-suit landing; the
-  other three tolerate Same calls only. **One per column, engine-enforced**:
+  it. `sameRank` (Super Same Safe, v6.82 — was `sameSuit`/"Suit Match", too
+  strong at ~1-in-4) also makes NON-Same calls safe on a rank match; the
+  other three tolerate Same calls only. NOTE the overlap: a rank match IS a
+  tie, so Super Same Safe and the Column Tie-Safe pillar now do the same
+  thing — differentiate or retire one. **One per column, engine-enforced**:
   `placePillar`/`buyPillar` reject a family member onto a column already
   holding one (no in-family swap — pick up first).
 - **Shop-rolled values (R2).** Items with `shopRoll:"rank"|"suit"` (+

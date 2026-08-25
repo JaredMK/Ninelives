@@ -14,8 +14,16 @@ settings:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     CODE_SIGN_STYLE: Automatic
+    # THE TEAM, on EVERY target (v6.82). It used to live only in the untracked
+    # Local.xcconfig, so a fresh clone — Xcode Cloud's, or a new machine's —
+    # generated a project whose targets read "without a team", which is what
+    # breaks capability/entitlement parity between the local project and the
+    # cloud build. Setting it in the project's base settings writes it into
+    # every generated target (app, framework, unit + UI test bundles).
+    # Local.xcconfig still overrides it for anyone signing with their own ID.
+    DEVELOPMENT_TEAM: QZF43AV37Q          # JARED MATHEW KROSSER
     # Signing is OFF for the simulator (nothing to sign against) and ON for a
-    # real device, where DEVELOPMENT_TEAM comes from Local.xcconfig.
+    # real device.
     CODE_SIGNING_REQUIRED[sdk=iphonesimulator*]: "NO"
     CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]: "NO"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
@@ -45,6 +53,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.gamecore
+        DEVELOPMENT_TEAM: QZF43AV37Q   # JARED MATHEW KROSSER
         DEFINES_MODULE: "YES"
         SKIP_INSTALL: "YES"
         BUILD_LIBRARY_FOR_DISTRIBUTION: "NO"
@@ -112,6 +121,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.shouldasaidsame
+        DEVELOPMENT_TEAM: QZF43AV37Q   # JARED MATHEW KROSSER
         GENERATE_INFOPLIST_FILE: "NO"
         TARGETED_DEVICE_FAMILY: "1,2"
         # The app icon: App/Assets.xcassets/AppIcon.appiconset — every iPhone
@@ -140,6 +150,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.uitests
+        DEVELOPMENT_TEAM: QZF43AV37Q   # JARED MATHEW KROSSER
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_TARGET_NAME: ShouldaSaidSame
 
@@ -158,6 +169,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.gamecoretests
+        DEVELOPMENT_TEAM: QZF43AV37Q   # JARED MATHEW KROSSER
         GENERATE_INFOPLIST_FILE: "YES"
 
 schemes:
