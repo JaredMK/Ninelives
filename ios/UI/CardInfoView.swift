@@ -29,7 +29,12 @@ enum CardInfo {
 
     // The standard card-info steps on the house type scale (CRT.Font §3b).
     static let titleSize = CRT.Font.heading   // 20 — rank+suit, the largest
-    static let nameSize = CRT.Font.label      // 16 — sticker name, display face
+    // v6.83: the sticker NAME reads at the description's own size AND face,
+    // set apart by COLOUR (gold, or curse-red) and faux BOLD instead. It used
+    // to be drawn in the display face, which at the same point size renders
+    // roughly twice the visual weight — the names read as a much bigger,
+    // shoutier type step than the copy under them.
+    static let nameSize = CRT.Font.label      // 16 — sticker name, body face + bold
     static let descSize = CRT.Font.label      // 16 — description, cream
 
     /// The canonical card title: "7 ♥" / "★ Joker" / "∅ Purge".
@@ -114,7 +119,7 @@ enum CardInfo {
             if needsNewline || i > 0 { out.append(NSAttributedString(string: "\n")) }
             let row = NSMutableAttributedString()
             row.append(CRTKit.attributed(r.name, size: nameSize, color: r.color,
-                                         display: true))
+                                         bold: true))
             row.append(CRTKit.attributed("  \(r.desc)", size: descSize,
                                          color: CRT.cardFace))
             append(row, after: i == rows.count - 1 ? 0 : 6)

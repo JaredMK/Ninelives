@@ -1769,6 +1769,24 @@ public final class DealController {
         return ("\(head) • \(buried) buried", info.body)
     }
 
+    /// THE RICH PILE HELP (v6.83): the same content `helpText(forPile:)`
+    /// composes, but STRUCTURED — so the board's panel draws each sticker
+    /// name in its own colour and bold, exactly like the deck view's popup,
+    /// instead of one flat cream paragraph. Left-aligned: the panel is a
+    /// reading block, not a caption.
+    public func richHelp(forPile index: Int) -> (String, NSAttributedString)? {
+        guard let (title, _) = helpText(forPile: index) else { return nil }
+        guard let top = engine.board.top(index) else {
+            return (title, CardInfo.attributed(body: engine.board.isActive(index)
+                                               ? "Empty. No card on this pile."
+                                               : "Dead. This pile is out of the deal.",
+                                               alignment: .left))
+        }
+        let rows = CardInfo.rows(for: top)
+        return (title, CardInfo.attributed(body: rows.isEmpty ? "No stickers on this card." : nil,
+                                           rows: rows, alignment: .left))
+    }
+
     /// The Pillar plaque's hold-help (the web's pillarPeekHtml): name + effect,
     /// and the column it governs. Registry copy, never hand-typed.
     public func helpText(forPillar col: Int) -> (String, String)? {

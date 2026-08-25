@@ -678,7 +678,7 @@ public final class GameEngine {
         // banks the Same Charge, fires the equipped Same-Power and reports
         // `.resolved(correct: true)`, which is also where the flow's
         // correctSames bump reads from. ONE shared resolution for the whole
-        // family (and the sameRank tolerance additionally shields ANY call on
+        // family (and the sameSuit tolerance additionally shields ANY call on
         // a same-suit landing).
         if !correct, let pillar, let pcol = run.pileColumns?[index],
            let saveEffect = landingSave(pillar: pillar, g: g, current: current, drawn: drawn, col: pcol) {

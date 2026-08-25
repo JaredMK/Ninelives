@@ -591,8 +591,8 @@ public final class DealViewController: UIViewController {
             return
         }
         if let pile = scene.stickerBadgePile(at: p),
-           let (title, body) = controller.helpText(forPile: pile) {
-            scene.showHelp(title: title, body: body)
+           let (title, rich) = controller.richHelp(forPile: pile) {
+            scene.showHelp(title: title, rich: rich)
             return
         }
         if let pile = scene.pileIndex(at: p) {
@@ -776,9 +776,9 @@ public final class DealViewController: UIViewController {
                let (title, body) = controller.helpText(forHUDChip: chip) {
                 holdShown = true
                 scene.showHelp(title: title, body: body)
-            } else if let pile = scene.pileIndex(at: p), let (title, body) = controller.helpText(forPile: pile) {
+            } else if let pile = scene.pileIndex(at: p), let (title, rich) = controller.richHelp(forPile: pile) {
                 holdShown = true
-                scene.showHelp(title: title, body: body)
+                scene.showHelp(title: title, rich: rich)
             } else if let col = scene.pillarCol(at: p), let (title, body) = controller.helpText(forPillar: col) {
                 holdShown = true
                 scene.showHelp(title: title, body: body)

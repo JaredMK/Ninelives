@@ -33,10 +33,7 @@ final class ArchetypeBatchTests: XCTestCase {
             ("sameTolNear",  spec(1, 5, "♠"),  spec(50, 6, "♥")),   // ±1 in value
             ("sameTolRoyal", spec(1, 11, "♠"), spec(50, 12, "♥")),  // royal on royal
             ("sameTolSum10", spec(1, 4, "♠"),  spec(50, 6, "♥")),   // ranks sum to 10
-            // SUPER SAME SAFE (v6.82): a RANK match. This case is a genuine
-            // tie, so the Same call is correct even without the pillar — the
-            // pillar's own work is the DIRECTIONAL save, pinned below.
-            ("sameTolSuit",  spec(1, 5, "♠"),  spec(50, 5, "♥")),   // rank match
+            ("sameTolSuit",  spec(1, 5, "♠"),  spec(50, 9, "♠")),   // same-suit landing
         ]
         for (id, top, drawn) in cases {
             let e = IV.engine(tops: [top, spec(2, 6, "♦"), spec(3, 7, "♣")],
@@ -60,28 +57,25 @@ final class ArchetypeBatchTests: XCTestCase {
         }
     }
 
-    /// SUPER SAME SAFE's extra reach (v6.82): ANY call is safe on a RANK
-    /// match — the pillar's real job, since a rank match called Same is
-    /// already correct without it. Only a SAME call banks the charge /
-    /// fires the power.
-    func testSuperSameSafeShieldsDirectionalCallsWithoutBanking() {
+    /// SAME SUIT SAFE's extra reach: ANY call is safe on a same-suit
+    /// landing — but only a SAME call banks the charge / fires the power.
+    func testSameSuitToleranceShieldsDirectionalCallsWithoutBanking() {
         let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 7, "♣")],
-                          deckOrder: [spec(50, 5, "♥"), spec(51, 4, "♦")],
+                          deckOrder: [spec(50, 3, "♠"), spec(51, 4, "♦")],
                           pillars: ["sameTolSuit", nil, nil], samePower: "linkCoins")
         var sawPower = false
         e.on { if case .samePower = $0 { sawPower = true } }
-        e.guess(0, .higher)   // 5 on 5 called higher — wrong, but a rank match
-        XCTAssertTrue(e.board.isActive(0), "the rank match survived a directional call")
+        e.guess(0, .higher)   // 3 on 5 called higher — wrong, but same-suit
+        XCTAssertTrue(e.board.isActive(0), "the same-suit landing survived a directional call")
         XCTAssertEqual(e.run.correctGuesses, 1)
         XCTAssertFalse(e.sameCharge, "only a SAME call banks the charge")
         XCTAssertFalse(sawPower, "…and only a SAME call fires the power")
-        // A DIFFERENT rank on the same suit is no longer protected (the
-        // v6.81 suit-match reach is gone).
+        // …and an off-suit landing is still fatal.
         let e2 = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 7, "♣")],
-                           deckOrder: [spec(50, 3, "♠"), spec(51, 4, "♦")],
+                           deckOrder: [spec(50, 3, "♥"), spec(51, 4, "♦")],
                            pillars: ["sameTolSuit", nil, nil])
-        e2.guess(0, .higher)   // 3♠ on 5♠ — same suit, different rank
-        XCTAssertFalse(e2.board.isActive(0), "a same-SUIT landing is no longer safe")
+        e2.guess(0, .higher)   // 3♥ on 5♠ — wrong call, wrong suit
+        XCTAssertFalse(e2.board.isActive(0), "an off-suit landing is unprotected")
     }
 
     /// The family placement guard lives engine-side, with a reason the UI can

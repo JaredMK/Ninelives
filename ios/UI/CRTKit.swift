@@ -18,12 +18,23 @@ public enum CRTKit {
         return l
     }
 
+    /// `bold` FAUX-BOLDS the body face (v6.83). VT323 ships no bold cut, and
+    /// the display face reads far heavier than VT323 at the same point size —
+    /// so a "bold" sticker name drawn in the display face looked like a
+    /// different, much larger type step next to its description. A negative
+    /// stroke width strokes the glyphs in their own colour: same font, same
+    /// size, same metrics, heavier ink.
     public static func attributed(_ text: String, size: CGFloat, color: UIColor,
-                                  display: Bool = false, glow: Bool = false) -> NSAttributedString {
+                                  display: Bool = false, glow: Bool = false,
+                                  bold: Bool = false) -> NSAttributedString {
         var attrs: [NSAttributedString.Key: Any] = [
             .font: CRT.Font.of(size, display: display),
             .foregroundColor: color,
         ]
+        if bold {
+            attrs[.strokeColor] = color
+            attrs[.strokeWidth] = -2.0      // negative = stroke AND fill
+        }
         if glow {
             let s = NSShadow()
             s.shadowColor = CRT.phosphor.withAlphaComponent(CRT.glowAlpha)

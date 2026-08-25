@@ -1624,15 +1624,15 @@
     },
     {
       "id": "sameTolSuit",
-      "label": "Super Same Safe",
-      "icon": "🟰",
+      "label": "Same Suit Safe",
+      "icon": "🧥",
       "kind": "guess",
       "effect": "sameTolerance",
       "family": "sameTolerance",
-      "tol": "sameRank",
-      "tier": "uncommon",
+      "tol": "sameSuit",
+      "tier": "rare",
       "price": 6,
-      "description": "A card landing on its own rank is safe in this column"
+      "description": "A card landing on its own suit is safe in this column"
     },
     {
       "id": "rankShield",

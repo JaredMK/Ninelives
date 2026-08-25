@@ -534,14 +534,14 @@ const NINELIVES_ITEMS = {
     { id: "sameTolSum10", label: "Perfect Ten", icon: "🔟",
       kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sum10", tier: "uncommon", price: 7,
       description: "Ranks summing to 10 survive a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power" },
-    // SUPER SAME SAFE (v6.82, was "Suit Match"): suit-match was too strong —
-    // a landing matches the top's SUIT about 1 time in 4, where a RANK match
-    // is about 1 in 13. The `id` stays `sameTolSuit`: ids are stable keys
-    // (saves, offers and tests bind to them), only the label moves.
+    // SAME SUIT SAFE (v6.83): back to the SUIT match it always ran — a card
+    // landing on its own suit is safe here, Same calls included. It briefly
+    // became a rank match in v6.82; the suit version is the keeper, held in
+    // check by the RARE tier instead (it was uncommon).
     // TUNE: price 6 proposed (R4).
-    { id: "sameTolSuit", label: "Super Same Safe", icon: "🟰",
-      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sameRank", tier: "uncommon", price: 6,
-      description: "A card landing on its own rank is safe in this column" },
+    { id: "sameTolSuit", label: "Same Suit Safe", icon: "🧥",
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sameSuit", tier: "rare", price: 6,
+      description: "A card landing on its own suit is safe in this column" },
 
     // ---- SHIELDS ----------------------------------------------------------
     // RANK SHIELD (dynamic, v6.78): at the START of each deal the shield

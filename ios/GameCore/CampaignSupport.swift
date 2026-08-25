@@ -101,7 +101,7 @@ extension ItemDef {
     /// one-per-column rule, enforced by `CampaignState.canPlacePillar`.
     public var family: String? { raw["family"]?.asString }
     /// v6.76: which tolerance rule a sameTolerance pillar runs
-    /// ("near" / "royalPair" / "sum10" / "sameRank").
+    /// ("near" / "royalPair" / "sum10" / "sameSuit").
     public var tol: String? { raw["tol"]?.asString }
 }
 

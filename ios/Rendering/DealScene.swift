@@ -1377,6 +1377,38 @@ public final class DealScene: SKScene {
     /// so it can't drift from what actually draws.
     private let helpBodySize: CGFloat = 18
 
+    /// The RICH overload (v6.83): the body arrives already composed — a
+    /// coloured, bolded sticker name inline with its cream description (the
+    /// same CardInfo grammar the popups use), baked as one wrapped sprite so
+    /// the board's help reads identically to the deck view's. The plain
+    /// `showHelp(title:body:)` below still serves every single-colour help
+    /// (pillars, bases, HUD chips, buttons).
+    public func showHelp(title: String, rich: NSAttributedString) {
+        helpPanel.removeAllChildren()
+        helpPanel.isHidden = false
+        let w = size.width - 16
+        let textW = w - 16
+        let block = PixelTexture.attributedText(rich, maxWidth: textW)
+        let blockH = block.size().height
+        let h = max(58, 34 + blockH + 10)
+        let bg = PixelTexture.panelNode(size: CGSize(width: w, height: h),
+                                        face: CRT.feltMid, border: CRT.phosphor)
+        bg.zPosition = 0
+        helpPanel.addChild(bg)
+        helpPanel.position = deckPanel.position
+        let t = PixelTexture.label(title, size: 20, color: CRT.phosphor, glow: true)
+        t.anchorPoint = CGPoint(x: 0, y: 1)
+        t.zPosition = 1
+        t.position = CGPoint(x: 8, y: -6)
+        helpPanel.addChild(t)
+        let body = SKSpriteNode(texture: block)
+        body.size = block.size()
+        body.anchorPoint = CGPoint(x: 0, y: 1)
+        body.zPosition = 1
+        body.position = CGPoint(x: 8, y: -34)
+        helpPanel.addChild(body)
+    }
+
     public func showHelp(title: String, body: String) {
         helpPanel.removeAllChildren()
         helpPanel.isHidden = false

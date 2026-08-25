@@ -82,6 +82,36 @@ public enum PixelTexture {
         return tex
     }
 
+    /// A baked ATTRIBUTED block, wrapped to `maxWidth` (v6.83). The plain
+    /// `text` bake above carries ONE colour and ONE face for the whole
+    /// string; the in-deal help panel needs a coloured, bolded sticker name
+    /// inline with its cream description, so the caller composes the runs
+    /// (CardInfo does it) and this bakes the laid-out result as one sprite.
+    /// Cached like every other bake — keyed on the string's own hash.
+    public static func attributedText(_ rich: NSAttributedString,
+                                      maxWidth: CGFloat) -> SKTexture {
+        let key = AttrKey(hash: rich.hash, length: rich.length, width: Int(maxWidth.rounded()))
+        if let cached = attrCache[key] { return cached }
+        let bounds = CGSize(width: maxWidth, height: 4096)
+        let measured = rich.boundingRect(with: bounds,
+                                         options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                         context: nil)
+        let canvas = CGSize(width: max(1, ceil(measured.width)),
+                            height: max(1, ceil(measured.height)))
+        let img = image(size: canvas) { cg in
+            UIGraphicsPushContext(cg)
+            defer { UIGraphicsPopContext() }
+            rich.draw(with: CGRect(origin: .zero, size: CGSize(width: maxWidth, height: canvas.height)),
+                      options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        }
+        let tex = texture(from: img)
+        attrCache[key] = tex
+        return tex
+    }
+
+    private struct AttrKey: Hashable { let hash: Int; let length: Int; let width: Int }
+    private static var attrCache: [AttrKey: SKTexture] = [:]
+
     /// A ready-to-place label sprite. `anchorPoint` defaults to centre.
     public static func label(_ string: String, size: CGFloat, color: UIColor,
                             display: Bool = false, glow: Bool = false) -> SKSpriteNode {
