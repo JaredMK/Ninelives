@@ -872,13 +872,15 @@ public final class CardPickerViewController: UIViewController {
         var ok = false
         switch mode {
         case .applySticker(let t):
-            // applySticker consumes the inventory copy itself.
+            // applySticker consumes the inventory copy itself. Source nil:
+            // the PlacementLog falls back to its own origin notes (pack /
+            // mystery / joker / an earlier store buy).
             ok = campaign.applySticker(id, t)
         case .buySticker(let slot, let t):
             // Place-then-confirm-THEN-pay: buyOfferedSticker charges + banks
             // one to inventory; applySticker consumes that one.
             if campaign.buyOfferedSticker(slot) {
-                ok = campaign.applySticker(id, t)
+                ok = campaign.applySticker(id, t, source: "store")
             }
         case .removal(let price):
             ok = price > 0 ? campaign.buyRemoval(id) : campaign.removeDeckCard(id)

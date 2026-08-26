@@ -330,6 +330,25 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
             },
         ], height: 32)
         y += 6
+        // PLACEMENT LOG (v6.84): sticker-placement decisions, one NDJSON
+        // record per placement, durable ACROSS runs — see PlacementLog.swift
+        // for the format and the meaningfulness heuristic.
+        let n = PlacementLog.recordCount()
+        textLine("Placement log: \(n) record\(n == 1 ? "" : "s") · PLACE| lines above")
+        textLine("Durable NDJSON: Documents/placement-log.ndjson (COPY here,")
+        textLine("or Xcode ▸ Devices ▸ Download Container)")
+        buttonRow([
+            Btn("COPY PLACEMENTS", role: .gold) { [weak self] in
+                UIPasteboard.general.string = PlacementLog.fileText()
+                self?.note("\(PlacementLog.recordCount()) placement records copied")
+            },
+            Btn("CLEAR FILE", role: .danger) { [weak self] in
+                PlacementLog.clearFile()
+                self?.build()
+                self?.note("placement log cleared")
+            },
+        ], height: 32)
+        y += 6
     }
 
     private func buildDealSection() {

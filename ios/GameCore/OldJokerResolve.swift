@@ -423,7 +423,9 @@ extension CampaignState {
         switch kind {
         case .pillar: if let c = col, c < columnPillars.count { columnPillars[c] = id }
         case .base:   if let c = col, c < columnBases.count { columnBases[c] = id }
-        case .sticker: stickerInventory[id, default: 0] += 1
+        case .sticker:
+            stickerInventory[id, default: 0] += 1
+            PlacementLog.noteOrigin(id, "joker")
         }
     }
 

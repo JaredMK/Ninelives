@@ -1676,6 +1676,7 @@ public final class CampaignState {
         let price = priceOverride ?? priceOf(typeId)
         guard price.isFinite, spendCoins(Int(price)) else { return false }
         stickerInventory[typeId, default: 0] += 1
+        PlacementLog.noteOrigin(typeId, "store")
         recordBuy(typeId)
         return true
     }
@@ -1689,6 +1690,7 @@ public final class CampaignState {
     public func debugGrantSticker(_ typeId: String) {
         guard data.stickerTypes.get(typeId) != nil else { return }
         stickerInventory[typeId, default: 0] += 1
+        PlacementLog.noteOrigin(typeId, "debug")
     }
     /// DEBUG panel grants: a free inventory copy (no cost, no placement — the
     /// player places it from the tray/HUD like a bought one).
@@ -2301,11 +2303,21 @@ public final class CampaignState {
         canApplySticker(findById(id), typeId)
     }
 
-    /// Apply a sticker from the inventory to a persistent card.
+    /// Apply a sticker from the inventory to a persistent card. `source` is
+    /// dev-tooling context for the PlacementLog ("store" for the shelf's
+    /// place-then-pay flow; nil falls back to the log's own origin notes) —
+    /// gameplay never reads it.
     @discardableResult
-    public func applySticker(_ id: Int, _ typeId: String) -> Bool {
+    public func applySticker(_ id: Int, _ typeId: String, source: String? = nil) -> Bool {
         guard let i = index(of: id), canApplySticker(baseDeck[i], typeId) else { return false }
         guard useStickerFromInventory(typeId) else { return false }
+        // PLACEMENT LOG (v6.84, debug-only): a pure read, BEFORE the card
+        // mutates — records the choice the player just made against the
+        // eligible field they saw. No rng, no state change; `isOn` gates
+        // everything, so shipping builds skip it entirely.
+        if PlacementLog.isOn {
+            PlacementLog.record(campaign: self, typeId: typeId, chosenId: id, source: source)
+        }
         let applied = applyStickerToCard(&baseDeck[i], typeId, rng: actRng())
         // UNLOCK1: the player-applied sticker counter. This method is the
         // chokepoint every apply flow funnels through (pickers, store buys,

@@ -100,6 +100,7 @@ extension CampaignState {
             let ids = StoreRoll.rollIds(pool, 1, rng, tierWeights: data.items.store.tierWeights)
             guard let sid = ids.first, let t = data.stickerTypes.get(sid) else { return coinBonus() }
             stickerInventory[sid, default: 0] += 1
+            PlacementLog.noteOrigin(sid, "mystery")
             // No prose caption (v6.64): the reveal prints the sticker's NAME
             // over its registry description under the chip instead.
             return MysteryOutcome(key: key, title: "Imprint",

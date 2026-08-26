@@ -65,6 +65,7 @@ extension CampaignState {
     public func addStickerToInventory(_ id: String) -> Bool {
         guard data.stickerTypes.get(id) != nil else { return false }
         stickerInventory[id, default: 0] += 1
+        PlacementLog.noteOrigin(id, "pack")
         return true
     }
 
