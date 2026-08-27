@@ -297,6 +297,22 @@ final class ArchetypeBatchTests: XCTestCase {
         }
     }
 
+    /// v6.86 regression pin for the batch report: ZERO beats one — a suit at
+    /// zero copies is never excluded from candidacy — and a two-zero tie
+    /// takes the FIRST zero suit in canonical ♦♥♣♠ order.
+    func testScarceSuitZeroCountIsEligibleAndWinsOutright() {
+        // ♥ absent, ♦ held once: the shield must read ♥ (0 < 1), not ♦.
+        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 6, "♣")],
+                          deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♣")],
+                          pillars: ["suitShield", nil, nil])
+        XCTAssertEqual(e.run.dailySuits?[0], "♥", "zero copies beats one copy")
+        // ♥ AND ♣ both absent: the first zero in canonical ♦♥♣♠ order wins.
+        let tie = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 6, "♠")],
+                            deckOrder: [spec(50, 9, "♦"), spec(51, 3, "♠")],
+                            pillars: ["suitShield", nil, nil])
+        XCTAssertEqual(tie.run.dailySuits?[0], "♥", "the canonical order breaks a zero-zero tie")
+    }
+
     /// With every suit present it takes the strict minimum — and re-reads the
     /// deck each deal, so a different deck shields a different suit.
     func testScarceSuitPicksTheFewestPresentSuitAndRecomputesPerDeal() {

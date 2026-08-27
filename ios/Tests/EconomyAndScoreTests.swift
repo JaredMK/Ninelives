@@ -9,20 +9,20 @@ final class EconomyAndScoreTests: XCTestCase {
 
     // MARK: - dealFlat
 
-    func testDealFlatFormula() {
-        let base = data.items.economy.dealBase
-        let bossBonus = data.items.economy.bossBonus
-        let cap = Int(data.items.economy.num("stageCap", 3))
+    func testDealFlatLadder() {
+        // ECON2 (v6.86): a flat ladder by difficulty rating, boss flat.
+        let ladder = data.items.economy.dealPayouts
+        let boss = data.items.economy.bossPayout
+        XCTAssertEqual(ladder, [4, 5, 6], "the approved v6.86 values")
+        XCTAssertEqual(boss, 7, "the approved v6.86 boss value")
         for stage in 1...5 {
-            let s = min(stage, cap)   // ENDLESS FREEZE (v6.78): the stage term caps
             for rating in 1...3 {
                 XCTAssertEqual(eco.dealFlat(stage: stage, rating: rating, isBoss: false),
-                               base + Double(s) * Double(1 + rating),
-                               "dealBase + min(stage, stageCap) × (1 + rating)")
+                               ladder[rating - 1],
+                               "dealPayouts[rating-1], stage-independent")
             }
-            // A boss forces rating 3 and adds bossBonus.
-            XCTAssertEqual(eco.dealFlat(stage: stage, rating: 0, isBoss: true),
-                           base + Double(s) * 4 + bossBonus)
+            // A boss pays the flat bossPayout, whatever its rating says.
+            XCTAssertEqual(eco.dealFlat(stage: stage, rating: 0, isBoss: true), boss)
             XCTAssertEqual(eco.dealFlat(stage: stage, rating: 1, isBoss: true),
                            eco.dealFlat(stage: stage, rating: 3, isBoss: true),
                            "a boss ignores the node's own rating")
@@ -36,23 +36,20 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(eco.dealFlat(stage: 2, rating: 0, isBoss: false), 0)
     }
 
-    /// ENDLESS FREEZE (v6.78): past phase 3 the per-deal payout stops
-    /// growing — every endless stage pays exactly the phase-3 rate for its
-    /// difficulty, boss or not.
+    /// ENDLESS (v6.86): the ladder has no stage term at all, so every
+    /// endless stage pays exactly the phase-3 (= the only) rates for its
+    /// difficulty, boss or not — the v6.78 freeze, subsumed.
     func testEndlessStagesFreezeAtPhaseThreeRates() {
         for rating in 1...3 {
             let phase3 = eco.dealFlat(stage: 3, rating: rating, isBoss: false)
-            for stage in [4, 6, 12, 40] {
+            for stage in [1, 2, 4, 6, 12, 40] {
                 XCTAssertEqual(eco.dealFlat(stage: stage, rating: rating, isBoss: false), phase3,
-                               "stage \(stage) pays phase-3 rates, forever")
+                               "stage \(stage) pays the same flat rate, forever")
             }
             XCTAssertEqual(eco.dealFlat(stage: 9, rating: rating, isBoss: true),
                            eco.dealFlat(stage: 3, rating: rating, isBoss: true),
-                           "endless bosses freeze too")
+                           "endless bosses pay the same flat boss rate too")
         }
-        // …while the climb itself still grows to the cap.
-        XCTAssertLessThan(eco.dealFlat(stage: 2, rating: 2, isBoss: false),
-                          eco.dealFlat(stage: 3, rating: 2, isBoss: false))
     }
 
     // MARK: - breakdown

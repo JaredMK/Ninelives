@@ -123,8 +123,10 @@ final class DataValidationTests: XCTestCase {
     }
 
     func testEconomyConfigShape() {
-        XCTAssertGreaterThan(data.items.economy.dealBase, 0)
-        XCTAssertGreaterThan(data.items.economy.bossBonus, 0)
+        XCTAssertEqual(data.items.economy.dealPayouts.count, 3,
+                       "one payout per difficulty rating 1..3")
+        for p in data.items.economy.dealPayouts { XCTAssertGreaterThan(p, 0) }
+        XCTAssertGreaterThan(data.items.economy.bossPayout, 0)
     }
 
     // MARK: - Fail-loud contract

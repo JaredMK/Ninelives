@@ -130,8 +130,10 @@ public struct MysteryConfig: Sendable {
 }
 
 public struct EconomyConfig: Sendable {
-    public let dealBase: Double
-    public let bossBonus: Double
+    /// Coins for a cleared deal by its 1..3 difficulty rating (index r-1).
+    public let dealPayouts: [Double]
+    /// Coins for any cleared boss deal, flat.
+    public let bossPayout: Double
     public let raw: [String: JSONValue]
     public func num(_ key: String, _ fallback: Double) -> Double { raw[key]?.asNumber ?? fallback }
 }
@@ -465,13 +467,17 @@ public struct ItemData: Sendable {
         }
 
         // ── economy ──────────────────────────────────────────────────────────
-        var economy = EconomyConfig(dealBase: 0, bossBonus: 0, raw: [:])
+        var economy = EconomyConfig(dealPayouts: [], bossPayout: 0, raw: [:])
         if let eco = root["economy"]?.asObject {
-            for k in ["dealBase", "bossBonus"] where !((eco[k]?.asNumber ?? 0) > 0) {
-                problems.append("[items.js] economy.\(k): must be a positive finite number")
+            let ladder = eco["dealPayouts"]?.asArray?.compactMap(\.asNumber) ?? []
+            if ladder.count != 3 || ladder.contains(where: { !($0 > 0) }) {
+                problems.append("[items.js] economy.dealPayouts: must be exactly 3 positive numbers (rating 1..3)")
             }
-            economy = EconomyConfig(dealBase: eco["dealBase"]?.asNumber ?? 0,
-                                    bossBonus: eco["bossBonus"]?.asNumber ?? 0, raw: eco)
+            if !((eco["bossPayout"]?.asNumber ?? 0) > 0) {
+                problems.append("[items.js] economy.bossPayout: must be a positive finite number")
+            }
+            economy = EconomyConfig(dealPayouts: ladder,
+                                    bossPayout: eco["bossPayout"]?.asNumber ?? 0, raw: eco)
         } else {
             problems.append("[items.js] economy: missing config object")
         }

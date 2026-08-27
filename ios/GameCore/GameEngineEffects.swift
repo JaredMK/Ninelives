@@ -88,6 +88,18 @@ extension GameEngine {
         return others.filter { matchesSuit(board.top($0), carrier.suit) }
     }
 
+    /// The RANK twin (v6.86 — Same-Safe goes live as the first of the
+    /// held-back rank conditionals): the OTHER alive piles whose top shows
+    /// the CARRIER's rank. Same exemption contract: nil = no other alive
+    /// pile, the sticker neither fires nor converts. A joker top has no
+    /// rank to match (value 0).
+    func conditionalRankMatches(_ index: Int, _ carrier: LiveCard) -> [Int]? {
+        guard !carrier.joker, !carrier.blank else { return [] }
+        let others = (0..<board.size).filter { $0 != index && board.isActive($0) }
+        guard !others.isEmpty else { return nil }
+        return others.filter { board.top($0)?.value == carrier.value }
+    }
+
     /// One weighted draw from the curse pool via the "sticker" PATHWAY —
     /// the severe band is excluded by its curseExclude, so a missed suit
     /// read can never destroy a Pillar or Base. Filtered to curses that can
@@ -148,9 +160,10 @@ extension GameEngine {
 
     /// Donate's v6.85 fire: equalise EVERY alive pile (the board-wide twin
     /// of Ballast's column walk — hand a buried card from the biggest pile
-    /// to the smallest until every pair is within 1).
-    func equalizeAllPiles() -> Int {
-        var moves = 0
+    /// to the smallest until every pair is within 1). The move list is for
+    /// the travel animation — presentation data only, identities hidden.
+    func equalizeAllPiles() -> (moved: Int, moves: [(from: Int, to: Int)]) {
+        var moves: [(from: Int, to: Int)] = []
         for _ in 0..<500 {
             let alive = (0..<board.size).filter { board.isActive($0) }
             if alive.count < 2 { break }
@@ -162,9 +175,9 @@ extension GameEngine {
             if big == small || board.pileSize(big) - board.pileSize(small) <= 1 { break }
             if board.piles[big].cards.count <= 1 { break }
             if !board.moveBottomCard(big, small) { break }
-            moves += 1
+            moves.append((from: big, to: small))
         }
-        return moves
+        return (moves.count, moves)
     }
 
     // MARK: - Board-wide size replacements (v6.76)
@@ -718,6 +731,21 @@ extension GameEngine {
         if !guards.isEmpty, let gm = conditionalSuitMatches(index, drawn), gm.isEmpty {
             for t in guards { convertStickerToCurse(index, drawn, t) }
         }
+        // Same-Safe (CONDITIONAL, v6.86): the SAVE lives in the tie
+        // resolution — HERE the failed bet converts: a carrier that landed
+        // with no other top showing its rank loses Same-Safe to the curse
+        // pool. The projected LiveCard flag re-derives afterward (Peeler's
+        // idiom) so a converted carrier stops saving ties immediately.
+        let tieSafes = stickers.compactMap { st -> ItemDef? in
+            guard let t = stickerTypes.get(st.type), t.behavior == "tieSafe" else { return nil }
+            return t
+        }
+        if !tieSafes.isEmpty, let rm = conditionalRankMatches(index, drawn), rm.isEmpty {
+            for t in tieSafes { convertStickerToCurse(index, drawn, t) }
+            drawn.tieSafe = drawn.stickers.contains {
+                stickerTypes.get($0.type)?.behavior == "tieSafe"
+            }
+        }
         if n("snowball") > 0 {
             // Per-card counter (duplicate Snowballs share it): bury X, then grow
             // X by `step`. Persisted like compoundHits.
@@ -825,10 +853,10 @@ extension GameEngine {
                 if let m = conditionalSuitMatches(index, drawn) {
                     if m.isEmpty { convertStickerToCurse(index, drawn, ddef) }
                     else {
-                        let moves = equalizeAllPiles()
-                        logLine("Donate: evened the board — \(moves) buried card\(moves == 1 ? "" : "s") moved (hidden)")
-                        recT("sticker", "donate", ddef.label, ["moved": Double(moves)])
-                        emit(.actionResolved(kind: "donate", index: index, target: nil, accepted: true))
+                        let eq = equalizeAllPiles()
+                        logLine("Donate: evened the board — \(eq.moved) buried card\(eq.moved == 1 ? "" : "s") moved (hidden)")
+                        recT("sticker", "donate", ddef.label, ["moved": Double(eq.moved)])
+                        emit(.donateEqualized(index: index, moves: eq.moves))
                     }
                 }
             } else if s.type == "diamondSnob" {

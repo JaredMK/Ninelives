@@ -397,10 +397,12 @@ public final class PackRevealViewController: UIViewController {
                 // (index.html:29565), so the native mirrors it verbatim.
                 infoView.show(title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE: when it's drawn and placed on a pile, and when you guess on top of it (higher, lower, or same), it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power.")
             } else if c.blank {
-                // The registry description (items.js store.removal) is the
-                // source of truth — never a hand-typed duplicate.
+                // Registry-derived (items.js store.removal), price line
+                // dropped (v6.86): a pack Blank is FREE — the store's
+                // climbing-price sentence doesn't apply here.
                 infoView.show(title: "∅ Purge",
-                              body: GameData.shared.items.store.removal.description)
+                              body: GameData.shared.items.store.removal.description
+                                  .components(separatedBy: ". ").first ?? "")
             } else {
                 infoView.show(title: CardInfo.title(for: c),
                               body: c.stickers.isEmpty ? "A plain card, no stickers." : nil,

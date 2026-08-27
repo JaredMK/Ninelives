@@ -92,6 +92,22 @@ final class MapCardStickerTests: XCTestCase {
         }
     }
 
+    /// v6.86 (batch item 11): sealed-pack cards may arrive DRESSED — but
+    /// never with an identity-MUTATING sticker (suit changers, ±rank,
+    /// random rank). Wild Suit and plain stickers stay possible.
+    func testSealedPackCardsNeverPreCarryMutatingStickers() {
+        for seed: UInt32 in [11, 4242, 987_654] {
+            let c = climb("pink", seed: seed)
+            for (key, card) in sealedPackGrants(c) {
+                let dressed = c.baseDeck.first { $0.id == card.id } ?? card
+                for s in dressed.stickers {
+                    XCTAssertFalse(GameData.shared.stickerTypes.get(s.type)?.mutatesCardIdentity ?? false,
+                                   "seed \(seed) \(key): pack card pre-carried mutating '\(s.type)'")
+                }
+            }
+        }
+    }
+
     /// …and the draft POOL stays clean at generation: the pre-v6.73 bug rolled
     /// stickers onto unclaimed baseDeck cards while committing +2 pairs, so a
     /// fresh Pinky climb opened with a stickered pool.

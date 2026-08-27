@@ -671,6 +671,47 @@ public final class DealController {
                 }
             }
 
+        case .donateEqualized(let index, let moves):
+            // Donate (v6.86): the equalize used to happen silently between
+            // two repaints — the counts just changed. The buried cards now
+            // visibly fly pile → pile (face down, composition stays hidden)
+            // behind the landing flight, with a riffle cue and the float.
+            scene.floatCue("DONATE", at: index, color: CRT.gold)
+            if !moves.isEmpty {
+                let capped = Array(moves.prefix(8))
+                animQueue.add(priority: 1) { [weak self] done in
+                    guard let self else { done(); return }
+                    Sound.shared.shufflePile()
+                    var landed = 0
+                    let fin = { [weak self] in
+                        landed += 1
+                        if landed == capped.count { self?.refreshBoard(); done() }
+                    }
+                    for (k, m) in capped.enumerated() {
+                        self.scene.run(.sequence([.wait(forDuration: Double(k) * 0.09), .run {
+                            self.scene.flyPileToPile(from: m.from, to: m.to) { fin() }
+                        }]))
+                    }
+                }
+            }
+
+        case .trapdoorDropped(let index, let count):
+            // Trapdoor (v6.86): the drop was invisible — the pile count just
+            // shrank mid-landing. Each dropped card now slips from the pile
+            // back into the deck, face down, under the curse's red ring.
+            animQueue.add(priority: 1) { [weak self] done in
+                guard let self else { done(); return }
+                self.scene.curseIndicator(at: index, label: "TRAPDOOR")
+                Sound.shared.shuffleDeck()
+                for k in 0..<count {
+                    self.scene.flyToDeck(face: nil, from: index, delay: 0.1 + Double(k) * 0.095)
+                }
+                self.scene.run(.sequence([
+                    .wait(forDuration: 0.1 + Double(count) * 0.095 + 0.35),
+                    .run { done() },
+                ]))
+            }
+
         case .pillarFired(let col, let effect, _, let amount, let moves):
             scene.pulseColumn(col, base: false)
             if effect == "shuffler" {

@@ -124,7 +124,7 @@ const OUTCOMES = {
   rankFlood: ["Card Change", [], "every alive top → the called rank"],
 
   // Safety & Saves — makes a landing survivable, or brings a pile back.
-  tieSafe: ["Safety & Saves", [], "same-rank landing"], suitImmunity: ["Safety & Saves", [], "conditional: carrier safe on a matched bet"],
+  tieSafe: ["Safety & Saves", [], "conditional: rank-matched tie save"], suitImmunity: ["Safety & Saves", [], "conditional: carrier safe on a matched bet"],
   columnTieSafe: ["Safety & Saves", [], "any tie, in column"],
   sameTolerance: ["Safety & Saves", ["Same Shield & Power"], "relaxes what survives a Same"],
   rankShield: ["Safety & Saves", [], "deck's commonest rank"],
@@ -352,7 +352,7 @@ for (const cls of CLASSES) {
       + `<td class="${esc(item.tier || "")}">${esc(item.tier || "—")}</td>`
       + `<td class="num">${priceCell(item)}</td>`
       + `<td class="unlock">${unlockCell(item)}</td>`
-      + `<td>${desc ? esc(desc) : '<span class="missing">(none)</span>'}</td>`
+      + `<td>${desc ? esc(desc).replace(/\n/g, "<br>") : '<span class="missing">(none)</span>'}</td>`
       + `<td>${tags}</td></tr>`;
   }
   body += `</table>`;

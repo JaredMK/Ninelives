@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.85"
-    static let note = "THE STICKER CONDITIONAL REWORK: 20 stickers retired; the survivors are suit-agnostic board-reading bets — fire if another pile's top matches the carrier's suit, convert into a curse if none does (dormant until the card's next landing; no other pile = exempt); Payout/Anchor curse any card played onto them; Guard and Ripple renamed."
+    static let version = "v6.86"
+    static let note = "FEEDBACK + FIXES: Donate and Trapdoor got sound/motion; the Old Joker's marks show every sticker; dead piles grey their chips; Same-Safe went conditional (rank-matched, two-row text like all conditionals); flat deal payouts 4/5/6 by difficulty, 7 for a boss; map/pack purge copy unified with the store's; identity-mutating stickers never pre-attach on acquired cards."
     static let line = "build \(version) · \(note)"
 }
 

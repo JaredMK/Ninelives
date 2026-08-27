@@ -47,6 +47,15 @@ public struct ItemDef: Equatable, Sendable {
     /// but still registered, so old saves keep resolving and firing it, and
     /// the Collection can show it greyed.
     public let inactive: Bool
+    /// v6.86: identity-MUTATING stickers — suit changers, ±rank, random
+    /// rank — never come PRE-ATTACHED on an acquired card (store card slot,
+    /// bought card packs, sealed map packs): they exist only as standalone
+    /// stickers the player places. Wild Suit stays grantable on cards — it
+    /// widens identity rather than rewriting it.
+    public var mutatesCardIdentity: Bool {
+        kind == "rank"
+            || ["changeSuitTo", "changeSuitRandom", "randomFixedValue"].contains(behavior ?? "")
+    }
     /// The shared curse roll's weight (cursed stickers only; > 0 required).
     public let curseWeight: Double
     /// Pathways this curse may NOT come from ("mystery" / "purge" /

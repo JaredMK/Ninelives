@@ -240,16 +240,18 @@ final class SavedLandingTests: XCTestCase {
     // MARK: - Tie-safe: RESOLVES as correct, so it already fires (pin the route)
 
     func testTieSafeSaveFiresLandingStickersViaTheCorrectBranch() {
-        let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+        // v6.86: Same-Safe is rank-conditional — pile 3's 9♦ feeds the tie
+        // save. gainCoin's suit bet then matches pile 2's 6♠ only → ×2.
+        let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 9, "♦")],
                           deckOrder: [IV.spec(50, 9, "♠", ["tieSafe", "gainCoin"]), IV.spec(51, 3)])
         let v = data.stickerTypes.get("gainCoin")!.value
         var tieSaved = false
         e.on { if case .tieSafeSaved = $0 { tieSaved = true } }
-        e.guess(0, .higher)   // 9♠ on 9♠ — a tie the sticker makes SAFE = correct
+        e.guess(0, .higher)   // 9♠ on 9♠ — a FED tie the sticker makes SAFE = correct
         XCTAssertTrue(tieSaved)
         XCTAssertTrue(e.board.isActive(0))
-        XCTAssertEqual(e.run.bonusCoins, v * 3,
-                       "a tie-safe save IS a correct landing — the conditional fires ×3 on the ♠ board")
+        XCTAssertEqual(e.run.bonusCoins, v * 2,
+                       "a tie-safe save IS a correct landing — the coin conditional fires ×2 here")
     }
 
     // MARK: - Fatal stays fatal (one representative; FatalLandingTests pins the rest)

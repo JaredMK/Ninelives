@@ -2054,9 +2054,8 @@ extension GameFlowController: MapScreenDelegate {
                     pickNext()
                 }
                 picker.forced = true   // he does not take "never mind" here
-                // HIS wording, not the store's: no "permanent" subline, and the
-                // instruction is "Choose", not "Tap" (v6.62).
-                picker.mysteryPurgeCopy = true
+                // His v6.62 wording (no "permanent" subline, "Choose") is the
+                // free-purge default since v6.86 — nothing to opt into.
                 present(picker, animated: false)
             }
             pickNext()
@@ -2434,9 +2433,8 @@ extension GameFlowController: MapScreenDelegate {
             // the deck was untouched. Same rule the granted sticker follows.
             // Guarded on there being more than one card: forcing a pick on a
             // one-card deck would demand the player delete their whole deck.
-            // Her wording (v6.64, shared with his v6.62 pickers): no
-            // "permanent" subline, "Choose a card to purge."
-            picker.mysteryPurgeCopy = true
+            // Her v6.64 wording (no "permanent" subline, "Choose a card to
+            // purge.") is the free-purge default since v6.86.
             picker.forced = campaign.deckSize() > 1
             present(picker, animated: false)
         case "stickerStrip":

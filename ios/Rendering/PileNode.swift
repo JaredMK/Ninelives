@@ -454,16 +454,35 @@ public final class PileNode: SKNode {
                 deadMark?.alpha = 0
                 deadMark?.isHidden = false
                 deadMark?.run(.fadeIn(withDuration: 0.22))
+                dimBadges(0.55, animated: true)
             } else {
                 card.colorBlendFactor = 0.55
                 card.color = CRT.feltDeep
                 deadMark?.alpha = 1
                 deadMark?.isHidden = false
+                dimBadges(0.55, animated: false)
             }
         } else {
             card.removeAction(forKey: "dim")
             card.colorBlendFactor = 0
             deadMark?.isHidden = true
+            dimBadges(0, animated: false)
+        }
+    }
+
+    /// A dead pile greys its sticker chips WITH the card (v6.86). The chips
+    /// ride `badgeRow`, a SIBLING of the card node, so the card's colorize
+    /// never reaches them — and `applyFace` rebuilds the row AFTER `setDead`,
+    /// so `syncStickerBadges` re-applies this from `isDead` on every sync.
+    private func dimBadges(_ factor: CGFloat, animated: Bool) {
+        for case let sprite as SKSpriteNode in badgeRow.children {
+            if animated {
+                sprite.color = CRT.feltDeep
+                sprite.run(.customDim(to: factor, duration: 0.22))
+            } else {
+                sprite.color = CRT.feltDeep
+                sprite.colorBlendFactor = factor
+            }
         }
     }
 
@@ -578,6 +597,8 @@ public final class PileNode: SKNode {
                 badgeRow.addChild(c)
             }
         }
+        // Rebuilt chips on a dead pile pick the grey straight back up.
+        if isDead { dimBadges(0.55, animated: false) }
     }
 
     /// The sticker-badge row's bounds in THIS node's coordinates — the deal

@@ -46,7 +46,6 @@ public final class CardPickerViewController: UIViewController {
     /// CAST purge pickers ride `.removal(price: 0)` but drop the store's
     /// wording: the "permanent" subline goes, and the instruction is
     /// "Choose", not "Tap" (v6.62 the Old Joker's; v6.64 the Queen's Purge).
-    public var mysteryPurgeCopy = false
     /// THE QUEEN's keepsake swap (v6.64): the tiny "Swap in {card}" header
     /// becomes the one big bold banner heading, the "replaced card is purged"
     /// line goes, and the instruction reads "Tap the card to swap out".
@@ -385,14 +384,14 @@ public final class CardPickerViewController: UIViewController {
                           nameSize: 16, glow: false)
             }
         case .removal(let price):
-            // Effect + price only — "Tap the card to purge." below is the ONE
-            // instruction (v6.52 sweep). The cast's own purge pickers drop the
-            // "permanent" subline entirely (v6.62/v6.64, `mysteryPurgeCopy`).
+            // Effect + price only — the hint below is the ONE instruction
+            // (v6.52 sweep). v6.86: EVERY free purge shows the corrected
+            // cast copy (v6.62/v6.64) — the old "The purge is permanent."
+            // fallback only survived on the map-blank pickup path, the one
+            // free caller that never opted in.
             bannerIcon.image = ItemArt.removal()
             setBanner(name: "∅ Purge",
-                      desc: price > 0
-                        ? "◉ \(price) · permanent. The slot stays for more."
-                        : (mysteryPurgeCopy ? "" : "The purge is permanent."))
+                      desc: price > 0 ? "◉ \(price) · permanent. The slot stays for more." : "")
         case .choose(let title, _, let prompt, _, let subject, let extraSticker):
             // When the pick is ABOUT a specific card (the Old Joker's copy),
             // show that card in the banner — his own mark says nothing about
@@ -430,7 +429,10 @@ public final class CardPickerViewController: UIViewController {
                 let c = tray[trayIndex]
                 bannerIcon.image = CardArt.image(CardArt.Face(c), scale: .half)
                 if c.blank {
-                    setBanner(name: "∅ Purge", desc: "The purge is permanent.")
+                    // v6.86: the "permanent" scare-line left every purge
+                    // banner — the confirm prompt still says it where the
+                    // decision happens.
+                    setBanner(name: "∅ Purge", desc: "")
                 } else {
                     setBanner(name: "", desc: "The replaced card is purged. The deck stays the same size.")
                 }
@@ -457,7 +459,7 @@ public final class CardPickerViewController: UIViewController {
             // The banner right above already names the sticker — repeating the
             // label here said it twice (v6.52 sweep).
             return queenGrantCopy ? "Choose a card to apply it." : "Tap a card to apply it."
-        case .removal: return mysteryPurgeCopy ? "Choose a card to purge." : "Tap the card to purge."
+        case .removal(let price): return price > 0 ? "Tap the card to purge." : "Choose a card to purge."
         case .choose(_, let verb, _, _, _, _): return "Choose a card to \(verb.lowercased())."
         case .strip:
             // v6.64: the Cleanse strips the card bare; one instruction, no

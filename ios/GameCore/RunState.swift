@@ -287,6 +287,12 @@ public enum EngineEvent {
     case tributeResolved(index: Int, accepted: Bool)
     case actionOffer(PendingAction)
     case actionResolved(kind: String, index: Int, target: Int?, accepted: Bool)
+    /// Donate's board-wide equalize (v6.86): the net pile→pile motion for
+    /// the travel animation — presentation data only, identities hidden.
+    case donateEqualized(index: Int, moves: [(from: Int, to: Int)])
+    /// Trapdoor's drop (v6.86): `count` bottom cards slipped from the pile
+    /// back into the deck at the carrier's landing.
+    case trapdoorDropped(index: Int, count: Int)
     case reviveOffer(col: Int, dead: [Int])
     case revived(col: Int, index: Int)
     case baseFired(BaseResult)

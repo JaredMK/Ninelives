@@ -667,9 +667,15 @@ public final class GameEngine {
                 recT("pillar", pillar.id, pillar.label, ["saves": 1])
             }
         }
-        // Tie-Safe: any tie involving a Tie-Safe card is safe and counts as a
-        // "same" guess, whatever the guess was.
-        let tieSafe = current.tieSafe || drawn.tieSafe || (pillar?.effect == "columnTieSafe")
+        // Same-Safe (CONDITIONAL, v6.86 — the first of the held-back rank
+        // conditionals to go live): a tie involving a Same-Safe card is safe
+        // — and counts as a "same" guess, whatever the call — ONLY when
+        // another alive pile's top shows this rank too (the v6.85 contract on
+        // the rank axis). Exempt (no other alive pile) saves nothing, the
+        // shared rule. The Column Tie-Safe PILLAR stays unconditional.
+        let stickerTieSafe = (current.tieSafe || drawn.tieSafe)
+            && !(conditionalRankMatches(index, drawn) ?? []).isEmpty
+        let tieSafe = stickerTieSafe || (pillar?.effect == "columnTieSafe")
         if isTie && tieSafe { correct = true }
         // JOKER: never wrong — a correct guess for ANY call, whichever SIDE it's
         // on (a rankless ★ can't be compared, so a guess against it must be safe).
@@ -688,9 +694,10 @@ public final class GameEngine {
             firePillar(pcol, saveEffect, pillar.label, 0)
             recT("pillar", pillar.id, pillar.label, ["saves": 1])
         }
-        // A Tie-Safe STICKER turned a directional tie into a save — SAY SO
-        // (v6.50: the only save with no cue; the pillar version always had one).
-        if isTie && correct && g != .same && (current.tieSafe || drawn.tieSafe) {
+        // A Same-Safe STICKER turned a directional tie into a save — SAY SO
+        // (v6.50: the only save with no cue; the pillar version always had
+        // one). v6.86: only when the sticker's rank bet actually held.
+        if isTie && correct && g != .same && stickerTieSafe {
             emit(.tieSafeSaved(index: index))
             recT("sticker", "tieSafe", "Tie-Safe", ["saves": 1])
         }
@@ -711,8 +718,10 @@ public final class GameEngine {
         // strips the id from old saves.)
 
         // Column Tie-Safe Pillar: feedback only — the save already happened.
+        // v6.86: the pillar takes the credit whenever the STICKER's bet did
+        // not (a worn-but-unfed Same-Safe saves nothing).
         if isTie, correct, g != .same, let pillar, pillar.effect == "columnTieSafe",
-           !current.tieSafe, !drawn.tieSafe {
+           !stickerTieSafe {
             firePillar(col, "columnTieSafe", pillar.label, 0)
             recT("pillar", pillar.id, pillar.label, ["saves": 1])
         }
@@ -851,6 +860,7 @@ public final class GameEngine {
                     let def = stickerTypes.get(doors[0].type)
                     logLine("Trapdoor: \(dropped) card\(dropped == 1 ? "" : "s") fell out of the pile's bottom, back into the deck (hidden)")
                     recT("sticker", doors[0].type, def?.label ?? "Trapdoor", ["cards": Double(dropped)])
+                    emit(.trapdoorDropped(index: index, count: dropped))
                 }
             }
             logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile survived (\(board.piles[index].cards.count) cards)")
@@ -1026,6 +1036,18 @@ public final class GameEngine {
         }
         if !fatalGuards.isEmpty, let gm = conditionalSuitMatches(index, drawn), gm.isEmpty {
             for t in fatalGuards { convertStickerToCurse(index, drawn, t) }
+        }
+        // v6.86: Same-Safe converts the same way — an unfed tie that KILLED
+        // the pile is exactly the bet the sticker missed.
+        let fatalTieSafes = drawn.stickers.compactMap { st -> ItemDef? in
+            guard let t = stickerTypes.get(st.type), t.behavior == "tieSafe" else { return nil }
+            return t
+        }
+        if !fatalTieSafes.isEmpty, let rm = conditionalRankMatches(index, drawn), rm.isEmpty {
+            for t in fatalTieSafes { convertStickerToCurse(index, drawn, t) }
+            drawn.tieSafe = drawn.stickers.contains {
+                stickerTypes.get($0.type)?.behavior == "tieSafe"
+            }
         }
         board.kill(index)
         emit(.pileKilled(index: index))

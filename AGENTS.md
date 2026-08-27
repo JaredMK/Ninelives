@@ -474,8 +474,14 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   campaign writes ride `.stickerConverted` / `.coverCursed` →
   `convertStickerOnCard`. Heavy's old passive pile-size weight is RETIRED
   (Shrink keeps its) — Heavy is a latched sizeBonus landing effect now.
-  The four rank conditionals (Same-Safe, Recharge Shield, Tap Power, Twin
-  Spark) are HELD BACK untouched pending tuning (~21% hit rate).
+  SAME-SAFE went LIVE in v6.86 on the RANK axis (`conditionalRankMatches`):
+  the tie save is gated on another alive pile's top showing the carrier's
+  rank; a carrier's missed bet converts at ANY of its landings (fatal
+  included); exemption as above (and an exempt/unfed tie is NOT saved). The
+  pile-top wearer still gates ties bidirectionally but never converts —
+  conversions belong to the landing CARRIER. The remaining rank
+  conditionals (Recharge Shield, Tap Power, Twin Spark) stay HELD BACK
+  untouched pending tuning (~21% hit rate).
 - **Odds Assist (iOS, v6.78): ALL-BEST + legality.**
   `assistRecommendations()` returns EVERY (pile, call) pair tying the max
   survival probability — no tie-break ladder — and respects guess()'s

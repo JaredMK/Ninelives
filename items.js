@@ -190,13 +190,17 @@ const NINELIVES_ITEMS = {
       description: "Change suit to ♦" },
     { id: "changeSuitClub",   label: "Change to ♣", icon: "♣️", kind: "behavior", behavior: "changeSuitTo", suit: "♣", tier: "common", weight: 25, price: 1,
       description: "Change suit to ♣" },
+    // SAME-SAFE (v6.86): the first held-back rank conditional goes LIVE —
+    // the suit nine's contract on the RANK axis: the tie save is gated on
+    // another alive pile's top showing this rank, a missed bet converts,
+    // no other alive pile is exempt (and saves nothing).
     { id: "tieSafe",    label: "Same-Safe",   icon: "🛡️", kind: "behavior", behavior: "tieSafe", tier: "common", price: 2,
-      description: "Safe if this card lands on a card of the same rank, or a card of the same rank lands on this card" },
+      description: "If another pile's top card matches this rank → Safe\nIf no pile's top card matches this rank → Sticker becomes cursed" },
     // GUARD (v6.85, was "Spade Guard" — id stays suitImmunity): suit-agnostic
     // and conditional. The save reads the CARRIER's own suit against the
     // OTHER pile tops at its landing.
     { id: "suitImmunity", unlock: { type: "behavior", stat: "spadesPlayed", count: 150 }, label: "Guard", icon: "🪬", kind: "behavior", behavior: "suitImmunity", tier: "uncommon", price: 5,
-      description: "If another pile's top card matches this card's suit → this card is safe when it lands. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → this card is safe when it lands.\nIf none does → this sticker becomes a curse" },
     { id: "heartGuard", inactive: true, unlock: { type: "milestone", stat: "dealsSurvived", count: 25 }, label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", suits: ["♥"], tier: "uncommon", price: 5,
       description: "Safe if this card lands on a ♥, or a ♥ lands on this card" },
     { id: "diamondGuard", inactive: true, unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 100 }, label: "Diamond Guard", icon: "♦️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♦", suits: ["♦"], tier: "uncommon", price: 5,
@@ -208,17 +212,17 @@ const NINELIVES_ITEMS = {
     // COVER PUNISH (v6.85): no self-condition — instead any card played ON
     // it is cursed (permanently; live from that card's next landing).
     { id: "extraCoin",  unlock: { type: "behavior", stat: "perfectDeals", count: 1 }, label: "Payout",      icon: "💰", kind: "behavior", behavior: "extraCoin", value: 1, tier: "uncommon", price: 3,
-      description: "At deal end if this card tops its pile → earn coins equal to pile size. Any card played on top of this card is cursed" },
+      description: "At deal end if this card tops its pile → earn coins equal to pile size.\nAny card played on top of this card is cursed" },
     { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "uncommon", price: 2,
-      description: "If another pile's top card matches this card's suit → +1 coin per pile whose top card matches. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → +1 coin per pile whose top card matches.\nIf none does → this sticker becomes a curse" },
     { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor", tier: "common", price: 2,
-      description: "At deal end if this card tops its pile → exclude the pile from the smallest-pile score. Any card played on top of this card is cursed" },
+      description: "At deal end if this card tops its pile → exclude the pile from the smallest-pile score.\nAny card played on top of this card is cursed" },
     { id: "deathBounty", inactive: true, label: "Last Coin",  icon: "💀", kind: "behavior", behavior: "deathBounty", value: 3, tier: "common", price: 2,
       description: "+3 coins if it kills a pile", suits: ["♥"] },
     // value = pile size added to each matching pile on a hit (v6.85: a
     // LANDING effect now, latched via sizeBonus — no longer a passive weight).
     { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", value: 1, tier: "uncommon", price: 1,
-      description: "If another pile's top card matches this card's suit → +1 pile size to every pile whose top matches, including this one. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → +1 pile size to every pile whose top matches, including this one.\nIf none does → this sticker becomes a curse" },
      { id: "massive", inactive: true, unlock: { type: "behavior", stat: "stickersApplied", count: 10 }, label: "Massive",       icon: "🧱", kind: "behavior", behavior: "heavy", value: 2, tier: "uncommon", price: 2,
       description: "+2 pile size",suits: ["♦"]  },
     { id: "collector", inactive: true, unlock: { type: "behavior", stat: "stickersApplied", count: 90 }, label: "Collector",   icon: "🧲", kind: "behavior", behavior: "collector", value: 1, tier: "uncommon", price: 1,
@@ -234,12 +238,12 @@ const NINELIVES_ITEMS = {
       description: "Optionally shuffle the pile", suits: ["♦"]  },
     // v6.85: conditional — the fire equalises EVERY alive pile (board-wide).
     { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", count: 1, tier: "uncommon", price: 1,
-      description: "If another pile's top card matches this card's suit → make all pile sizes equal. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → make all pile sizes equal.\nIf none does → this sticker becomes a curse" },
     // UNGATED on purpose: with Bury 1 retired, Quick Bury is the cardsBuried
     // unlock ladder's only seed source (chicken-and-egg otherwise).
     // v6.85: conditional — the carrier's suit is the bet.
     { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 7,
-      description: "If another pile's top card matches this card's suit → bury 1 card under this pile. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → bury 1 card under this pile.\nIf none does → this sticker becomes a curse" },
     { id: "twinSpark", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 4 }, label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "uncommon", price: 3,
       description: "Peek at the next card if another pile's top card matches this rank", suits: ["♠"]  },
     // max = the top of the random 0–max coin roll.
@@ -252,9 +256,9 @@ const NINELIVES_ITEMS = {
     { id: "deepPockets", inactive: true, unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 140 }, label: "Deep Pockets", icon: "👛", kind: "behavior", behavior: "deepPockets", per: 10, tier: "uncommon", price: 3,
       description: "+1 coin per 10 cards left in the deck", suits: ["♥"]},
     { id: "pillarScout", unlock: { type: "behavior", stat: "pillarsPlaced", count: 12 }, label: "Pillar Scout", icon: "🔭", kind: "behavior", behavior: "pillarScout", tier: "uncommon", price: 2,
-      description: "If this column has no Pillar → peek at the next card. If it has one → this sticker becomes a curse" },
+      description: "If this column has no Pillar → peek at the next card.\nIf it has one → this sticker becomes a curse" },
     { id: "baseScout", unlock: { type: "behavior", stat: "basesPlaced", count: 12 }, label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 2,
-      description: "If this column has no Base → peek at the next card. If it has one → this sticker becomes a curse" },
+      description: "If this column has no Base → peek at the next card.\nIf it has one → this sticker becomes a curse" },
     // ---- the Snob family: BIDIRECTIONAL — fires when a matching-suit card lands on
      // this card, AND when this card lands on a matching-suit pile top ----
     { id: "suitSnob", inactive: true, unlock: { type: "behavior", stat: "spadesPlayed", count: 60 }, label: "Spade Snob",  icon: "🧐", kind: "behavior", behavior: "suitSnob", tier: "uncommon", price: 4,
@@ -265,7 +269,7 @@ const NINELIVES_ITEMS = {
     // RIPPLE (v6.85, was "Diamond Snob" — id stays diamondSnob, ids are
     // stable keys): suit-agnostic, conditional, and the shuffle is OFFERED.
     { id: "diamondSnob", unlock: { type: "behavior", stat: "removalsUsed", count: 18 }, label: "Ripple", icon: "🌊", kind: "behavior", behavior: "diamondSnob", tier: "uncommon", price: 6,
-      description: "If another pile's top card matches this card's suit → optionally shuffle those piles. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → optionally shuffle those piles.\nIf none does → this sticker becomes a curse" },
     // digCount = deck cards buried under the pile per Club Snob.
     { id: "clubSnob", inactive: true, unlock: { type: "behavior", stat: "pilesLost", count: 40 }, label: "Club Snob",   icon: "🍀", kind: "behavior", behavior: "clubSnob", digCount: 1, tier: "uncommon", price: 10,
       description: "When a ♣ lands on this card, or this card lands on a ♣ → bury 1 deck card under the pile", suits: ["♣"] },
@@ -288,7 +292,7 @@ const NINELIVES_ITEMS = {
       description: "The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card", suits: ["♠"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
     { id: "tell", label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 4,
-      description: "If another pile's top card matches this card's suit → this card shows a tell (higher, lower, or same) for the next draw. If none does → this sticker becomes a curse" },
+      description: "If another pile's top card matches this card's suit → this card shows a tell (higher, lower, or same) for the next draw.\nIf none does → this sticker becomes a curse" },
     // ---- Same-charge / Same-power stickers (fire on correct placement) ----
     { id: "rechargeSameShield", unlock: { type: "behavior", stat: "correctSames", count: 10 }, label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "rare", price: 8,
       description: "Charge the Same Shield" },
@@ -578,13 +582,14 @@ const NINELIVES_ITEMS = {
       description: "Most common card in deck ({rank}) is always safe in this column" },
     // SCARCE SUIT (v6.81, was "Daily Suit"): no roll any more — each deal
     // start reads the FULL deck and shields the suit it holds the FEWEST of
-    // (among suits present; ties break by canonical suit order). The id and
+    // — a suit at ZERO is the scarcest and IS chosen (v6.82; ties break by
+    // the canonical suit order). The id and
     // the effect key are STABLE ("suitShield"/"suitShieldDaily" — saves and
     // engine hooks bind to them); only the player-facing label moved.
     // TUNE: price 6 proposed (R4).
     { id: "suitShield", label: "Scarce Suit", icon: "📉",
       kind: "guess", effect: "suitShieldDaily", tier: "uncommon", price: 6,
-      description: "The suit your deck holds the fewest of is safe when it lands in this column. Rechecked at the start of each deal, shown on the plaque" },
+      description: "The suit your deck holds the fewest of is safe when it lands in this column" },
 
     // ---- ECONOMY / STORE --------------------------------------------------
     // FLAT PURGE: value = the fixed Purge price while equipped (overrides the
@@ -1043,25 +1048,24 @@ const NINELIVES_ITEMS = {
   },
 
   /* --------------------------------------------------------------------
-     ECONOMY — the flat deal payout (ECON1). Coins paid on a cleared deal:
-       dealBase + stage × (1 + rating)
-     stage  = the 1-based map phase (endless phases keep counting: 4, 5, …);
+     ECONOMY — the flat deal payout (ECON2, v6.86). Coins paid on a cleared
+     deal read straight off this ladder:
+       dealPayouts[rating - 1]   (4 / 5 / 6 coins)
      rating = the deal's 1..3 stage-relative difficulty
-              (RunMap.difficultyScore of the node's targetD). A boss forces
-              rating 3 and adds bossBonus. Ambush deals pay NO flat base
-              (their bounty is the reward). Anchor: a stage-1 easy deal pays
-              dealBase + 1×(1+1) = 3 — dealBase is WHY the anchor is 3.
+              (RunMap.difficultyScore of the node's targetD). A BOSS deal
+              pays the flat bossPayout (7) instead, whatever its rating.
+     Ambush deals still pay NO flat base (their bounty is the reward).
+     ENDLESS: ratings are computed against each endless phase's own lifted
+     band, so endless deals keep paying these same flat rates forever — the
+     old v6.78 stageCap freeze is subsumed (there is no stage term left to
+     freeze; phase-3 rates ARE the rates).
      Item-driven bonuses (Payout stickers, pillar payouts, the in-run event
      tally) pay ON TOP, unchanged — the flat base is the guaranteed income;
      items are how you get rich.
   -------------------------------------------------------------------- */
   economy: {
-    dealBase: 2,    // flat base every cleared deal pays before the stage term
-    bossBonus: 1,   // extra flat coins a cleared boss pays on top
-    // ENDLESS FREEZE (v6.78): the stage term never grows past this stage —
-    // endless deals (stage 4, 5, …) pay phase-3 rates for their difficulty
-    // forever. 3 = the campaign's last phase.
-    stageCap: 3,
+    dealPayouts: [4, 5, 6],  // coins by difficulty rating 1 / 2 / 3
+    bossPayout: 7,           // any cleared boss deal, flat
   },
 
   /* --------------------------------------------------------------------

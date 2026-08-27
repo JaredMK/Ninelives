@@ -16,6 +16,63 @@ final class ConditionalStickerTests: XCTestCase {
         IV.spec(id, rank, suit, stickers)
     }
 
+    // MARK: - Same-Safe (v6.86): the rank conditional goes live — the
+    //   behavior must MATCH the two-row text: "If another pile's top card
+    //   matches this rank → Safe / If no pile's top card matches this rank
+    //   → Sticker becomes cursed".
+
+    func testSameSafeTieSavesOnlyWhenAnotherTopShowsTheRank() {
+        // FED: pile 3's 7♦ shows the rank → the tie is safe, sticker stays.
+        let fed = IV.engine(tops: [spec(1, 7, "♠"), spec(2, 6, "♥"), spec(3, 7, "♦")],
+                            deckOrder: [spec(50, 7, "♥", ["tieSafe"]), spec(51, 2)])
+        var saved = false
+        fed.on { if case .tieSafeSaved = $0 { saved = true } }
+        fed.guess(0, .higher)
+        XCTAssertTrue(fed.board.isActive(0), "another 7 top feeds the save")
+        XCTAssertTrue(saved, "the save announces itself")
+        XCTAssertTrue(fed.board.top(0)!.stickers.contains { $0.type == "tieSafe" },
+                      "a fed bet keeps the sticker")
+        // UNFED: no other 7 → the tie kills AND the carrier converts.
+        let unfed = IV.engine(tops: [spec(1, 7, "♠"), spec(2, 6, "♥"), spec(3, 6, "♦")],
+                              deckOrder: [spec(50, 7, "♥", ["tieSafe"]), spec(51, 2)])
+        unfed.guess(0, .higher)
+        XCTAssertFalse(unfed.board.isActive(0), "an unfed Same-Safe saves nothing")
+        let buried = unfed.board.piles[0].cards.last!
+        XCTAssertFalse(buried.stickers.contains { $0.type == "tieSafe" }, "converted")
+        XCTAssertEqual(buried.stickers.filter { data.stickerTypes.get($0.type)?.cursed == true }.count, 1,
+                       "one curse took its place, even on the fatal landing")
+    }
+
+    func testSameSafeConvertsOnAnyUnfedLandingOfTheCarrier() {
+        // Row two of the text names NO tie: ANY landing with no rank match
+        // converts — here a plain correct one.
+        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♥"), spec(3, 9, "♦")],
+                          deckOrder: [spec(50, 7, "♥", ["tieSafe"]), spec(51, 2)])
+        e.guess(0, .higher)   // 7 on 5: correct — but no other 7 top anywhere
+        XCTAssertTrue(e.board.isActive(0))
+        let top = e.board.top(0)!
+        XCTAssertFalse(top.stickers.contains { $0.type == "tieSafe" }, "converted")
+        XCTAssertFalse(top.tieSafe, "the projected flag re-derived — no more free ties")
+    }
+
+    func testSameSafePersistsOnAFedLanding() {
+        let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 7, "♥"), spec(3, 9, "♦")],
+                          deckOrder: [spec(50, 7, "♥", ["tieSafe"]), spec(51, 2)])
+        e.guess(0, .higher)   // correct, and pile 2 shows a 7
+        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == "tieSafe" },
+                      "a fed landing fires (persists) — no conversion")
+    }
+
+    func testSameSafeIsExemptOnTheLastPile() {
+        let e = IV.engine(tops: [spec(1, 7, "♠"), nil, nil],
+                          deckOrder: [spec(50, 7, "♥", ["tieSafe"]), spec(51, 2)])
+        e.guess(0, .higher)   // a tie on the last alive pile
+        XCTAssertFalse(e.board.isActive(0), "exempt saves nothing — the tie kills (the Guard rule)")
+        let buried = e.board.piles[0].cards.last!
+        XCTAssertTrue(buried.stickers.contains { $0.type == "tieSafe" },
+                      "…and exempt converts nothing either")
+    }
+
     // MARK: - 1. A failed bet converts: sticker out, ONE curse in, dormant
 
     func testFailedConditionConvertsToOneDormantCurse() {

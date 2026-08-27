@@ -509,10 +509,13 @@ public final class CampaignState {
         nextCardId += 1
         let n = rules().noStickers ? 0
             : StoreRoll.stickerCount(rng.next(), odds: stickerOdds ?? data.items.packStickerOdds)
-        // The eligible pool is computed ONCE, from the card as minted — a
-        // suit-changing sticker applied in this loop must NOT re-narrow the pool
-        // for the next roll (the web hoists it out of the loop for exactly this).
-        let pool = grantableStickers().filter { CardRules.stickerEligible(card, $0.id, data: data) }
+        // The eligible pool is computed ONCE, from the card as minted.
+        // v6.86: identity-MUTATING stickers (suit changers, ±rank, random
+        // rank) never pre-attach on an acquired card — they only exist as
+        // standalone stickers the player places.
+        let pool = grantableStickers().filter {
+            !$0.mutatesCardIdentity && CardRules.stickerEligible(card, $0.id, data: data)
+        }
         for _ in 0..<n {
             if curseChance > 0, rng.next() < curseChance,
                let t = data.stickerTypes.rollCurse(path: "pack", roll: rng.next()) {
@@ -768,20 +771,15 @@ public final class CampaignState {
                 }
                 continue
             }
-            // The normal pool: grantable + per-card eligibility, rank
-            // stickers only where they can move the rank — the startStickers
-            // hand's exact filter. Recomputed per roll so a sticker applied
-            // this loop keeps the next pick honest about the mutated card.
-            // SUIT-CHANGERS are excluded (v6.71): a map roll that recolors a
-            // committed card would break Mamma's suit-staged packs and the
-            // pack badge's committed-pair contract — the map dresses cards,
-            // it never repaints them.
+            // The normal pool: grantable + per-card eligibility. v6.86:
+            // every identity-MUTATING sticker is out (the v6.71 suit-changer
+            // exclusion, widened to ±rank and random rank) — an acquired
+            // card is dressed, never repainted. Recomputed per roll so a
+            // sticker applied this loop keeps the next pick honest.
             let card = baseDeck[i]
             let elig = grantableStickers().filter { t in
-                guard t.behavior != "changeSuitTo", t.behavior != "changeSuitRandom" else { return false }
-                guard CardRules.stickerEligible(card, t.id, data: data) else { return false }
-                guard t.kind == "rank" else { return true }
-                return t.num("rankDelta", 0) > 0 ? card.currentRank < maxRank : card.currentRank > minRank
+                guard !t.mutatesCardIdentity else { return false }
+                return CardRules.stickerEligible(card, t.id, data: data)
             }
             guard !elig.isEmpty else { continue }
             applyStickerToCard(&baseDeck[i], elig[rng.index(elig.count)].id, rng: rng)

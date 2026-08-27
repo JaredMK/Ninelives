@@ -1502,12 +1502,13 @@ enum OutcomeWell {
                                   width: w, height: 80)
                 box.addSubview(iv)
             }
-            for (i, def) in chips.enumerated() {
+            // Reversed ADD order keeps the first torn chip on top without
+            // sibling zPositions (the trap CardComposite's header documents).
+            for (i, def) in chips.enumerated().reversed() {
                 let iv = pixelImage(ItemArt.sticker(def, size: chipS))
                 iv.frame = CGRect(x: (width - rowW) / 2 + cardsW + 8
                                      + CGFloat(i) * chipStep,
                                   y: 10 + (80 - chipS) / 2, width: chipS, height: chipS)
-                iv.layer.zPosition = CGFloat(-i)   // first torn chip on top
                 box.addSubview(iv)
             }
         case .purged(let cards):
@@ -1592,30 +1593,22 @@ private final class CurseCardCell: UIView {
         self.card = card
         self.curses = curses
         super.init(frame: .zero)
+        // ONE renderer (v6.86): face + FULL chip fan baked by CardComposite.
+        // The hand-placed sibling chips this cell used to draw were the last
+        // surviving copy of the negative-zPosition trap (CardComposite's
+        // header): chips 2…4 sank beneath the sibling card face, so a card
+        // that already wore a sticker showed only ONE mark on the Old
+        // Joker's reveal. A baked image has no z to get wrong; the canvas
+        // grows by the fan's overhang/raise so nothing clips.
         let cardFrame = CGRect(x: 0, y: 4, width: 58, height: 80)
-        let iv = UIImageView(image: CardArt.image(CardArt.Face(card), scale: .half))
+        let iv = UIImageView(image: CardComposite.image(card))
         iv.contentMode = .scaleAspectFit
         iv.layer.magnificationFilter = .nearest
-        iv.frame = cardFrame
+        iv.frame = CGRect(x: cardFrame.minX,
+                          y: cardFrame.minY - StickerChipLayout.topRaise,
+                          width: cardFrame.width + StickerChipLayout.rightOverhang,
+                          height: cardFrame.height + StickerChipLayout.topRaise)
         addSubview(iv)
-        // CANONICAL STICKER CHIP LAYOUT (v6.72) — geometry via
-        // StickerChipLayout (master comment in PileNode.swift): canonical
-        // size for this card width (26 on the 58pt cell card), fan tightened
-        // so all four chips stay on the face, first sticker on top.
-        let worn = Array(card.stickers
-            .prefix(GameData.shared.items.maxStickersPerCard))
-            .compactMap { GameData.shared.stickerTypes.get($0.type) }
-        let placed = StickerChipLayout.frames(count: worn.count, cardWidth: cardFrame.width)
-        for (s, def) in worn.enumerated() {
-            let (rect, deg) = placed[s]
-            let chip = UIImageView(image: ItemArt.sticker(def, size: rect.width))
-            chip.contentMode = .scaleAspectFit
-            chip.layer.magnificationFilter = .nearest
-            chip.frame = rect.offsetBy(dx: cardFrame.minX, dy: cardFrame.minY)
-            chip.transform = CGAffineTransform(rotationAngle: deg * .pi / 180)
-            chip.layer.zPosition = CGFloat(-s)   // first sticker outermost/on top
-            addSubview(chip)
-        }
         // The tap/hold pair, exactly the deck inspector's card-help idiom.
         isUserInteractionEnabled = true
         let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))

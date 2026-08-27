@@ -157,7 +157,11 @@ final class StickerDisplayTests: XCTestCase {
         // kept sinking chips 2…4 beneath sibling card faces; see
         // CardComposite's header). The composite itself is the one place
         // that caps at maxStickersPerCard and reads StickerChipLayout.
-        for path in ["UI/DeckInspectViewController.swift", "UI/PileFanOverlayView.swift"] {
+        // v6.86: PhaseOverlayView joined the club — its CurseCardCell (the
+        // Old Joker's marks reveal) was the last hand-placed sibling fan and
+        // showed only the first sticker on an already-stickered card.
+        for path in ["UI/DeckInspectViewController.swift", "UI/PileFanOverlayView.swift",
+                     "UI/PhaseOverlayView.swift"] {
             let src = try source(path)
             XCTAssertTrue(src.contains("CardComposite"),
                           "\(path) must render cards through CardComposite")

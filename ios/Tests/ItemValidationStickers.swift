@@ -590,9 +590,13 @@ enum IVStickers {
             ]
 
         case "tieSafe":
+            // SAME-SAFE (CONDITIONAL, v6.86): the tie save is gated on
+            // ANOTHER alive pile's top showing the rank; a carrier's missed
+            // bet converts (any landing, the fatal one included); exempt
+            // with no other alive pile — no save, no conversion.
             return [
-                IV.Scenario("trigger-tieOnDirectionalIsSafe", allowed: [.guesses, .deck, .board],
-                    build: { IV.engine(tops: [IV.spec(1, 7, "♠", ["tieSafe"]), IV.spec(2, 6), IV.spec(3, 6)],
+                IV.Scenario("trigger-fedTieIsSafe", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 7, "♠", ["tieSafe"]), IV.spec(2, 6), IV.spec(3, 7, "♦")],
                                        deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 2)]) },
                     fire: { e in
                         var saved = false
@@ -601,19 +605,33 @@ enum IVStickers {
                         XCTAssertTrue(saved, "tieSafe: the save ANNOUNCES itself (v6.50 audit fix)")
                     },
                     expect: { e, _, c in
-                        XCTAssertTrue(e.board.isActive(0), "\(c): the tie was safe")
+                        XCTAssertTrue(e.board.isActive(0), "\(c): the FED tie was safe (7♦ elsewhere)")
                         XCTAssertEqual(e.run.correctGuesses, 1, "\(c): counts correct")
                     }),
                 IV.Scenario("edge-jokerInvolvedStillSafe", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 7, "♠", ["tieSafe"]), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 0, joker: true), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .lower) },
-                    expect: { e, _, c in XCTAssertTrue(e.board.isActive(0), "\(c)") }),
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.board.isActive(0), "\(c): the joker rule outranks the bet")
+                    }),
+                IV.Scenario("edge-unfedTieKillsAndConverts", allowed: [.guesses, .deck, .board, .deaths],
+                    build: { IV.engine(tops: [IV.spec(1, 7, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 7, "♥", ["tieSafe"]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.board.isActive(0), "\(c): no other 7 top — the tie kills")
+                        let buried = e.board.piles[0].cards.last!
+                        XCTAssertFalse(buried.stickers.contains { $0.type == "tieSafe" },
+                                       "\(c): the missed bet converted on the fatal landing")
+                    }),
                 IV.Scenario("mustNotFire-plainTieKills", allowed: [.guesses, .deck, .board, .deaths],
-                    build: { IV.engine(tops: [IV.spec(1, 7), IV.spec(2, 6), IV.spec(3, 6)],
+                    build: { IV.engine(tops: [IV.spec(1, 7), IV.spec(2, 6), IV.spec(3, 7, "♦")],
                                        deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
-                    expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c): no sticker, the tie kills") }),
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.board.isActive(0), "\(c): no sticker — the tie kills even fed")
+                    }),
             ]
 
         case "suitImmunity":
