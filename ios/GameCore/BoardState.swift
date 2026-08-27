@@ -31,15 +31,13 @@ public final class BoardState {
         self.piles = (0..<size).map { Pile(index: $0) }
     }
 
-    /// Heavy family: a card counts as (1 + the summed value of EVERY sticker
-    /// whose behavior is "heavy") toward pile size, everywhere pile size is read
-    /// (and even while buried). Each heavy sticker adds its own items.js value.
+    /// SHRINK curse: the card counts against its pile's size. (The Heavy
+    /// family's passive weight retired in v6.85 — Heavy is a conditional
+    /// LANDING effect now, latched through sizeBonus like Same Heavy.)
     private func cardWeight(_ c: LiveCard) -> Int {
         var w = 1
         for s in c.stickers {
             guard let t = data.stickerTypes.get(s.type) else { continue }
-            if t.behavior == "heavy" { w += t.int("value", 1) }
-            // SHRINK curse: the card counts against its pile's size.
             if t.behavior == "shrink" { w -= t.int("value", 1) }
         }
         return w

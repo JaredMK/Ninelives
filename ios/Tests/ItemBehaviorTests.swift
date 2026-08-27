@@ -110,14 +110,19 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertEqual(live.value, 9, "toCard uses currentRank")
     }
 
-    func testSuitGuardsProjectOnePerGuardedSuitWithoutStacking() {
-        guard let g = data.items.stickers.first(where: { $0.behavior == "suitImmunity" }) else {
-            XCTFail("need a suitImmunity sticker"); return
+    func testTheSuitAgnosticGuardNoLongerProjects() {
+        // v6.85: the engine reads the Guard sticker itself at the carrier's
+        // landing (`guardConditionalSave`); the per-suit `suitGuards`
+        // projection is dormant for the suit-agnostic def.
+        guard let g = data.items.stickers.first(where: { $0.id == "suitImmunity" }) else {
+            XCTFail("need the Guard sticker"); return
         }
+        XCTAssertNil(g.suit, "the Guard reads the CARRIER's suit — it carries none of its own")
         var spec = CardSpec(id: 4, suit: "♦", originalRank: 9, currentRank: 9)
         spec.stickers = [StickerRecord(type: g.id), StickerRecord(type: g.id)]
         let live = DeckManager.toCard(spec, data: data)
-        XCTAssertEqual(live.suitGuards, [g.suit!], "duplicate guards of one suit don't stack")
+        XCTAssertTrue(live.suitGuards.isEmpty, "nothing projects — the sticker is the source of truth")
+        XCTAssertEqual(live.stickers.count, 2, "…but the records themselves ride along")
     }
 
     func testAJokerSpecProjectsToARanklessStar() {
@@ -130,18 +135,21 @@ final class ItemBehaviorTests: XCTestCase {
 
     // MARK: - Live sticker effects
 
-    func testBonusCoinPaysItsItemsJsValueOnLanding() {
+    func testBonusCoinPaysItsItemsJsValuePerMatchingPile() {
         guard let t = data.items.stickers.first(where: { $0.behavior == "gainCoin" }) else {
             XCTFail("need a gainCoin sticker"); return
         }
         var specs = DeckManager.buildStandardDeck()
         let i = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 10 }!
         specs[i].stickers.append(StickerRecord(type: t.id))
-        let e = engine(specs: specs)
+        let e = engine(cols: [3], specs: specs)
         e.board.piles[0].cards = [DeckManager.cardForValue(4)]
+        e.board.piles[1].cards = [DeckManager.toCard(CardSpec(id: 901, suit: "♦", originalRank: 6, currentRank: 6), data: data)]
+        e.board.piles[2].cards = [DeckManager.toCard(CardSpec(id: 902, suit: "♣", originalRank: 6, currentRank: 6), data: data)]
         e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
-        e.guess(0, .higher)
-        XCTAssertEqual(e.run.bonusCoins, t.value, "the payout is the items.js `value`")
+        e.guess(0, .higher)   // the ♦ carrier lands; pile 1's ♦ top matches
+        XCTAssertEqual(e.run.bonusCoins, t.value * 2,
+                       "the items.js `value` per matching-top pile, own pile included")
     }
 
     func testCollectorPaysPerOtherStickerOnTheCard() {

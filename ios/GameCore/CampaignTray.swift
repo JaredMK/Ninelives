@@ -136,6 +136,22 @@ extension CampaignState {
         baseDeck[i].snowball = n
     }
 
+    /// v6.85 CONVERSION durability: remove one `from` instance (when given)
+    /// and append `to` (when given) on the persistent card. Validation
+    /// happened engine-side at the roll — this is the write, not a gate.
+    @discardableResult
+    public func convertStickerOnCard(_ id: Int, from: String?, to: String?) -> Bool {
+        guard let i = baseDeck.firstIndex(where: { $0.id == id }) else { return false }
+        if let from {
+            guard let at = baseDeck[i].stickers.firstIndex(where: { $0.type == from }) else { return false }
+            baseDeck[i].stickers.remove(at: at)
+        }
+        if let to, data.stickerTypes.get(to) != nil {
+            baseDeck[i].stickers.append(StickerRecord(type: to))
+        }
+        return true
+    }
+
     /// Destroy `count` instances of one sticker type on a card (peels).
     @discardableResult
     public func removeStickerInstances(_ id: Int, _ typeId: String, _ count: Int) -> Int {

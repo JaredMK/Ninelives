@@ -157,6 +157,10 @@ public enum PlacementLog {
         case "randomFixedValue", "tieSafe": return [("rank", "sticker:\(def.id)")]
         case "changeSuitTo", "changeSuitRandom", "wildSuit": return [("suit", "sticker:\(def.id)")]
         case "collector": return [("load", "sticker:\(def.id)")]
+        // v6.85 CONDITIONALS: the carrier's suit IS the bet, so placement
+        // reads the suit axis by definition.
+        case "quickBury", "gainCoin", "donate", "heavy", "diamondSnob", "tell", "suitImmunity":
+            return [("suit", "sticker:\(def.id)")]
         default: return []
         }
     }

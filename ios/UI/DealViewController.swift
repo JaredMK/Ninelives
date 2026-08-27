@@ -341,6 +341,11 @@ public final class DealViewController: UIViewController {
             if action.kind == "donate", let t = action.target {
                 self.scene.setDonateTargets(from: action.index, to: t)
                 text = "Donate the FROM pile's bottom card to the TO pile?"
+            } else if action.kind == "suitRipple" {
+                // Ripple (v6.85): every alive pile whose top matches the
+                // carrier's suit — highlight them all.
+                self.scene.setActionTargets(self.controller.rippleTargets(for: action.index))
+                text = "Ripple: shuffle every highlighted pile?"
             } else {
                 self.scene.setActionTargets([action.index])
                 text = "Shuffle the highlighted pile's cards?"
@@ -352,7 +357,7 @@ public final class DealViewController: UIViewController {
                 .init("Decline", role: .plain) { [weak self] in
                     self?.promptBar.hide(); self?.clearTargets(); answer(false)
                 },
-                .init(action.kind == "donate" ? "Donate" : "Shuffle", role: .cta) { [weak self] in
+                .init(action.kind == "donate" ? "Donate" : action.kind == "suitRipple" ? "Ripple" : "Shuffle", role: .cta) { [weak self] in
                     self?.promptBar.hide(); self?.clearTargets(); answer(true)
                 },
             ])

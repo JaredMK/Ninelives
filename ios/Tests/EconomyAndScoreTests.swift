@@ -207,17 +207,18 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(board.extraCoinUnits(), 4, "2 stickers × 2 cards")
     }
 
-    func testHeavyStickersWeightPileSize() {
+    func testHeavyPassiveWeightIsRetired() {
+        // v6.85: Heavy is a landing-latched size bonus now (the conditional
+        // suites cover the latch) — merely WEARING it weighs nothing.
         guard let heavy = data.items.stickers.first(where: { $0.behavior == "heavy" }) else {
             XCTFail("items.js must ship a heavy sticker"); return
         }
         let board = BoardState(size: 1, data: data)
         board.push(0, DeckManager.cardForValue(5))
-        XCTAssertEqual(board.pileSize(0), 1)
         board.top(0)?.stickers.append(StickerRecord(type: heavy.id))
-        XCTAssertEqual(board.pileSize(0), 1 + heavy.int("value", 1),
-                       "a heavy card counts as 1 + its items.js value")
-        XCTAssertEqual(board.piles[0].cards.count, 1, "the physical count is unchanged")
+        XCTAssertEqual(board.pileSize(0), 1,
+                       "no passive weight — the landing latch is Heavy's only path")
+        XCTAssertEqual(board.piles[0].cards.count, 1)
     }
 
     // MARK: - One continuous score (v6.47)

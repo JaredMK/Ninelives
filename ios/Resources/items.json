@@ -124,7 +124,7 @@
       "icon": "🎰",
       "kind": "behavior",
       "behavior": "randomFixedValue",
-      "tier": "uncommon",
+      "tier": "common",
       "price": 1,
       "description": "Change to random rank"
     },
@@ -204,20 +204,17 @@
         "stat": "spadesPlayed",
         "count": 150
       },
-      "label": "Spade Guard",
-      "icon": "♠️🪬",
+      "label": "Guard",
+      "icon": "🪬",
       "kind": "behavior",
       "behavior": "suitImmunity",
-      "suit": "♠",
-      "suits": [
-        "♠"
-      ],
       "tier": "uncommon",
       "price": 5,
-      "description": "Safe if this card lands on a ♠, or a ♠ lands on this card"
+      "description": "If another pile's top card matches this card's suit → this card is safe when it lands. If none does → this sticker becomes a curse"
     },
     {
       "id": "heartGuard",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "dealsSurvived",
@@ -237,6 +234,7 @@
     },
     {
       "id": "diamondGuard",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bestCoinsInClimb",
@@ -256,6 +254,7 @@
     },
     {
       "id": "clubGuard",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "cardsBuried",
@@ -287,10 +286,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 3,
-      "description": "At deal end if this card tops its pile  → earn coins equal to pile size",
-      "suits": [
-        "♥"
-      ]
+      "description": "At deal end if this card tops its pile → earn coins equal to pile size. Any card played on top of this card is cursed"
     },
     {
       "id": "gainCoin",
@@ -299,12 +295,9 @@
       "kind": "behavior",
       "behavior": "gainCoin",
       "value": 1,
-      "tier": "common",
+      "tier": "uncommon",
       "price": 2,
-      "description": "+1 coin",
-      "suits": [
-        "♥"
-      ]
+      "description": "If another pile's top card matches this card's suit → +1 coin per pile whose top card matches. If none does → this sticker becomes a curse"
     },
     {
       "id": "anchor",
@@ -314,13 +307,11 @@
       "behavior": "anchor",
       "tier": "common",
       "price": 2,
-      "description": "At deal end → exclude pile from the smallest-pile score if this card is on top",
-      "suits": [
-        "♦"
-      ]
+      "description": "At deal end if this card tops its pile → exclude the pile from the smallest-pile score. Any card played on top of this card is cursed"
     },
     {
       "id": "deathBounty",
+      "inactive": true,
       "label": "Last Coin",
       "icon": "💀",
       "kind": "behavior",
@@ -340,15 +331,13 @@
       "kind": "behavior",
       "behavior": "heavy",
       "value": 1,
-      "tier": "common",
+      "tier": "uncommon",
       "price": 1,
-      "description": "+1 pile size",
-      "suits": [
-        "♦"
-      ]
+      "description": "If another pile's top card matches this card's suit → +1 pile size to every pile whose top matches, including this one. If none does → this sticker becomes a curse"
     },
     {
       "id": "massive",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "stickersApplied",
@@ -368,6 +357,7 @@
     },
     {
       "id": "collector",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "stickersApplied",
@@ -387,6 +377,7 @@
     },
     {
       "id": "compound",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bestCampaignScore",
@@ -406,6 +397,7 @@
     },
     {
       "id": "revealNext",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "zenEasyWon",
@@ -424,6 +416,7 @@
     },
     {
       "id": "wildSuit",
+      "inactive": true,
       "label": "Wild Suit",
       "icon": "♠♥♦♣",
       "kind": "behavior",
@@ -434,6 +427,7 @@
     },
     {
       "id": "shuffle",
+      "inactive": true,
       "label": "Shuffle",
       "icon": "🔀",
       "kind": "behavior",
@@ -452,12 +446,9 @@
       "kind": "behavior",
       "behavior": "donate",
       "count": 1,
-      "tier": "common",
+      "tier": "uncommon",
       "price": 1,
-      "description": "Move 1 buried card from this pile to the smallest pile",
-      "suits": [
-        "♦"
-      ]
+      "description": "If another pile's top card matches this card's suit → make all pile sizes equal. If none does → this sticker becomes a curse"
     },
     {
       "id": "quickBury",
@@ -467,10 +458,7 @@
       "behavior": "quickBury",
       "tier": "uncommon",
       "price": 7,
-      "description": "When this card lands → bury 1 card under the pile",
-      "suits": [
-        "♣"
-      ]
+      "description": "If another pile's top card matches this card's suit → bury 1 card under this pile. If none does → this sticker becomes a curse"
     },
     {
       "id": "twinSpark",
@@ -492,6 +480,7 @@
     },
     {
       "id": "looseChange",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bestCoinsInClimb",
@@ -511,6 +500,7 @@
     },
     {
       "id": "snowball",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "perfectDeals",
@@ -530,6 +520,7 @@
     },
     {
       "id": "deepPockets",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bestCoinsInClimb",
@@ -560,10 +551,7 @@
       "behavior": "pillarScout",
       "tier": "uncommon",
       "price": 2,
-      "description": "Peek the next card if this column has no pillar",
-      "suits": [
-        "♠"
-      ]
+      "description": "If this column has no Pillar → peek at the next card. If it has one → this sticker becomes a curse"
     },
     {
       "id": "baseScout",
@@ -578,13 +566,11 @@
       "behavior": "baseScout",
       "tier": "uncommon",
       "price": 2,
-      "description": "Peek at the next card if this column has no base",
-      "suits": [
-        "♠"
-      ]
+      "description": "If this column has no Base → peek at the next card. If it has one → this sticker becomes a curse"
     },
     {
       "id": "suitSnob",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "spadesPlayed",
@@ -603,6 +589,7 @@
     },
     {
       "id": "heartSnob",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "heartsPlayed",
@@ -627,19 +614,17 @@
         "stat": "removalsUsed",
         "count": 18
       },
-      "label": "Diamond Snob",
-      "icon": "💎",
+      "label": "Ripple",
+      "icon": "🌊",
       "kind": "behavior",
       "behavior": "diamondSnob",
       "tier": "uncommon",
       "price": 6,
-      "description": "When a ♦ lands on this card, or this card lands on a ♦ → shuffle every pile",
-      "suits": [
-        "♦"
-      ]
+      "description": "If another pile's top card matches this card's suit → optionally shuffle those piles. If none does → this sticker becomes a curse"
     },
     {
       "id": "clubSnob",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "pilesLost",
@@ -659,6 +644,7 @@
     },
     {
       "id": "heartChoir",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "heartsPlayed",
@@ -678,6 +664,7 @@
     },
     {
       "id": "diamondRipple",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "perfectDeals",
@@ -696,6 +683,7 @@
     },
     {
       "id": "clubRoots",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "clubsPlayed",
@@ -715,6 +703,7 @@
     },
     {
       "id": "spadeWhispers",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "spadesPlayed",
@@ -739,10 +728,7 @@
       "behavior": "tell",
       "tier": "uncommon",
       "price": 4,
-      "description": "Shows if the next deck card is higher, lower, or same",
-      "suits": [
-        "♠"
-      ]
+      "description": "If another pile's top card matches this card's suit → this card shows a tell (higher, lower, or same) for the next draw. If none does → this sticker becomes a curse"
     },
     {
       "id": "rechargeSameShield",
@@ -952,7 +938,8 @@
       "curseWeight": 20,
       "curseExclude": [
         "purge",
-        "duplicate"
+        "duplicate",
+        "sticker"
       ],
       "description": "Cursed. 10% chance the column's Base or Pillar is destroyed"
     }

@@ -90,10 +90,10 @@ final class PlacementLogTests: XCTestCase {
     func testInterchangeablePlacementIsFlaggedWithItsInputs() throws {
         UserDefaults.standard.set(true, forKey: "debugAccess")
         let c = campaign()
-        c.debugGrantSticker("gainCoin")   // ♥-restricted flat coin: no axis
-        let eligible = c.getRunDeck().filter { c.canApplySticker($0, "gainCoin") }
+        c.debugGrantSticker("twinSpark")   // ♠-restricted twin peek: the axis table gives it none
+        let eligible = c.getRunDeck().filter { c.canApplySticker($0, "twinSpark") }
         let chosen = try XCTUnwrap(eligible.first)
-        XCTAssertTrue(c.applySticker(chosen.id, "gainCoin"))
+        XCTAssertTrue(c.applySticker(chosen.id, "twinSpark"))
         let rec = try lastRecord()
         XCTAssertEqual(rec["meaningful"]?.asBool, false)
         XCTAssertEqual(rec["axes"]?.asArray?.count, 0)
@@ -104,8 +104,9 @@ final class PlacementLogTests: XCTestCase {
         XCTAssertNotNil(rec["distinctLoads"]?.asInt)
     }
 
-    /// The same no-axis sticker becomes a real choice when an equipped item
-    /// keys on a differing axis — and the axis names the enabler.
+    /// An equipped rank-keyed item adds ITS axis to a placement — and the
+    /// axis names the enabler. (gainCoin also brings its own v6.85 suit
+    /// axis; the rank axis here must come from the pillar.)
     func testEquippedItemTurnsAPlacementMeaningful() throws {
         UserDefaults.standard.set(true, forKey: "debugAccess")
         let c = campaign()

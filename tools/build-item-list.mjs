@@ -124,7 +124,7 @@ const OUTCOMES = {
   rankFlood: ["Card Change", [], "every alive top → the called rank"],
 
   // Safety & Saves — makes a landing survivable, or brings a pile back.
-  tieSafe: ["Safety & Saves", [], "same-rank landing"], suitImmunity: ["Safety & Saves", [], "own-suit landing"],
+  tieSafe: ["Safety & Saves", [], "same-rank landing"], suitImmunity: ["Safety & Saves", [], "conditional: carrier safe on a matched bet"],
   columnTieSafe: ["Safety & Saves", [], "any tie, in column"],
   sameTolerance: ["Safety & Saves", ["Same Shield & Power"], "relaxes what survives a Same"],
   rankShield: ["Safety & Saves", [], "deck's commonest rank"],
@@ -137,7 +137,7 @@ const OUTCOMES = {
   linkRevive: ["Safety & Saves", [], "revive on a Same"],
 
   // Bury — shrinks the remaining deck mid-deal.
-  quickBury: ["Bury", [], "on this card's landing"], snowball: ["Bury", [], "streak-grown"],
+  quickBury: ["Bury", [], "conditional: carrier-suit bet"], snowball: ["Bury", [], "streak-grown"],
   rankBury: ["Bury", [], "on the locked rank"],
   clubSnob: ["Bury", [], "on ♣ contact"], clubRoots: ["Bury", [], "per rank-matching top"],
   clubTribute: ["Bury", [], "sticker-free ♣"], streakTribute: ["Bury", [], "streak-gated"],
@@ -161,12 +161,12 @@ const OUTCOMES = {
   samePeek: ["Peek", [], "on a Same"],
 
   // Tell — a higher/lower/same marker.
-  tell: ["Tell", [], "this pile, next draw"], spadeWhispers: ["Tell", [], "scales with ♠ tops"],
+  tell: ["Tell", [], "conditional: this pile, next draw"], spadeWhispers: ["Tell", [], "scales with ♠ tops"],
   pauperSpadeTell: ["Tell", ["Pauper"], "while broke"], clubTell: ["Tell", [], "each ♣ top in column"],
   sameTell: ["Tell", [], "board-wide same-rank mark"], linkTell: ["Tell", [], "every alive pile, next draw"],
 
   // Coin Gain.
-  extraCoin: ["Coin Gain", [], "pile size at deal end"], gainCoin: ["Coin Gain", [], "flat, on landing"],
+  extraCoin: ["Coin Gain", ["Curse Payoff"], "deal-end payout; curses its cover"], gainCoin: ["Coin Gain", [], "conditional: per matching-top pile"],
   deathBounty: ["Coin Gain", [], "on a kill"], collector: ["Coin Gain", [], "per other sticker"],
   compound: ["Coin Gain", [], "streak-grown"], looseChange: ["Coin Gain", [], "random"],
   deepPockets: ["Coin Gain", [], "per deck card left"], heartSnob: ["Coin Gain", [], "on ♥ contact"],
@@ -182,7 +182,7 @@ const OUTCOMES = {
   devilsDeal: ["Coin Gain", ["Curse Payoff"], "doubles bonus, adds a curse"],
 
   // Pile Size & Score.
-  heavy: ["Pile Size & Score", [], "card counts more"], anchor: ["Pile Size & Score", [], "excluded from score"],
+  heavy: ["Pile Size & Score", [], "conditional: +size to matching piles"], anchor: ["Pile Size & Score", ["Curse Payoff"], "score shelter; curses its cover"],
   heavyDiamond: ["Pile Size & Score", [], "♦ count more"], diamondAnchor: ["Pile Size & Score", [], "♦ tops excluded"],
   streakSize: ["Pile Size & Score", [], "streak-grown"], columnPiles: ["Pile Size & Score", [], "an extra pile"],
   diamondDupeSize: ["Pile Size & Score", [], "per rank duplicate"],
@@ -191,11 +191,11 @@ const OUTCOMES = {
   linkHeavy: ["Pile Size & Score", [], "board-wide + hub"], diamondBoost: ["Pile Size & Score", [], "♦ piles in column"],
   evenOut: ["Pile Size & Score", [], "equalises the column"],
   diamondDistribution: ["Pile Size & Score", [], "equalises on a ♦"],
-  donate: ["Pile Size & Score", [], "moves buried cards"],
+  donate: ["Pile Size & Score", [], "conditional: equalises the board"],
   startPileSizeEight: ["Pile Size & Score", ["Deck Shaping"], "column opens at size 8"],
 
   // Shuffle.
-  shuffle: ["Shuffle", [], "this pile, optional"], diamondSnob: ["Shuffle", [], "every pile, on ♦ contact"],
+  shuffle: ["Shuffle", [], "this pile, optional"], diamondSnob: ["Shuffle", [], "conditional: offered, matching piles"],
   diamondRipple: ["Shuffle", [], "every ♦-topped pile"], shuffler: ["Shuffle", [], "column, on a ♦"],
   shuffleColumn: ["Shuffle", [], "this column"], linkShuffle: ["Shuffle", [], "every alive pile"],
 
@@ -254,12 +254,13 @@ function classify(item) {
 
 // ── Classes, in the order the page presents them ──────────────────────────
 const CLASSES = [
-  { key: "sticker", title: "Stickers", note: "Card-bound imprints. A sticker rides one card for the rest of the climb — WHICH card is the decision.", items: ITEMS.stickers.filter((s) => !s.cursed) },
+  { key: "sticker", title: "Stickers", note: "Card-bound imprints. A sticker rides one card for the rest of the climb — WHICH card is the decision. The v6.85 conditionals are checked at the carrier's landing and convert into a curse on a missed bet.", items: ITEMS.stickers.filter((s) => !s.cursed && !s.inactive) },
   { key: "pillar", title: "Pillars", note: "Column modifiers bound to the top of a board column — passive, all deal, every pile in that column.", items: ITEMS.pillars },
   { key: "base", title: "Bases", note: "Column artifacts bound to the bottom. Active: they charge each deal and fire once when tapped.", items: ITEMS.bases },
   { key: "samepower", title: "Same-Powers", note: "Exactly one is equipped; a correct Same triggers it.", items: ITEMS.samePowers },
   { key: "curse", title: "Cursed Stickers", note: "Never sold and never chosen — inflicted by the mystery node, the Old Joker's bargains and the bad door. Price 0.", items: ITEMS.stickers.filter((s) => s.cursed) },
-  { key: "pack", title: "Packs", note: "Buy to reveal N random items and keep some.", items: ITEMS.packs },
+  { key: "pack", title: "Packs", note: "Buy to reveal N random items and keep some.", items: ITEMS.packs.filter((p) => !p.inactive) },
+  { key: "retired", title: "Retired", note: "Out of EVERY acquisition pool (`inactive: true`) but still registered — an old save's copy keeps resolving and firing, and the Collection shows it greyed.", items: [...ITEMS.stickers, ...ITEMS.pillars, ...ITEMS.bases, ...ITEMS.samePowers, ...ITEMS.packs].filter((i) => i.inactive) },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -296,28 +297,29 @@ let summary = `<table class="summary"><tr><th>Class</th><th class="num">Total</t
 let grand = 0;
 for (const cls of CLASSES) {
   const n = cls.items.length;
-  grand += n;
+  if (cls.key !== "retired") grand += n;
   const by = (t) => cls.items.filter((i) => i.tier === t).length;
   const starting = cls.items.filter((i) => !i.unlock).length;
   summary += `<tr><td><a href="#${cls.key}">${esc(cls.title)}</a></td><td class="num">${n}</td>`
     + `<td class="num">${by("common")}</td><td class="num">${by("uncommon")}</td><td class="num">${by("rare")}</td>`
     + `<td class="num">${starting}</td><td class="num">${n - starting}</td></tr>`;
 }
-summary += `<tr class="total"><td>All items</td><td class="num">${grand}</td>`
+summary += `<tr class="total"><td>All ACTIVE items</td><td class="num">${grand}</td>`
   + `<td class="num" colspan="4"></td><td class="num"></td></tr></table>`;
 
 // THE OUTCOME MATRIX — what the pool pays in, and from which class.
-const outcomeNames = [...new Set(CLASSES.flatMap((c) => c.items.map((i) => classify(i).primary)))]
+const activeClasses = CLASSES.filter((c) => c.key !== "retired");
+const outcomeNames = [...new Set(activeClasses.flatMap((c) => c.items.map((i) => classify(i).primary)))]
   .sort((a, b) => (a.startsWith("Curse") - b.startsWith("Curse")) || a.localeCompare(b));
 let matrix = `<h2 id="outcomes">Outcomes <span class="note">(${outcomeNames.length} groups)</span></h2>`
   + `<p class="note">What the item actually pays you in, keyed on its stable effect id — the same grouping the
      Excel workbook uses. An item can pay in more than one currency; the matrix counts its PRIMARY outcome, and
      each row's Outcome cell lists the secondary ones after a "+".</p>`
   + `<table class="summary"><tr><th>Outcome</th>`
-  + CLASSES.map((c) => `<th class="num">${esc(c.title)}</th>`).join("")
+  + activeClasses.map((c) => `<th class="num">${esc(c.title)}</th>`).join("")
   + `<th class="num">Total</th></tr>`;
 for (const name of outcomeNames) {
-  const cells = CLASSES.map((c) => c.items.filter((i) => classify(i).primary === name).length);
+  const cells = activeClasses.map((c) => c.items.filter((i) => classify(i).primary === name).length);
   matrix += `<tr><td>${esc(name)}</td>`
     + cells.map((n) => `<td class="num">${n || '<span class="dim">·</span>'}</td>`).join("")
     + `<td class="num"><b>${cells.reduce((a, b) => a + b, 0)}</b></td></tr>`;
@@ -337,7 +339,8 @@ for (const cls of CLASSES) {
     const flags = lint(item);
     if (flags.some((f) => f.kind === "err" || f.tag === "TEMPLATE"))
       allFlagged.push({ cls: cls.title, item, flags });
-    const tags = flags.map((f) => `<span class="tag ${f.kind}" title="${esc(f.why)}">${esc(f.tag)}</span>`).join(" ");
+    let tags = flags.map((f) => `<span class="tag ${f.kind}" title="${esc(f.why)}">${esc(f.tag)}</span>`).join(" ");
+    if (item.inactive) tags = `<span class="tag retired">RETIRED</span> ` + tags;
     const desc = String(item.description ?? "").trim();
     const oc = classify(item);
     body += `<tr id="i-${esc(item.id)}">`
@@ -402,6 +405,7 @@ code{color:#4ef08a}
 .tag{display:inline-block;padding:1px 5px;border-radius:2px;font-size:11px;font-weight:bold;white-space:nowrap}
 .tag.err{background:#5c1f22;color:#ff8b8b;border:1px solid #ff6b6b}
 .tag.info{background:#4a3c14;color:#ffd23f;border:1px solid #a8862c}
+.tag.retired{background:#2c3a2c;color:#8a9a8a;border:1px solid #5a6b5a}
 .lintbox{border:1px solid #2c3a2c;background:#151b15;padding:10px 14px;margin:14px 0 6px}
 .lintbox ul{margin:4px 0 8px;padding-left:20px}
 .ok{color:#4ef08a;margin:4px 0}
@@ -440,6 +444,7 @@ for (const cls of CLASSES) {
     const flags = lint(item);
     exportRows.push({
       cls: cls.title,
+      inactive: !!item.inactive,
       outcome: oc.primary,
       outcomeDetail: oc.detail,
       outcomeAlso: oc.also,

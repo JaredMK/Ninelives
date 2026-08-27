@@ -19,17 +19,19 @@ import XCTest
 final class SavedLandingTests: XCTestCase {
     private let data = GameData.shared
 
-    /// Wrong-guess Same-Charge save: top 9♠, drawn 2♥ (carrying `stickers`),
+    /// Wrong-guess Same-Charge save: top 9♠, drawn 2 (carrying `stickers`),
     /// HIGHER. The charge saves the pile and the 2 lands as the new top.
-    /// `deckFiller` pads the draw deck behind the killer (for effects that
-    /// read the deck's size, e.g. Deep Pockets).
+    /// `drawnSuit` matters to the v6.85 conditionals — the default ♠ matches
+    /// the other piles' 6♠ tops so a conditional carrier FIRES; pass "♥" to
+    /// make its bet miss. `deckFiller` pads the draw deck behind the killer
+    /// (for effects that read the deck's size, e.g. Deep Pockets).
     private func savedEngine(drawnStickers: [String], topStickers: [String] = [],
-                             topSuit: String = "♠",
+                             topSuit: String = "♠", drawnSuit: String = "♥",
                              pillars: [String?]? = nil, bases: [String?]? = nil,
                              deckFiller: Int = 0) -> GameEngine {
         let filler = (0..<deckFiller).map { IV.spec(60 + $0, 2 + ($0 % 5) * 2, $0 % 2 == 0 ? "♣" : "♦") }
         return IV.engine(tops: [IV.spec(1, 9, topSuit, topStickers), IV.spec(2, 6), IV.spec(3, 6)],
-                         deckOrder: [IV.spec(50, 2, "♥", drawnStickers), IV.spec(51, 3)] + filler,
+                         deckOrder: [IV.spec(50, 2, drawnSuit, drawnStickers), IV.spec(51, 3)] + filler,
                          pillars: pillars, bases: bases, sameCharge: true)
     }
     private func logLines(_ e: GameEngine) -> [String] {
@@ -39,11 +41,13 @@ final class SavedLandingTests: XCTestCase {
     // MARK: - The matrix: beneficial landing stickers FIRE on the saved landing
 
     func testCoinStickersPayOnASameChargeSave() {
-        let e = savedEngine(drawnStickers: ["gainCoin"])
+        // ♠ carrier over the two 6♠ tops → the conditional pays per matching
+        // pile, own included = ×3.
+        let e = savedEngine(drawnStickers: ["gainCoin"], drawnSuit: "♠")
         let v = data.stickerTypes.get("gainCoin")!.value
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0), "the charge saved the pile")
-        XCTAssertEqual(e.run.bonusCoins, v, "Bonus Coin pays — the card LANDED")
+        XCTAssertEqual(e.run.bonusCoins, v * 3, "Bonus Coin pays — the card LANDED and its bet hit")
     }
 
     func testDeepPocketsPaysOnASameChargeSave() {
@@ -58,7 +62,7 @@ final class SavedLandingTests: XCTestCase {
         // LANDING-FIRED (v6.78): the DRAWN carrier still LANDS on a
         // Same-Charge save (a saved landing IS a landing — the v6.57 rule),
         // so its own landing fires the bury.
-        let e = savedEngine(drawnStickers: ["quickBury"])
+        let e = savedEngine(drawnStickers: ["quickBury"], drawnSuit: "♠")   // the bet must hit
         let deckBefore = e.deck.remaining()
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
@@ -87,7 +91,7 @@ final class SavedLandingTests: XCTestCase {
     }
 
     func testTellAndScoutArmOnASameChargeSave() {
-        let e = savedEngine(drawnStickers: ["tell", "revealNext"])
+        let e = savedEngine(drawnStickers: ["tell", "revealNext"], drawnSuit: "♠")
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
         XCTAssertTrue(e.run.tellPiles.contains(0), "Tell arms — the card landed and stays on top")
@@ -188,9 +192,11 @@ final class SavedLandingTests: XCTestCase {
     // MARK: - Non-landing saves: the card never lands, so NOTHING fires
 
     func testGuardSaveFiresNoLandingStickers() {
-        // Drawn 2♥ carries the ♠ Guard; the 9♠ top matches → the guard absorbs
-        // the wrong guess and the card RETURNS TO THE DECK without landing.
-        let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+        // Drawn 2♥ carries the Guard; pile 2's ♥ top feeds its condition →
+        // the guard absorbs the wrong guess and the card RETURNS TO THE DECK
+        // without landing — so the OTHER conditionals it carries neither
+        // fire nor convert (no landing, no bet resolved).
+        let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6)],
                           deckOrder: [IV.spec(50, 2, "♥", ["suitImmunity", "gainCoin", "tell", "quickBury"]),
                                       IV.spec(51, 3)],
                           sameCharge: true)
@@ -235,14 +241,15 @@ final class SavedLandingTests: XCTestCase {
 
     func testTieSafeSaveFiresLandingStickersViaTheCorrectBranch() {
         let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
-                          deckOrder: [IV.spec(50, 9, "♥", ["tieSafe", "gainCoin"]), IV.spec(51, 3)])
+                          deckOrder: [IV.spec(50, 9, "♠", ["tieSafe", "gainCoin"]), IV.spec(51, 3)])
         let v = data.stickerTypes.get("gainCoin")!.value
         var tieSaved = false
         e.on { if case .tieSafeSaved = $0 { tieSaved = true } }
-        e.guess(0, .higher)   // 9 on 9 — a tie the sticker makes SAFE = correct
+        e.guess(0, .higher)   // 9♠ on 9♠ — a tie the sticker makes SAFE = correct
         XCTAssertTrue(tieSaved)
         XCTAssertTrue(e.board.isActive(0))
-        XCTAssertEqual(e.run.bonusCoins, v, "a tie-safe save IS a correct landing — stickers fire")
+        XCTAssertEqual(e.run.bonusCoins, v * 3,
+                       "a tie-safe save IS a correct landing — the conditional fires ×3 on the ♠ board")
     }
 
     // MARK: - Fatal stays fatal (one representative; FatalLandingTests pins the rest)

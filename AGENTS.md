@@ -452,6 +452,30 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   restore paths drop unknown item ids from inventories, column slots and
   the equipped Same-Power (registry-driven — a future retirement rides the
   same path). Never re-use a retired id.
+- **Conditional stickers (v6.85) — the shared contract.** Twenty stickers
+  are RETIRED via `inactive: true` (data-driven: `grantableBase()` filters
+  them like cursed, so EVERY acquisition pool inherits the exclusion; old
+  saves keep resolving and firing them; the Collection shows them greyed
+  RETIRED; never delete the entries). The surviving suit stickers (Quick
+  Bury, Bonus Coin, Donate, Heavy, Ripple/`diamondSnob`, Tell,
+  Guard/`suitImmunity`) are suit-AGNOSTIC conditionals resolved through
+  `conditionalSuitMatches` at the CARRIER's landing: nil = EXEMPT (no other
+  alive pile — neither fires nor converts), empty = the bet failed →
+  `convertStickerToCurse` (one weighted draw off the action rng via the
+  "sticker" pathway — `cursePool(path:)`, severe band excluded by
+  saboteur's curseExclude), else the effect fires. Pillar/Base Scout keep
+  their column condition with the same conversion on failure (exempt in
+  column-agnostic runs). Payout/Anchor are COVER PUNISH instead: any card
+  landing on them gains a pathway curse. ALL new curses are DORMANT for
+  the landing that created them — `run.freshCurses` (transient, cleared at
+  each guess entry, never snapshotted) makes later same-landing stages
+  (Leech's toll, Trapdoor's drop) skip them; a state curse (Mute, Flatline)
+  still acts as top-state immediately, the documented nuance. Durable
+  campaign writes ride `.stickerConverted` / `.coverCursed` →
+  `convertStickerOnCard`. Heavy's old passive pile-size weight is RETIRED
+  (Shrink keeps its) — Heavy is a latched sizeBonus landing effect now.
+  The four rank conditionals (Same-Safe, Recharge Shield, Tap Power, Twin
+  Spark) are HELD BACK untouched pending tuning (~21% hit rate).
 - **Odds Assist (iOS, v6.78): ALL-BEST + legality.**
   `assistRecommendations()` returns EVERY (pile, call) pair tying the max
   survival probability — no tie-break ladder — and respects guess()'s

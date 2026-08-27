@@ -50,13 +50,28 @@ enum IVStickers {
         switch def.behavior {
 
         case "gainCoin":
+            // CONDITIONAL (v6.85): the default family board is all-♠, so the
+            // carrier matches BOTH other tops → pays v × 3 (own pile counts).
             return landingFamily(def, allowed: .coins,
                 expect: { e, f, c in
-                    XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + v, "\(c): +\(v) coins on landing")
+                    XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + v * 3,
+                                   "\(c): +\(v) per matching-top pile, own included")
                 },
                 expectNoFire: { e, f, c in
                     XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): no sticker, no coins")
                 })
+                + [IV.Scenario("mustNotFire-noMatchConverts", allowed: [.guesses, .deck, .board, .coins],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 9, "♥", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): the missed bet pays nothing")
+                        let top = e.board.top(0)!
+                        XCTAssertFalse(top.stickers.contains { $0.type == def.id },
+                                       "\(c): the sticker converted away")
+                        XCTAssertEqual(top.stickers.filter { GameData.shared.stickerTypes.get($0.type)?.cursed == true }.count, 1,
+                                       "\(c): one curse took its place")
+                    })]
 
         case "extraCoin", "deathBounty", "compound":
             // extraCoin: end-of-deal coin units (board read); deathBounty:
@@ -241,9 +256,49 @@ enum IVStickers {
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)") })]
 
-        case "heartSnob", "suitSnob", "clubSnob", "diamondSnob":
+        case "diamondSnob":
+            // RIPPLE (CONDITIONAL, v6.85 — the ♦-contact snob rule is
+            // retired): the carrier's landing OFFERS a shuffle of every pile
+            // whose top matches its suit, provided another matching top
+            // exists; a missed bet converts.
+            return [
+                IV.Scenario("trigger-offersTheMatchingShuffle", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♠"), IV.spec(3, 6, "♦")],
+                                       deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.pendingActions.map(\.kind), ["suitRipple"],
+                                       "\(c): the Ripple offer queued")
+                        e.answerAction(true)
+                        XCTAssertEqual((0..<3).map { e.board.piles[$0].cards.count },
+                                       [f.pileCounts[0] + 1, f.pileCounts[1], f.pileCounts[2]],
+                                       "\(c): a shuffle moves nothing between piles")
+                        XCTAssertTrue(e.board.piles[0].cards.contains { card in
+                            card.stickers.contains { $0.type == def.id }
+                        }, "\(c): a fired Ripple stays on the carrier (now shuffled into its pile)")
+                    }),
+                IV.Scenario("edge-declineDiscards", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♠"), IV.spec(3, 6, "♦")],
+                                       deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
+                    fire: { e in e.guess(0, .higher); e.answerAction(false) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): a decline drains the offer")
+                    }),
+                IV.Scenario("mustNotFire-noMatchConverts", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): no offer on a missed bet")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                       "\(c): the sticker converted away")
+                    }),
+            ]
+
+        case "heartSnob", "suitSnob", "clubSnob":
+            // RETIRED (v6.85) — old saves keep them, so the rules stay pinned.
             // The snob rides the PILE TOP; a matching-suit landing fires it.
-            let suit = ["heartSnob": "♥", "suitSnob": "♠", "clubSnob": "♣", "diamondSnob": "♦"][def.behavior!]!
+            let suit = ["heartSnob": "♥", "suitSnob": "♠", "clubSnob": "♣"][def.behavior!]!
             let base: [CardSpec?] = [IV.spec(1, 5, suit), IV.spec(2, 6, "♦"), IV.spec(3, 6)]
             return landingFamily(def, onTop: true, topSuit: suit, drawnSuit: suit,
                 boardTops: base,
@@ -261,8 +316,6 @@ enum IVStickers {
                         let dug = e.deck.isEmpty && f.deckRemaining <= 1 ? 0 : def.int("digCount", 1)
                         XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1 + dug,
                                        "\(c): buried \(dug) under the landing")
-                    case "diamondSnob":
-                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): shuffle moves no coins")
                     default: break
                     }
                 },
@@ -295,8 +348,6 @@ enum IVStickers {
                             let dug = e.deck.isEmpty && f.deckRemaining <= 1 ? 0 : def.int("digCount", 1)
                             XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1 + dug,
                                            "\(c): the drawn snob buries under its landing on a ♣ top")
-                        case "diamondSnob":
-                            XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): shuffle moves no coins")
                         default: break
                         }
                     }),
@@ -497,7 +548,7 @@ enum IVStickers {
                     XCTAssertTrue(e.run.revealNextActive, "\(c): empty slot → peek")
                 },
                 expectNoFire: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
-                + [IV.Scenario("mustNotFire-slotFilled", allowed: [.guesses, .deck, .board, .coins],
+                + [IV.Scenario("mustNotFire-slotFilledConverts", allowed: [.guesses, .deck, .board, .coins],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)],
                                        pillars: isPillar ? ["prime", nil, nil] : nil,
@@ -505,6 +556,8 @@ enum IVStickers {
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
                         XCTAssertFalse(e.run.revealNextActive, "\(c): a filled slot blocks the scout")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                       "\(c): …and CONVERTS it (v6.85) — the scout's bet missed")
                     })]
 
         case "rechargeSameShield":
@@ -564,34 +617,42 @@ enum IVStickers {
             ]
 
         case "suitImmunity":
-            let suit = def.suit ?? "♠"
+            // GUARD (CONDITIONAL, v6.85 — suit-agnostic; the retired per-suit
+            // guards share this behavior and validate the same rule): the
+            // CARRIER's wrong landing is absorbed when another alive pile's
+            // top matches ITS suit; a missed bet converts — even on the
+            // fatal landing it failed to stop.
             return [
                 IV.Scenario("trigger-guardAbsorbsWrongGuess", allowed: [.guesses, .board, .deck],
-                    build: { IV.engine(tops: [IV.spec(1, 9, suit, [def.id]), IV.spec(2, 6), IV.spec(3, 6)],
-                                       deckOrder: [IV.spec(50, 2, suit), IV.spec(51, 3)]) },
-                    fire: { $0.guess(0, .higher) },   // wrong, but the guarded suit is involved
+                    build: { IV.engine(tops: [IV.spec(1, 9, "♥"), IV.spec(2, 6, "♠"), IV.spec(3, 6, "♠")],
+                                       deckOrder: [IV.spec(50, 2, "♠", [def.id]), IV.spec(51, 3)]) },
+                    fire: { $0.guess(0, .higher) },   // 2 on 9: wrong — another ♠ top matches
                     expect: { e, f, c in
                         XCTAssertTrue(e.board.isActive(0), "\(c): the guard absorbed it")
                         XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1 + 1,
                                        "\(c): the drawn card went back to the deck")
                     }),
-                IV.Scenario("edge-bidirectional", allowed: [.guesses, .board, .deck],
-                    build: { IV.engine(tops: [IV.spec(1, 9, suit), IV.spec(2, 6), IV.spec(3, 6)],
-                                       deckOrder: [IV.spec(50, 2, "♠" == suit ? "♥" : "♠", [def.id]), IV.spec(51, 3)]) },
+                IV.Scenario("edge-noMatchDiesAndConverts", allowed: [.guesses, .board, .deck, .deaths],
+                    build: { IV.engine(tops: [IV.spec(1, 9, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 2, "♠", [def.id]), IV.spec(51, 3)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
-                        XCTAssertTrue(e.board.isActive(0),
-                                      "\(c): the DRAWN card's guard saves when the PILE TOP is its suit")
+                        XCTAssertFalse(e.board.isActive(0),
+                                       "\(c): no matching other top — the guard cannot save")
+                        let buried = e.board.piles[0].cards.last!
+                        XCTAssertFalse(buried.stickers.contains { $0.type == def.id },
+                                       "\(c): the failed guard converted on the fatal landing")
                     }),
-                IV.Scenario("mustNotFire-unguardedSuit", allowed: [.guesses, .board, .deck, .deaths],
-                    build: {
-                        let other = suit == "♠" ? "♥" : "♠"
-                        return IV.engine(tops: [IV.spec(1, 9, other, [def.id]), IV.spec(2, 6), IV.spec(3, 6)],
-                                         deckOrder: [IV.spec(50, 2, other), IV.spec(51, 3)])
-                    },
+                IV.Scenario("mustNotFire-lastPileIsExempt", allowed: [.guesses, .board, .deck, .deaths],
+                    build: { IV.engine(tops: [IV.spec(1, 9, "♠"), nil, nil],
+                                       deckOrder: [IV.spec(50, 2, "♠", [def.id]), IV.spec(51, 3)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
-                        XCTAssertFalse(e.board.isActive(0), "\(c): the guard is suit-locked (v6.x fix)")
+                        XCTAssertFalse(e.board.isActive(0),
+                                       "\(c): no OTHER alive pile — the exempt guard cannot save")
+                        let buried = e.board.piles[0].cards.last!
+                        XCTAssertTrue(buried.stickers.contains { $0.type == def.id },
+                                      "\(c): exempt — the sticker does NOT convert either")
                     }),
             ]
 
@@ -655,32 +716,36 @@ enum IVStickers {
             ]
 
         case "heavy":
-            let w = def.int("value", 1)
+            // CONDITIONAL LANDING EFFECT (v6.85): +value latched size to every
+            // matching-top pile, own included — the passive weight retired.
+            let w = max(1, def.int("value", 1))
             return [
-                IV.Scenario("trigger-countsExtra", allowed: [],
-                    build: { IV.engine(tops: [IV.spec(1, 5, "♠", [def.id]), IV.spec(2, 6), IV.spec(3, 6)],
+                IV.Scenario("trigger-latchesOnMatch", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♦"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♠")],
+                                       deckOrder: [IV.spec(50, 9, "♦", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },   // ♦ carrier, ♦ top elsewhere
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.pileSize(0), 2 + w, "\(c): own pile latched +\(w)")
+                        XCTAssertEqual(e.board.pileSize(1), 1 + w, "\(c): the matching pile latched too")
+                        XCTAssertEqual(e.board.pileSize(2), 1, "\(c): the off-suit pile untouched")
+                    }),
+                IV.Scenario("edge-noMatchConverts", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 9, "♦", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.pileSize(0), 2, "\(c): no latch on a missed bet")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                       "\(c): the sticker converted")
+                    }),
+                IV.Scenario("mustNotFire-passiveWeightRetired", allowed: [],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♦", [def.id]), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 9)]) },
                     fire: { _ in },
                     expect: { e, _, c in
-                        XCTAssertEqual(e.board.pileSize(0), 1 + w, "\(c): counts 1+\(w)")
+                        XCTAssertEqual(e.board.pileSize(0), 1,
+                                       "\(c): merely WEARING Heavy adds nothing now")
                     }),
-                IV.Scenario("edge-feedsTheMin", allowed: [],
-                    build: {
-                        let e = IV.engine(tops: [IV.spec(1, 5, "♠", [def.id]), IV.spec(2, 6), IV.spec(3, 6)],
-                                          deckOrder: [IV.spec(50, 9)])
-                        e.board.piles[1].cards.append(DeckManager.toCard(IV.spec(90, 7), data: data))
-                        e.board.piles[2].cards.append(DeckManager.toCard(IV.spec(91, 7), data: data))
-                        return e
-                    },
-                    fire: { _ in },
-                    expect: { e, _, c in
-                        XCTAssertEqual(e.board.minAliveCards(), min(1 + w, 2), "\(c): the min sees the weight")
-                    }),
-                IV.Scenario("mustNotFire", allowed: [],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
-                                       deckOrder: [IV.spec(50, 9)]) },
-                    fire: { _ in },
-                    expect: { e, _, c in XCTAssertEqual(e.board.pileSize(0), 1, "\(c)") }),
             ]
 
         case "shuffle":
@@ -702,34 +767,34 @@ enum IVStickers {
 
         case "donate":
             return [
-                IV.Scenario("trigger-movesToSmallest", allowed: [.board, .deck, .guesses],
+                IV.Scenario("trigger-equalisesTheBoard", allowed: [.board, .deck, .guesses],
                     build: {
-                        let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                        let e = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♠"), IV.spec(3, 6, "♦")],
                                           deckOrder: [IV.spec(50, 9, "♠", ["donate"]), IV.spec(51, 2)])
                         e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(90, 7), data: data))
                         e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(91, 8), data: data))
                         return e
                     },
-                    fire: { $0.guess(0, .higher) },   // 9 on the size-3 pile → donates down
-                    expect: { e, f, c in
-                        XCTAssertLessThan(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
-                                          "\(c): a bottom card left the landing pile")
-                        XCTAssertTrue(e.board.piles[1].cards.count > f.pileCounts[1]
-                                        || e.board.piles[2].cards.count > f.pileCounts[2],
-                                      "\(c): a smaller pile received it")
+                    fire: { $0.guess(0, .higher) },   // ♠ carrier, ♠ top elsewhere → equalise
+                    expect: { e, _, c in
+                        let sizes = (0..<3).filter { e.board.isActive($0) }.map { e.board.pileSize($0) }
+                        XCTAssertLessThanOrEqual((sizes.max() ?? 0) - (sizes.min() ?? 0), 1,
+                                                 "\(c): every alive pile within 1 of the rest")
                     }),
-                IV.Scenario("edge-alreadySmallestStaysPut", allowed: [.board, .deck, .guesses],
+                IV.Scenario("edge-noMatchConverts", allowed: [.board, .deck, .guesses],
                     build: {
-                        let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                        let e = IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
                                           deckOrder: [IV.spec(50, 9, "♠", ["donate"]), IV.spec(51, 2)])
-                        e.board.piles[1].cards.append(DeckManager.toCard(IV.spec(90, 7), data: data))
-                        e.board.piles[2].cards.append(DeckManager.toCard(IV.spec(91, 7), data: data))
+                        e.board.piles[1].cards.append(DeckManager.toCard(IV.spec(90, 7, "♦"), data: data))
+                        e.board.piles[2].cards.append(DeckManager.toCard(IV.spec(91, 7, "♣"), data: data))
                         return e
                     },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
                         XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1], "\(c): no donation up")
                         XCTAssertEqual(e.board.piles[2].cards.count, f.pileCounts[2], "\(c)")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == "donate" },
+                                       "\(c): the missed bet converted the sticker")
                     }),
                 IV.Scenario("mustNotFire", allowed: [.board, .deck, .guesses],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],

@@ -160,22 +160,25 @@ final class GuessRuleTests: XCTestCase {
         XCTAssertTrue(e.sameCharge, "a correct guess never spends the charge")
     }
 
-    /// A Suit Guard sits ABOVE the charge in the chain: with both available the
-    /// guard absorbs the miss and the charge survives.
+    /// The Guard (CONDITIONAL, v6.85) sits ABOVE the charge in the chain:
+    /// with the guard's bet fed and both available, the guard absorbs the
+    /// miss and the charge survives.
     func testGuardOutranksSameCharge() {
         var specs = DeckManager.buildStandardDeck()
-        // Give the ♦ 5 a ♥ guard: a ♥ landing on it is absorbed.
-        guard let guardType = GameData.shared.items.stickers.first(where: { $0.behavior == "suitImmunity" && $0.suit == "♥" })
-        else { XCTFail("items.js must ship a ♥ Suit Guard"); return }
-        let carrier = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 5 }!
+        guard let guardType = GameData.shared.items.stickers.first(where: { $0.id == "suitImmunity" })
+        else { XCTFail("items.js must ship the Guard"); return }
+        // The DRAWN ♥ 3 carries the Guard; pile 1 keeps a ♥ top to feed it.
+        let carrier = specs.firstIndex { $0.suit == "♥" && $0.currentRank == 3 }!
         specs[carrier].stickers.append(StickerRecord(type: guardType.id))
 
         let e = GameEngine(deckSpecs: specs, pileCount: 3, runConfig: RunConfig(sameCharge: true))
         e.start(seedOverride: 999)
         e.startRun()
-        e.board.piles[0].cards = [DeckManager.toCard(specs[carrier])]
-        let heart = specs.first { $0.suit == "♥" && $0.currentRank == 3 }!
-        e.debug.setNextCardObj(DeckManager.toCard(heart))
+        let five = specs.first { $0.suit == "♦" && $0.currentRank == 5 }!
+        let heartTop = specs.first { $0.suit == "♥" && $0.currentRank == 10 }!
+        e.board.piles[0].cards = [DeckManager.toCard(five)]
+        e.board.piles[1].cards = [DeckManager.toCard(heartTop)]
+        e.debug.setNextCardObj(DeckManager.toCard(specs[carrier]))
         let before = e.deck.remaining()
         e.guess(0, .higher)                                  // 5 → 3 is wrong
         XCTAssertTrue(e.board.isActive(0), "the guard absorbs the miss")
@@ -184,22 +187,24 @@ final class GuessRuleTests: XCTestCase {
         XCTAssertEqual(e.deck.remaining(), before, "the drawn card is reshuffled back in")
     }
 
-    func testGuardIsBidirectionalAndUnlimited() {
+    func testGuardNeverSpendsWhileItsBetHolds() {
         var specs = DeckManager.buildStandardDeck()
-        guard let guardType = GameData.shared.items.stickers.first(where: { $0.behavior == "suitImmunity" && $0.suit == "♥" })
-        else { XCTFail("items.js must ship a ♥ Suit Guard"); return }
-        // The DRAWN card carries the guard; the pile top is the matching suit.
+        guard let guardType = GameData.shared.items.stickers.first(where: { $0.id == "suitImmunity" })
+        else { XCTFail("items.js must ship the Guard"); return }
+        // The DRAWN ♦ 4 carries the guard; pile 1 keeps a ♦ top to feed it.
         let carrier = specs.firstIndex { $0.suit == "♦" && $0.currentRank == 4 }!
         specs[carrier].stickers.append(StickerRecord(type: guardType.id))
         let e = GameEngine(deckSpecs: specs, pileCount: 3)
         e.start(seedOverride: 4321)
         e.startRun()
         let heartTop = specs.first { $0.suit == "♥" && $0.currentRank == 10 }!
+        let diamondTop = specs.first { $0.suit == "♦" && $0.currentRank == 9 }!
         for _ in 0..<3 {                                      // guards never spend
             e.board.piles[0].cards = [DeckManager.toCard(heartTop)]
+            e.board.piles[1].cards = [DeckManager.toCard(diamondTop)]
             e.debug.setNextCardObj(DeckManager.toCard(specs[carrier]))
             e.guess(0, .higher)                               // 10 → 4 is wrong
-            XCTAssertTrue(e.board.isActive(0), "a matching guard saves repeatedly")
+            XCTAssertTrue(e.board.isActive(0), "a fed guard saves repeatedly")
         }
     }
 

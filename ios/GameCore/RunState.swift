@@ -158,6 +158,14 @@ public final class RunState {
     public var snowballUpdates: [Int: Int] = [:]
     public var stickerPeels: [Int: Int] = [:]
 
+    /// v6.85 FRESH CURSES — the deferred-activation ledger: curses a
+    /// conversion or cover punish appended DURING the current landing, so
+    /// the later stages of the SAME landing must skip them (a converted
+    /// Leech would otherwise toll immediately in maybeStickerTribute).
+    /// TRANSIENT within one guess: cleared at every guess entry, so it is
+    /// always empty between actions and never needs the snapshot.
+    public var freshCurses: [(cardId: Int, type: String)] = []
+
     /// Display-only: the next deck card is revealed.
     public var revealNextActive = false
     /// Pile indices with an active directional hint (display only).
@@ -261,6 +269,12 @@ public enum EngineEvent {
     case runStarted
     case resolved(index: Int, guess: Guess, current: LiveCard, drawn: LiveCard, correct: Bool)
     case guarded(index: Int, guess: Guess, current: LiveCard, drawn: LiveCard)
+    /// v6.85 CONDITIONAL STICKERS: a failed bet — `from` was removed and
+    /// `to` (nil when nothing could stick) took its place on the card.
+    case stickerConverted(index: Int, cardId: Int, from: String, to: String?)
+    /// v6.85 COVER PUNISH (Payout/Anchor): the card that landed ON the
+    /// carrier gained `typeId` permanently.
+    case coverCursed(index: Int, cardId: Int, typeId: String, source: String)
     case secondWind(index: Int, guess: Guess, current: LiveCard)
     case sameSaved(index: Int, guess: Guess, current: LiveCard, drawn: LiveCard, sameCharge: Bool)
     case sameBanked(index: Int, sameCharge: Bool)

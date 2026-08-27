@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.84"
-    static let note = "PLACEMENT-DECISION LOG (debug-only): every player sticker placement records its eligible field, loadout, source and a meaningfulness verdict — PLACE| lines in the event log + durable NDJSON at Documents/placement-log.ndjson. No gameplay changes; plus the Principle-1 audit and archetype map docs."
+    static let version = "v6.85"
+    static let note = "THE STICKER CONDITIONAL REWORK: 20 stickers retired; the survivors are suit-agnostic board-reading bets — fire if another pile's top matches the carrier's suit, convert into a curse if none does (dormant until the card's next landing; no other pile = exempt); Payout/Anchor curse any card played onto them; Guard and Ripple renamed."
     static let line = "build \(version) · \(note)"
 }
 
@@ -1317,6 +1317,10 @@ final class CollectionViewController: MenuScreenBase {
             var gy: CGFloat = 0
             for (i, def) in defs.enumerated() {
                 let r = i / cols, c = i % cols
+                // RETIRED (v6.85): still shown — the player may hold or wear
+                // one from an old save — but greyed, tagged, and out of every
+                // acquisition pool. Unlock hints would be a lie here.
+                let retired = def.inactive
                 let unlocked = unlocks.isUnlocked(def)
                 let tile = UIControl(frame: CGRect(x: 14 + CGFloat(c) * (cw + 10),
                                                    y: CGFloat(r) * (th + 10), width: cw, height: th))
@@ -1325,10 +1329,10 @@ final class CollectionViewController: MenuScreenBase {
                 panel.frame = tile.bounds
                 tile.addSubview(panel)
                 let raw = ItemArt.forSlot(kind: kind, id: def.id, card: nil, deckId: flow.campaign.deckId)
-                let art = UIImageView(image: unlocked ? raw : CollectionViewController.silhouette(raw))
+                let art = UIImageView(image: unlocked || retired ? raw : CollectionViewController.silhouette(raw))
                 art.contentMode = .scaleAspectFit
                 art.layer.magnificationFilter = .nearest
-                art.alpha = unlocked ? 1 : 0.72
+                art.alpha = retired ? 0.35 : unlocked ? 1 : 0.72
                 // Web tiles wear a SMALL pixel icon (~40px) — not a tile-
                 // filling blowup. 44pt keeps nearest-neighbour steps even.
                 // Suited stickers drop 12pt to make room for the suit
@@ -1344,7 +1348,18 @@ final class CollectionViewController: MenuScreenBase {
                     cap.isUserInteractionEnabled = false
                     tile.addSubview(cap)
                 }
-                if unlocked {
+                if retired {
+                    let name = CRTKit.label(def.label, size: 14, color: CRT.disabledText)
+                    name.textAlignment = .center
+                    name.numberOfLines = 2
+                    name.frame = CGRect(x: 4, y: 80, width: cw - 8, height: 30)
+                    tile.addSubview(name)
+                    let tag = CRTKit.label("RETIRED", size: 14, color: CRT.muted)
+                    tag.textAlignment = .center
+                    tag.alpha = 0.85
+                    tag.frame = CGRect(x: 4, y: 116, width: cw - 8, height: 15)
+                    tile.addSubview(tag)
+                } else if unlocked {
                     let name = CRTKit.label(def.label, size: 14, color: CRT.cardFace)
                     name.textAlignment = .center
                     name.numberOfLines = 2

@@ -43,6 +43,10 @@ public struct ItemDef: Equatable, Sendable {
     public let suits: [String]?
     /// Cursed stickers never enter a grant pool (curses are inflicted).
     public let cursed: Bool
+    /// RETIRED (v6.85): out of every acquisition pool, exactly like cursed —
+    /// but still registered, so old saves keep resolving and firing it, and
+    /// the Collection can show it greyed.
+    public let inactive: Bool
     /// The shared curse roll's weight (cursed stickers only; > 0 required).
     public let curseWeight: Double
     /// Pathways this curse may NOT come from ("mystery" / "purge" /
@@ -86,6 +90,7 @@ public struct ItemDef: Equatable, Sendable {
         self.suit = raw["suit"]?.asString
         self.suits = raw["suits"]?.asArray?.compactMap(\.asString)
         self.cursed = raw["cursed"]?.asBool ?? false
+        self.inactive = raw["inactive"]?.asBool ?? false
         self.curseWeight = raw["curseWeight"]?.asNumber ?? 0
         self.curseExclude = raw["curseExclude"]?.asArray?.compactMap(\.asString) ?? []
         self.target = raw["target"]?.asString
@@ -134,7 +139,7 @@ public struct ItemRegistry: Sendable {
     /// them and the apply path accepts them (the mystery cursedSticker event
     /// applies one directly). Item-unlock gating is layered on by the caller,
     /// which reads the LIVE unlock record — see `CampaignEnvironment.grantable`.
-    public func grantableBase() -> [ItemDef] { ordered.filter { !$0.cursed } }
+    public func grantableBase() -> [ItemDef] { ordered.filter { !$0.cursed && !$0.inactive } }
 
     /// THE shared curse pool for one inflicting pathway — every cursed
     /// sticker whose `curseExclude` doesn't name it, with its hand-tuned

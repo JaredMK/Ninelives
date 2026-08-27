@@ -619,6 +619,8 @@ public final class GameEngine {
         // consumed by a refused call, so both gates sit before it.
         if g == .same, pileMuted(index) { return }
 
+        // v6.85: a new landing — last landing's fresh-curse ledger expires.
+        run.freshCurses.removeAll()
         guard let current = board.top(index), let drawn = deck.draw() else { return }
         // Scout: drawing this card consumes any active reveal. It may be re-armed
         // below if a Scout card lands.
@@ -811,13 +813,13 @@ public final class GameEngine {
         } else if correct {
             board.push(index, drawn)
             curseTouch(index: index, current: current, drawn: drawn)
+            // COVER PUNISH (v6.85): a Payout/Anchor top curses its cover —
+            // after curseTouch, so the new curse waits for the NEXT landing.
+            maybeCoverPunish(index, current: current, drawn: drawn)
             // Scout: the placed card reveals the next deck card (display-only).
             if drawn.revealNext { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", ["peeks": 1]) }
-            // Tell: arm a DIRECTIONAL hint for the NEXT draw on this pile.
-            if drawn.stickers.contains(where: { $0.type == "tell" }) {
-                run.tellPiles.insert(index)
-                recT("sticker", "tell", "Tell", ["peeks": 1])
-            }
+            // Tell (CONDITIONAL, v6.85): the carrier's suit is the bet.
+            maybeConditionalTell(index, drawn)
             // Tribute Pillars: pull card(s) from the deck's BOTTOM and bury them
             // under this pile — never revealed.
             maybeTribute(index, pillar, drawn, isTie)
@@ -830,8 +832,14 @@ public final class GameEngine {
             maybeStickerActions(index, drawn)
             // Trapdoor: the landed curse opens under the pile — its BOTTOM
             // card slips back into the deck (hidden), one per Trapdoor on the
-            // drawn card. The pile always keeps its top.
-            let doors = drawn.stickers.filter { stickerTypes.get($0.type)?.behavior == "trapdoor" }
+            // drawn card. The pile always keeps its top. v6.85: a Trapdoor
+            // that a conversion/cover punish appended DURING this landing is
+            // dormant (the freshCurses ledger) — it opens from the card's
+            // NEXT landing.
+            let doors = drawn.stickers.filter { st in
+                guard stickerTypes.get(st.type)?.behavior == "trapdoor" else { return false }
+                return !run.freshCurses.contains { $0.cardId == drawn.id && $0.type == st.type }
+            }
             if !doors.isEmpty {
                 var dropped = 0
                 for _ in doors {
@@ -869,13 +877,16 @@ public final class GameEngine {
                 }
                 emit(.sameBanked(index: index, sameCharge: sameCharge))
             }
-        } else if let guardSave = findGuardSave(current, drawn) {
-            // Suit Guard (bidirectional + UNLIMITED): the guarded suit is involved
-            // in this draw, so the wrong guess is absorbed. Guards never spend.
+        } else if guardConditionalSave(index, drawn) {
+            // GUARD (v6.85): carrier-only and CONDITIONAL — the wrong-landing
+            // carrier is absorbed (returned to the deck, unlimited, unspent)
+            // when another alive pile's top matches ITS suit. The old
+            // bidirectional any-♠ save retired with the rework; the failed
+            // bet converts below instead.
             deck.returnCard(drawn)
-            logLine("Guard saved the pile (\(guardSave.suit) involved; card returned to the deck)")
+            logLine("Guard saved the pile (\(drawn.suit) matched another top; card returned to the deck)")
             emit(.guarded(index: index, guess: g, current: current, drawn: drawn))
-            let gdef = stickerTypes.all().first { $0.behavior == "suitImmunity" && $0.suit == guardSave.suit }
+            let gdef = stickerTypes.all().first { $0.behavior == "suitImmunity" }
             recT("sticker", gdef?.id ?? "suitImmunity", gdef?.label ?? "Guard", ["saves": 1])
         } else if let pillar, pillar.effect == "secondWind", let col,
                   { let saved = rollChance("pillar", pillar.id, pillar.label,
@@ -943,16 +954,31 @@ public final class GameEngine {
         if run.pendingSecondWind == nil { evaluateEnd() }
     }
 
-    /// Suit Guard save — BIDIRECTIONAL and UNLIMITED. A guard rides a card and
-    /// fires whenever the guarded suit is involved in the draw, in EITHER
-    /// direction. Wild Suit on the non-guard side counts as every suit.
-    func findGuardSave(_ current: LiveCard?, _ drawn: LiveCard?) -> (carrier: LiveCard, suit: String)? {
-        guard let current, let drawn else { return nil }
-        // (a) drawn carries the guard, current is the matching suit.
-        for sym in drawn.suitGuards where matchesSuit(current, sym) { return (drawn, sym) }
-        // (b) current (pile top) carries the guard, drawn is the matching suit.
-        for sym in current.suitGuards where matchesSuit(drawn, sym) { return (current, sym) }
-        return nil
+    /// GUARD (v6.85): does the landing CARRIER hold a Guard whose bet is ON
+    /// — another alive pile's top matching the carrier's suit? Exempt (no
+    /// other alive pile) saves nothing: the sticker neither fires nor
+    /// converts there, per the shared conditional rule.
+    func guardConditionalSave(_ index: Int, _ drawn: LiveCard?) -> Bool {
+        guard let drawn,
+              drawn.stickers.contains(where: { stickerTypes.get($0.type)?.behavior == "suitImmunity" })
+        else { return false }
+        guard let m = conditionalSuitMatches(index, drawn) else { return false }
+        return !m.isEmpty
+    }
+
+    /// Tell (CONDITIONAL, v6.85): a hit arms the one-draw hint on the
+    /// carrier's pile; a missed bet converts, per instance. Shared by the
+    /// correct-landing and saved-landing paths.
+    func maybeConditionalTell(_ index: Int, _ drawn: LiveCard) {
+        let tellCount = drawn.stickers.filter { $0.type == "tell" }.count
+        guard tellCount > 0, let tdef = stickerTypes.get("tell") else { return }
+        guard let m = conditionalSuitMatches(index, drawn) else { return }
+        if m.isEmpty {
+            for _ in 0..<tellCount { convertStickerToCurse(index, drawn, tdef) }
+        } else {
+            run.tellPiles.insert(index)
+            recT("sticker", "tell", tdef.label, ["peeks": 1])
+        }
     }
 
     /// Second Wind: recycle a dying pile's cards (and the killing card) back into
@@ -990,6 +1016,17 @@ public final class GameEngine {
         // fatal-landing audit; Death Bounty below is the one deliberate
         // on-death payout).
         board.push(index, drawn)
+        // v6.85: a Guard that failed exactly when it was needed converts
+        // even on the fatal landing — the card is buried wearing its new
+        // curse (a revive surfaces it). Exempt landings (no other alive
+        // pile) convert nothing, the shared rule.
+        let fatalGuards = drawn.stickers.compactMap { st -> ItemDef? in
+            guard let t = stickerTypes.get(st.type), t.behavior == "suitImmunity" else { return nil }
+            return t
+        }
+        if !fatalGuards.isEmpty, let gm = conditionalSuitMatches(index, drawn), gm.isEmpty {
+            for t in fatalGuards { convertStickerToCurse(index, drawn, t) }
+        }
         board.kill(index)
         emit(.pileKilled(index: index))
         logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")
@@ -1082,7 +1119,22 @@ public final class GameEngine {
         fireContext = "\(a.kind) offer · pile \(a.index + 1) · \(accept ? "accepted" : "declined")"
         logBegin((a.kind == "shuffle" ? "Shuffle" : "Donate") + (accept ? " — accepted" : " — declined"))
         if accept {
-            if a.kind == "shuffle" {
+            if a.kind == "suitRipple" {
+                // Ripple (v6.85): shuffle every alive pile whose top matches
+                // the carrier's suit — the carrier is still this pile's top
+                // (prompts drain before any further landing), own pile
+                // included.
+                var shuffled = 0
+                if let suit = board.top(a.index)?.suit {
+                    for i in 0..<board.size where board.isActive(i) && matchesSuit(board.top(i), suit) {
+                        board.shufflePile(i, rng)
+                        shuffled += 1
+                    }
+                }
+                let rdef = stickerTypes.get("diamondSnob")
+                recT("sticker", "diamondSnob", rdef?.label ?? "Ripple", ["shuffled": Double(shuffled)])
+                logLine("\(shuffled) pile\(shuffled == 1 ? "" : "s") shuffled (order hidden)")
+            } else if a.kind == "shuffle" {
                 board.shufflePile(a.index, rng)
                 logLine("pile \(a.index + 1) shuffled (order hidden)")
                 let sdef = stickerTypes.get("shuffle")

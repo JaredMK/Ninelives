@@ -488,6 +488,29 @@ public final class DealController {
                 done()
             }
 
+        case .stickerConverted(let index, let cardId, let from, let to):
+            // v6.85: a conditional sticker's failed bet — durable on the
+            // campaign card (the sticker leaves, the curse arrives). Zen and
+            // debug boards live on the LiveCard alone.
+            if isCampaign { _ = campaign.convertStickerOnCard(cardId, from: from, to: to) }
+            Sound.shared.stripSticker()
+            if let to, let label = GameData.shared.stickerTypes.get(to)?.label {
+                animQueue.add(priority: 1) { [weak self] done in
+                    self?.scene.curseIndicator(at: index, label: label)
+                    done()
+                }
+            }
+        case .coverCursed(let index, let cardId, let typeId, _):
+            // v6.85 COVER PUNISH: the card that landed on Payout/Anchor
+            // keeps its new curse for the rest of the climb.
+            if isCampaign { _ = campaign.convertStickerOnCard(cardId, from: nil, to: typeId) }
+            Sound.shared.stripSticker()
+            if let label = GameData.shared.stickerTypes.get(typeId)?.label {
+                animQueue.add(priority: 1) { [weak self] done in
+                    self?.scene.curseIndicator(at: index, label: label)
+                    done()
+                }
+            }
         case .pillarSticker(let col, let pileIndex, let cardId, let typeId):
             // Flypaper's catch: persist the sticker durably and pulse the pile.
             _ = campaign.applyStickerDirect(cardId, typeId)
@@ -1182,6 +1205,16 @@ public final class DealController {
                                                      options: [.sortedKeys, .prettyPrinted])
         else { return }
         try? data.write(to: dir.appendingPathComponent("deal-receipt.json"))
+    }
+
+    /// Ripple (v6.85): the piles the pending suitRipple offer would shuffle —
+    /// every alive pile whose top matches the landing pile's top suit. The
+    /// prompt highlights exactly what the engine will touch on accept.
+    public func rippleTargets(for index: Int) -> [Int] {
+        guard let engine, let suit = engine.board.top(index)?.suit else { return [index] }
+        return (0..<engine.board.size).filter {
+            engine.board.isActive($0) && CardRules.matchesSuit(engine.board.top($0), suit)
+        }
     }
 
     // MARK: - Player actions

@@ -404,7 +404,8 @@ public struct ItemData: Sendable {
             if !stickers.contains(where: { $0.cursed }) {
                 problems.append("[items.js] stickers: at least one entry must carry `cursed: true` (the curse roll's pool)")
             }
-            let cursePaths = ["mystery", "purge", "duplicate", "doors"]
+            // "sticker" (v6.85): a conditional sticker's failed-bet conversion.
+            let cursePaths = ["mystery", "purge", "duplicate", "doors", "sticker"]
             for s in stickers where s.cursed {
                 if !(s.curseWeight > 0) {
                     problems.append("[items.js] stickers.\(s.id): cursed entries need `curseWeight` > 0")
