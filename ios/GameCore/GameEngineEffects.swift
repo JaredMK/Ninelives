@@ -292,9 +292,33 @@ extension GameEngine {
             recT("pillar", pillar.id, pillar.label, ["buried": Double(nb), "peeks": 1])
             logLine("\(pillar.label): a cursed landing — buried \(nb), peeking the next card")
 
-        case "pauperHeart" where matchesSuit(drawn, "♥") && purseBelow(pillar):
-            // PAUPER'S HEART: a ♥ landing while broke pays value, live.
-            payPillar(col, "pauperHeart", pillar.label, pillar.num("value", 3))
+        case "pauperHeartPeek" where matchesSuit(drawn, "♥") && purseBelow(pillar):
+            // PAUPER'S HEART (v6.87): the broke player's ♥ landing PEEKS the
+            // next card now — the coin payout retired with the old effect
+            // key (pauperHeart), which no handler reads any more.
+            peekPillar(col, pillar)
+
+        case "heartZeroRanksCoin" where matchesSuit(drawn, "♥"):
+            // EMPTY RANKS COINS (v6.87): the narrow-deck family's coin leg —
+            // `value` coins per zero-copy rank, on a ♥ landing.
+            let empties = zeroCopyRankCount()
+            if empties > 0 {
+                payPillar(col, "heartZeroRanksCoin", pillar.label,
+                          pillar.num("value", 2) * Double(empties))
+            }
+
+        case "diamondZeroRanksSize" where isDiamond:
+            // EMPTY RANKS HEAVY (v6.87): the size leg — `value` pile size per
+            // zero-copy rank, latched on the landing pile (Diamond Echo's
+            // addSizeBonus mechanism).
+            let empties = zeroCopyRankCount()
+            if empties > 0 {
+                let add = pillar.int("value", 1) * empties
+                board.addSizeBonus(index, add)
+                firePillar(col, "diamondZeroRanksSize", pillar.label, 0)
+                recT("pillar", pillar.id, pillar.label, ["fires": 1, "size": Double(add)])
+                logLine("\(pillar.label): \(empties) empty rank\(empties == 1 ? "" : "s") → +\(add) pile size")
+            }
 
         case "pauperSpadeTell" where matchesSuit(drawn, "♠") && purseBelow(pillar):
             // PAUPER'S SPADE: a ♠ landing while broke arms a TELL on this pile
@@ -385,10 +409,11 @@ extension GameEngine {
                 recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
             }
         } else if pillar.effect == "clubZeroRanksBury" && isClub {
-            // EMPTY RANKS (v6.76): bury 1 per rank with ZERO copies in the
-            // full deck — derived live at the landing (R3), no count knob.
-            let counts = fullDeckRankCounts()
-            let empties = (minRank...maxRank).filter { (counts[$0] ?? 0) == 0 }.count
+            // EMPTY RANKS BURY (v6.76): bury 1 per rank with ZERO copies in
+            // the full deck — derived live at the landing (R3), no count
+            // knob. v6.87: the condition is shared by the family's coin and
+            // size legs (zeroCopyRankCount), the effects are not.
+            let empties = zeroCopyRankCount()
             if empties > 0 {
                 let nb = buryTribute(index, empties, pillar.label)
                 if nb > 0 {

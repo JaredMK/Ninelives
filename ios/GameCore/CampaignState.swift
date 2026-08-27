@@ -1044,12 +1044,14 @@ public final class CampaignState {
                 }
                 return (0..<CampaignLayout.columnSlots).map { $0 < pool.count ? pool[$0] : nil }
             }
-            columnPillars = roll3(data.pillarTypes.all().filter(itemUnlocks.isUnlocked).map(\.id))
-            columnBases = roll3(data.baseTypes.all()
+            // v6.87: grantableBase() — retired (`inactive`) items never
+            // pre-equip, same as they never roll on a shelf.
+            columnPillars = roll3(data.pillarTypes.grantableBase().filter(itemUnlocks.isUnlocked).map(\.id))
+            columnBases = roll3(data.baseTypes.grantableBase()
                 .filter { itemUnlocks.isUnlocked($0) && $0.effect != "randomSticker" && $0.effect != "stickerHarvest" }
                 .map(\.id))
             // ROCKO (v6.67): the full loadout includes a random Same-Power.
-            let powers = data.samePowerTypes.all().filter(itemUnlocks.isUnlocked).map(\.id)
+            let powers = data.samePowerTypes.grantableBase().filter(itemUnlocks.isUnlocked).map(\.id)
             if !powers.isEmpty { equippedSamePower = powers[startRng.index(powers.count)] }
         }
     }
@@ -1225,15 +1227,29 @@ public final class CampaignState {
 
     /// BOUNCER: does an equipped ward turn this node's Two away? Seeded per
     /// (runSeed, nodeId) on its own salt — a reload replays the verdict.
+    /// v6.87: an empty 2-rank makes the bounce CERTAIN — there is no Two to
+    /// let in (reads the full deck at the node; the salted roll is skipped,
+    /// so the substream stays untouched for every other verdict).
     public func twoWardNegates(_ nodeId: Int) -> Bool {
-        guard let def = columnPillars.compactMap({ $0.flatMap { data.pillarTypes.get($0) } })
-                .first(where: { $0.effect == "twoWard" }) else { return false }
+        guard let def = equippedPillarDefs().first(where: { $0.effect == "twoWard" })
+        else { return false }
+        if (composition()[minRank] ?? 0) == 0 { return true }
         let rng = RNG(seed: mysterySeed(seed: runSeed, nodeId: nodeId, salt: twoWardSalt))
         return rng.next() < def.num("chance", 0.3)
     }
 
+    /// QUEEN-FINDER's 100% branch: Queens STRICTLY the most common rank —
+    /// a tie doesn't count (the deck isn't hers until it is). Rank 12 = Q.
+    public func queensAreStrictlyMostCommon() -> Bool {
+        let counts = composition()
+        let q = counts[12] ?? 0
+        guard q > 0 else { return false }
+        return counts.allSatisfy { $0.key == 12 || $0.value < q }
+    }
+
     /// The seeded outcome KEY for a mystery node — PURE (no state change). Same
-    /// (runSeed, nodeId) → same key, always. Weights read live from items.js.
+    /// (runSeed, nodeId, equipped Queen-Finder, deck composition) → same key,
+    /// always. Weights read live from items.js.
     ///
     /// CHARACTER-FIRST: the Old Joker's takeover already rolled (and missed)
     /// on his own stream by the time this runs, so the first draw here splits
@@ -1244,7 +1260,20 @@ public final class CampaignState {
         let rng = RNG(seed: mysterySeed(seed: runSeed, nodeId: nodeId, salt: mysteryKeySalt))
         let cw = data.items.mystery.characterWeights
         let qw = max(0, cw["queen"] ?? 0), tw = max(0, cw["two"] ?? 0)
-        let queenWins = qw + tw <= 0 || rng.next() < qw / (qw + tw)
+        var queenWins = qw + tw <= 0 || rng.next() < qw / (qw + tw)
+        // QUEEN-FINDER (v6.87): consulted on its OWN salted substream, so
+        // the main key stream never shifts a byte, equipped or not. The
+        // 100% branch (Queens strictly most common) always flips a lost
+        // split; otherwise the pillar's `chance` is one extra shot at her.
+        if !queenWins,
+           let finder = equippedPillarDefs().first(where: { $0.effect == "queenFinder" }) {
+            if queensAreStrictlyMostCommon() {
+                queenWins = true
+            } else {
+                let fr = RNG(seed: mysterySeed(seed: runSeed, nodeId: nodeId, salt: queenFinderSalt))
+                if fr.next() < finder.num("chance", 0.3) { queenWins = true }
+            }
+        }
         let keys = queenWins ? MysteryConfig.queenKeys : MysteryConfig.twoKeys
         let w = data.items.mystery.weights
         let totalRaw = keys.reduce(0.0) { $0 + (w[$1] ?? 0) }
@@ -1454,12 +1483,6 @@ public final class CampaignState {
     /// this climb. The deck price multiplier applies on top, as for every item.
     public func removalPrice() -> Double {
         let cfg = data.items.store.removal
-        // FLAT PURGE (v6.76): an equipped Flat Purge pillar returns its
-        // `value` VERBATIM — no ladder, no multiplier, no coupon cut, no
-        // price twist (the web's removalPrice).
-        if let flat = equippedPillarDefs().first(where: { $0.effect == "purgeFlat" }) {
-            return flat.num("value", 5)
-        }
         // BULK RATE: each equipped copy flattens the ladder's step by its
         // value (never below 0). Derived live from the loadout + counters,
         // so save/restore needs nothing extra and unequipping restores the
@@ -2161,6 +2184,18 @@ public final class CampaignState {
             if let def = data.pillarTypes.get(s.id), def.shopRoll != nil {
                 shopRoll = lockShopRoll(for: def, slot: s)
             }
+            // FLAT PURGE (v6.87 rework): an ON-PURCHASE one-shot — the
+            // Purge ladder's CURRENT price halves (odd rounds up), never
+            // below `value`, and later steps climb from the cut price. Rides
+            // the Old Joker's purgeDiscount mechanism, minus his
+            // steeper-step clawback. The pillar still occupies its column
+            // slot afterward (STOP-FLAGGED in the batch report).
+            if let def = data.pillarTypes.get(s.id), def.effect == "purgeHalve" {
+                let before = Int(removalPrice())
+                let target = max(Int(def.num("value", 5)), (before + 1) / 2)
+                purgeDiscount += max(0, before - target)
+                DebugEventLog.shared.add("store: \(def.label) cut the Purge ◉\(before) → ◉\(Int(removalPrice()))")
+            }
             // RANK PURGE (v6.76): an ON-PURCHASE effect — every full-deck card
             // of the shop-rolled rank leaves the deck at buy time. NO ladder
             // charge: removalsBought (and thus the Purge price) never moves.
@@ -2204,7 +2239,7 @@ public final class CampaignState {
                 let price = priceOfMixed(i)
                 guard Double(coins) >= price else { return BuyResult(ok: false) }
                 coins -= Int(price)
-                let pool = data.samePowerTypes.all().filter {
+                let pool = data.samePowerTypes.grantableBase().filter {
                     itemUnlocks.isUnlocked($0) && equippedSamePower != $0.id
                 }
                 guard let rng = mysteryRng, !pool.isEmpty else {

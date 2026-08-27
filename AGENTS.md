@@ -456,7 +456,11 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   are RETIRED via `inactive: true` (data-driven: `grantableBase()` filters
   them like cursed, so EVERY acquisition pool inherits the exclusion; old
   saves keep resolving and firing them; the Collection shows them greyed
-  RETIRED; never delete the entries). The surviving suit stickers (Quick
+  RETIRED; never delete the entries). v6.87 widened the rule to EVERY
+  registry — pillars/bases/packs/same-powers pool through
+  `grantableBase()` too (shelf classes, Rocko's pre-equip, the Old Joker's
+  swap/blind-swap/thirst pools, the mystery same-power reveal) — and
+  retired ten pillars. The surviving suit stickers (Quick
   Bury, Bonus Coin, Donate, Heavy, Ripple/`diamondSnob`, Tell,
   Guard/`suitImmunity`) are suit-AGNOSTIC conditionals resolved through
   `conditionalSuitMatches` at the CARRIER's landing: nil = EXEMPT (no other

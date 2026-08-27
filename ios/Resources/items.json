@@ -1001,6 +1001,7 @@
     },
     {
       "id": "clubTribute",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "clubsPlayed",
@@ -1017,6 +1018,7 @@
     },
     {
       "id": "allHeartsCoin",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "coinsEarnedLifetime",
@@ -1126,6 +1128,7 @@
     },
     {
       "id": "highestEven",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bestCampaignScore",
@@ -1150,11 +1153,11 @@
       "icon": "🧊",
       "kind": "composition",
       "effect": "denseBury",
-      "minStickers": 2,
+      "minStickers": 3,
       "digCount": 1,
       "tier": "rare",
       "price": 10,
-      "description": "When a ♣ with 2+ stickers lands correctly in this column → bury 1 card under that pile"
+      "description": "When a ♣ with 3+ stickers lands correctly in this column → bury 1 card under that pile"
     },
     {
       "id": "revive",
@@ -1233,7 +1236,23 @@
       "chance": 0.3,
       "tier": "uncommon",
       "price": 5,
-      "description": "30% chance to turn away a Just a Two mystery outcome. No effect during deal"
+      "description": "30% chance to turn away a Just a Two mystery. 100% chance if there are no 2s in your deck. No effect during deal"
+    },
+    {
+      "id": "queenFinder",
+      "unlock": {
+        "type": "behavior",
+        "stat": "jokersPlayed",
+        "count": 6
+      },
+      "label": "Queen-Finder",
+      "icon": "👑",
+      "kind": "meta",
+      "effect": "queenFinder",
+      "chance": 0.3,
+      "tier": "uncommon",
+      "price": 5,
+      "description": "+30% chance to find a Beheaded Queen at a mystery stop. 100% chance if Queens are the most common rank in your deck (ties don't count). No effect during deal"
     },
     {
       "id": "flypaper",
@@ -1327,6 +1346,7 @@
     },
     {
       "id": "prime",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bossesBeaten",
@@ -1363,6 +1383,7 @@
     },
     {
       "id": "excavator",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "cardsBuried",
@@ -1379,6 +1400,7 @@
     },
     {
       "id": "gambler",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "jokersPlayed",
@@ -1411,6 +1433,7 @@
     },
     {
       "id": "static",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "zenMediumWon",
@@ -1477,13 +1500,45 @@
         "stat": "removalsUsed",
         "count": 40
       },
-      "label": "Empty Ranks",
+      "label": "Empty Ranks Bury",
       "icon": "🈳",
       "kind": "live",
       "effect": "clubZeroRanksBury",
       "tier": "rare",
       "price": 8,
       "description": "When a ♣ lands in this column → bury 1 card under that pile per rank with zero copies in your full deck"
+    },
+    {
+      "id": "heartZeroRanksCoin",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 50
+      },
+      "label": "Empty Ranks Coins",
+      "icon": "🉐",
+      "kind": "live",
+      "effect": "heartZeroRanksCoin",
+      "value": 2,
+      "tier": "uncommon",
+      "price": 8,
+      "description": "When a ♥ lands in this column → +2 coins per rank with zero copies in your full deck"
+    },
+    {
+      "id": "diamondZeroRanksSize",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 60
+      },
+      "label": "Empty Ranks Heavy",
+      "icon": "🈵",
+      "kind": "live",
+      "effect": "diamondZeroRanksSize",
+      "value": 1,
+      "tier": "uncommon",
+      "price": 8,
+      "description": "When a ♦ lands in this column → +1 pile size per rank with zero copies in your full deck"
     },
     {
       "id": "eightStart",
@@ -1517,6 +1572,7 @@
     },
     {
       "id": "absentSuitClubBury",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "clubsPlayed",
@@ -1593,12 +1649,13 @@
       "effect": "sameTolerance",
       "family": "sameTolerance",
       "tol": "royalPair",
-      "tier": "uncommon",
+      "tier": "rare",
       "price": 7,
       "description": "A royal landing on a royal survives a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power"
     },
     {
       "id": "sameTolSum10",
+      "inactive": true,
       "label": "Perfect Ten",
       "icon": "🔟",
       "kind": "guess",
@@ -1646,11 +1703,11 @@
       "label": "Flat Purge",
       "icon": "✋",
       "kind": "meta",
-      "effect": "purgeFlat",
+      "effect": "purgeHalve",
       "value": 5,
       "tier": "rare",
       "price": 8,
-      "description": "The store's Purge always costs 5 coins. No effect during deal"
+      "description": "On purchase → the store's Purge price is halved (minimum 5). No effect during deal"
     },
     {
       "id": "firstFree",
@@ -1677,12 +1734,11 @@
       "label": "Pauper's Heart",
       "icon": "❤️‍🩹",
       "kind": "live",
-      "effect": "pauperHeart",
+      "effect": "pauperHeartPeek",
       "purseBelow": 10,
-      "value": 3,
       "tier": "common",
       "price": 2,
-      "description": "While your purse holds under 10 coins → when a ♥ lands in this column, +3 coins"
+      "description": "While your purse holds under 10 coins → when a ♥ lands in this column, peek 1 card"
     },
     {
       "id": "pauperDiamond",
@@ -1732,6 +1788,7 @@
     },
     {
       "id": "clubThin",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "cardsBuried",

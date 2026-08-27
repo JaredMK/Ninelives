@@ -221,7 +221,12 @@ extension CampaignState {
                                      reward: paid * cfg.int("thirsty", "rewardMult", 2))
             }
         }
-        // 3. Otherwise the CHARACTER roll decides who takes the node: his
+        // 3. QUEEN-FINDER's 100% branch (v6.87): when Queens strictly rule
+        //    the deck, she outranks HIM — the finder's promise is literal,
+        //    so he passes without rolling his share.
+        if equippedPillarDefs().contains(where: { $0.effect == "queenFinder" }),
+           queensAreStrictlyMostCommon() { return nil }
+        // 4. Otherwise the CHARACTER roll decides who takes the node: his
         //    share of mystery.characterWeights (40 / (40+30+30) by default).
         //    Losing this roll hands the node to the Queen or the Two — their
         //    split happens in rollMysteryEvent, on ITS own stream.
@@ -295,7 +300,7 @@ extension CampaignState {
             // for a duplicate leaves the player holding two of one item and one
             // fewer distinct effect, which is a downgrade dressed as a trade.
             let kindKey = taken.kind.rawValue
-            let others = reg.all().filter {
+            let others = reg.grantableBase().filter {
                 itemUnlocks.isUnlocked($0) && $0.id != taken.id
                     && !isEquipped(kind: kindKey, id: $0.id)
             }
@@ -342,7 +347,7 @@ extension CampaignState {
                 : (from.kind == .base ? data.baseTypes : data.stickerTypes)
             // Same rule blind: he can't secretly hand back a duplicate either.
             let fromKind = from.kind.rawValue
-            let better = reg.all().filter {
+            let better = reg.grantableBase().filter {
                 toTiers.contains($0.tier) && itemUnlocks.isUnlocked($0)
                     && !isEquipped(kind: fromKind, id: $0.id)
             }

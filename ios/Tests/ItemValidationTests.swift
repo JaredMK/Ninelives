@@ -138,33 +138,104 @@ final class ItemValidationTests: IVCase {
                 for node in 0..<n where c.twoWardNegates(node) { wards += 1 }
                 XCTAssertEqual(Double(wards) / Double(n), chance, accuracy: 0.08,
                                "twoWard: ~\(Int(chance * 100))% of nodes warded")
+                // v6.87: no 2s in the deck → the bounce is CERTAIN.
+                XCTAssertGreaterThan(c.getRunDeck().filter { $0.currentRank == 2 }.count, 0,
+                                     "setup: the fresh deck holds 2s (the ~30%% leg above was real)")
+                _ = c.addCoins(1000)
+                for two in c.getRunDeck().filter({ $0.currentRank == 2 }) {
+                    XCTAssertTrue(c.buyRemoval(two.id), "setup: purge every 2")
+                }
+                XCTAssertTrue((0..<n).allSatisfy { c.twoWardNegates($0) },
+                              "twoWard: an empty 2-rank makes every ward certain")
                 // Must-not: without the pillar equipped, no ward at all.
                 let bare = self.campaign()
                 XCTAssertFalse((0..<50).contains { bare.twoWardNegates($0) },
                                "twoWard: no pillar, no ward")
             }
+        case "queenFinder":
+            return {
+                // QUEEN-FINDER: one extra `chance` shot at the queen/two
+                // split on its OWN substream — the un-equipped stream is
+                // untouched byte for byte. Queens STRICTLY most common →
+                // certainty, and the Old Joker passes the node too; a TIE
+                // earns nothing.
+                let def = self.data.pillarTypes.get("queenFinder")!
+                let chance = def.num("chance", 0.3)
+                let n = 400
+                func queenShare(_ camp: CampaignState) -> Double {
+                    var q = 0
+                    for node in 0..<n where MysteryConfig.queenKeys.contains(camp.rollMysteryEvent(node)) { q += 1 }
+                    return Double(q) / Double(n)
+                }
+                let bare = self.campaign()
+                let base = queenShare(bare)
+                let c = self.campaign()
+                c.pillarInventory[def.id, default: 0] += 1
+                c.setColumnPillar(col: 0, typeId: def.id)
+                let boosted = queenShare(c)
+                XCTAssertEqual(boosted, base + (1 - base) * chance, accuracy: 0.08,
+                               "queenFinder: +\(Int(chance * 100))%% on the lost splits")
+                for node in 0..<50 where MysteryConfig.queenKeys.contains(bare.rollMysteryEvent(node)) {
+                    XCTAssertTrue(MysteryConfig.queenKeys.contains(c.rollMysteryEvent(node)),
+                                  "queenFinder: a won split is never lost — the boost only adds")
+                }
+                // The 100% branch: six extra Queens make rank 12 the strict leader.
+                for i in 0..<6 {
+                    c.baseDeck.append(CardSpec(id: 9200 + i, suit: "♥", originalRank: 12, currentRank: 12))
+                    c.ownedIds.append(9200 + i)
+                }
+                XCTAssertTrue(c.queensAreStrictlyMostCommon(), "setup: Queens strictly rule")
+                XCTAssertTrue((0..<n).allSatisfy { MysteryConfig.queenKeys.contains(c.rollMysteryEvent($0)) },
+                              "queenFinder: a Queen deck finds her EVERY time")
+                XCTAssertTrue((0..<50).allSatisfy { c.rollOldJoker($0) == nil },
+                              "queenFinder: …and the Old Joker passes the node")
+                // A TIE doesn't count: match the leader with another rank.
+                let qCount = c.getRunDeck().filter { $0.currentRank == 12 }.count
+                let sevens = c.getRunDeck().filter { $0.currentRank == 7 }.count
+                for i in 0..<max(0, qCount - sevens) {
+                    c.baseDeck.append(CardSpec(id: 9300 + i, suit: "♣", originalRank: 7, currentRank: 7))
+                    c.ownedIds.append(9300 + i)
+                }
+                XCTAssertFalse(c.queensAreStrictlyMostCommon(),
+                               "queenFinder: a tied rank is nobody's majority")
+            }
         // ── v6.76 archetype batch (store-side / on-purchase items) ──────────
         case "purgeFlatFive":
             return {
-                // FLAT PURGE: the store Purge always costs `value`, overriding
-                // the ladder — prove it AFTER climbing past the flat price.
-                let flat = def.num("value", 5)
+                // FLAT PURGE (v6.87 rework): ON PURCHASE the Purge ladder's
+                // CURRENT price halves (odd rounds up), never below `value`,
+                // exactly once — and the cut persists while the ladder keeps
+                // stepping from the cut price.
+                let floorVal = def.num("value", 5)
                 let c = self.campaign(); _ = c.addCoins(1000)
-                while c.removalPrice() <= flat {
+                while c.removalPrice() < floorVal * 2 + 2 {
                     XCTAssertTrue(c.buyRemoval(c.getRunDeck()[0].id), "setup: climb the ladder")
                 }
-                XCTAssertGreaterThan(c.removalPrice(), flat, "setup: the bare ladder climbed past the flat price")
-                c.pillarInventory[def.id, default: 0] += 1
-                c.setColumnPillar(col: 0, typeId: def.id)
-                XCTAssertEqual(c.removalPrice(), flat, "\(def.id): the ladder is overridden")
-                // …survives save/restore (derived live from the loadout)…
+                let before = c.removalPrice()
+                let expected = max(floorVal, Double((Int(before) + 1) / 2))
+                _ = c.openStore()
+                c.storeOffer = StoreOffer(slots: [StoreSlot(kind: "pillar", id: def.id)],
+                                          rerollCost: 0)
+                XCTAssertTrue(c.buyMixedSlot(0).ok, "\(def.id): the buy completes")
+                XCTAssertEqual(c.removalPrice(), expected,
+                               "\(def.id): the CURRENT price halved on purchase (min \(jsNum(floorVal)))")
+                // One-time: the cut survives save/restore but never re-fires.
                 let c2 = CampaignState(store: MemoryStore())
                 XCTAssertTrue(c2.restore(c.serialize()))
-                XCTAssertEqual(c2.removalPrice(), flat, "\(def.id): the flat price persists")
-                // …and the charge matches the quote.
-                let before = c2.getCoins()
+                XCTAssertEqual(c2.removalPrice(), expected, "\(def.id): the cut persists")
+                let priceBefore = c2.removalPrice()
                 XCTAssertTrue(c2.buyRemoval(c2.getRunDeck()[0].id))
-                XCTAssertEqual(Double(before - c2.getCoins()), flat, "\(def.id): charged as quoted")
+                XCTAssertGreaterThan(c2.removalPrice(), priceBefore,
+                                     "\(def.id): the ladder steps ON from the cut — no ongoing flat")
+                // The floor: a cheap ladder never halves below `value`.
+                let cheap = self.campaign(); _ = cheap.addCoins(1000)
+                XCTAssertLessThanOrEqual(cheap.removalPrice(), floorVal * 2)
+                _ = cheap.openStore()
+                cheap.storeOffer = StoreOffer(slots: [StoreSlot(kind: "pillar", id: def.id)],
+                                              rerollCost: 0)
+                XCTAssertTrue(cheap.buyMixedSlot(0).ok)
+                XCTAssertGreaterThanOrEqual(cheap.removalPrice(), floorVal,
+                                            "\(def.id): never below the \(jsNum(floorVal)) floor")
             }
         case "firstFree":
             return {

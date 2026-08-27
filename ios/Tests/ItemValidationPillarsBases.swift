@@ -215,7 +215,10 @@ enum IVPillarsBases {
             let isDense = def.effect == "denseBury"
             let dig = def.int("digCount", 1)
             let minStk = def.int("minStickers", 2)
-            let drawnSpec = isDense ? IV.spec(50, 9, "♣", ["tell", "tieSafe"]) : IV.spec(50, 9, "♣")
+            // The dense carrier wears exactly minStickers (v6.87: 3) — the
+            // load is read live so a retune keeps the trigger honest.
+            let denseLoad = Array(["tell", "tieSafe", "anchor", "quickBury"].prefix(minStk))
+            let drawnSpec = isDense ? IV.spec(50, 9, "♣", denseLoad) : IV.spec(50, 9, "♣")
             return [
                 IV.Scenario("trigger-clubLands", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
@@ -623,17 +626,20 @@ enum IVPillarsBases {
         case "startPileSizeEight":       return eightStartScenarios(def)
         case "diamondDupeSize":          return diamondDupeScenarios(def)
         case "eightPeek":                return eightPeekScenarios(def)
-        case "pauperHeart":              return pauperHeartScenarios(def)
+        case "pauperHeartPeek":          return pauperHeartPeekScenarios(def)
+        case "heartZeroRanksCoin":       return zeroRanksCoinScenarios(def)
+        case "diamondZeroRanksSize":     return zeroRanksSizeScenarios(def)
         case "pauperDiamondSize":        return pauperDiamondScenarios(def)
         case "pauperSpadeTell":          return pauperSpadeScenarios(def)
         case "pauperClubBury":           return pauperClubScenarios(def)
         case "curseBuryPeek":            return curseHarvestScenarios(def)
         case "clubThin":                 return clubThinScenarios(def)
         case "sizeOneDiamonds":          return sizeOneDiamondsScenarios(def)
-        // purgeFlatFive / firstFree / purgeRank run their CampaignCheck.
+        // purgeFlatFive (purgeHalve) / firstFree / purgeRank run their
+        // CampaignCheck.
 
         // ── campaign/store pillars (validated in the campaign checks) ───────
-        case "freebie", "purgeStepDiscount", "rareHunter", "twoWard":
+        case "freebie", "purgeStepDiscount", "rareHunter", "twoWard", "queenFinder":
             return []   // driver runs their CampaignCheck instead
 
         default:
@@ -1100,6 +1106,90 @@ enum IVPillarsBases {
         return [trigger, edge, mustNot]
     }
 
+    /// EMPTY RANKS COINS (v6.87): the family's coin leg — the SAME derived
+    /// condition as the bury leg (ranks at zero copies), its OWN effect key
+    /// and observable: coins, never a bury (the deck assert pins that).
+    static func zeroRanksCoinScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let v = def.num("value", 2)
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♣")]
+        // Ranks present: 5–14 → the empty ranks are 2, 3, 4.
+        let fillers = [9, 10, 11, 12, 13, 14, 14, 13, 12, 11].enumerated().map {
+            IV.spec(51 + $0.offset, $0.element, "♥")
+        }
+        let trigger = IV.Scenario("trigger-coinsPerEmptyRank", allowed: [.guesses, .deck, .board, .coins],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♥")] + fillers,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + v * 3,
+                               "\(c): 3 empty ranks → +\(jsNum(v)) each")
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1,
+                               "\(c): COINS only — the bury belongs to the family's bury key")
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1,
+                               "\(c): …and no size latch either")
+            })
+        let allTops = [IV.spec(1, 2, "♠"), IV.spec(2, 3, "♥"), IV.spec(3, 4, "♣")]
+        let allFill = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14].enumerated().map {
+            IV.spec(51 + $0.offset, $0.element, "♥")
+        }
+        let edge = IV.Scenario("edge-noEmptyRanks", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: allTops, deckOrder: [IV.spec(50, 5, "♥")] + allFill,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): every rank present → no pay")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonHeart", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♣")] + fillers,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): only ♥ lands pay")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// EMPTY RANKS HEAVY (v6.87): the size leg — same condition, its own
+    /// key; a latched size bonus, never coins, never a bury.
+    static func zeroRanksSizeScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        let v = max(1, def.int("value", 1))
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♣")]
+        let fillers = [9, 10, 11, 12, 13, 14, 14, 13, 12, 11].enumerated().map {
+            IV.spec(51 + $0.offset, $0.element, "♥")
+        }
+        let trigger = IV.Scenario("trigger-sizePerEmptyRank", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♦")] + fillers,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1 + v * 3,
+                               "\(c): 3 empty ranks → +\(v) size each, latched")
+                XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 1,
+                               "\(c): SIZE only — nothing buried")
+                XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
+                               "\(c): the physical count is just the landing")
+            })
+        let allTops = [IV.spec(1, 2, "♠"), IV.spec(2, 3, "♥"), IV.spec(3, 4, "♣")]
+        let allFill = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14].enumerated().map {
+            IV.spec(51 + $0.offset, $0.element, "♥")
+        }
+        let edge = IV.Scenario("edge-noEmptyRanks", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: allTops, deckOrder: [IV.spec(50, 5, "♦")] + allFill,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1, "\(c): no empties, no latch")
+            })
+        let mustNot = IV.Scenario("mustNotFire-nonDiamond", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♠")] + fillers,
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, f, c in
+                XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1, "\(c): only ♦ lands latch")
+            })
+        return [trigger, edge, mustNot]
+    }
+
     /// CRAZY EIGHTS: 8s the most common full-deck rank (ties → lowest) → this
     /// column's piles START at pile size 8. Built WITHOUT IV.engine's
     /// post-start pile forcing, which would wipe the latched size bonus.
@@ -1197,32 +1287,35 @@ enum IVPillarsBases {
         return [trigger, edge, mustNot]
     }
 
-    /// PAUPER'S HEART: while the purse is under purseBelow, a ♥ landing pays.
-    static func pauperHeartScenarios(_ def: ItemDef) -> [IV.Scenario] {
+    /// PAUPER'S HEART (v6.87): while the purse is under purseBelow, a ♥
+    /// landing PEEKS the next card — and pays NOTHING (the coin payout
+    /// retired with the old `pauperHeart` effect key; the frame check
+    /// enforces the no-coins half, `.coins` is deliberately NOT allowed).
+    static func pauperHeartPeekScenarios(_ def: ItemDef) -> [IV.Scenario] {
         let ceiling = def.int("purseBelow", 10)
-        let value = def.num("value", 3)
         let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
-        let trigger = IV.Scenario("trigger-brokeHeartPays", allowed: [.guesses, .deck, .board, .coins],
+        let trigger = IV.Scenario("trigger-brokeHeartPeeks", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil], purse: ceiling - 1) },
             fire: { $0.guess(0, .higher) },
             expect: { e, f, c in
-                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + value,
-                               "\(c): under \(ceiling) coins the ♥ pays +\(jsNum(value))")
+                XCTAssertTrue(e.run.revealNextActive, "\(c): under \(ceiling) coins the ♥ peeks")
+                XCTAssertEqual(e.revealedNextCard()?.id, 51, "\(c): the REAL next draw")
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): a peek, never coins (v6.87)")
             })
         let edge = IV.Scenario("edge-atCeilingSleeps", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil], purse: ceiling) },
             fire: { $0.guess(0, .higher) },
-            expect: { e, f, c in
-                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins,
+            expect: { e, _, c in
+                XCTAssertFalse(e.run.revealNextActive,
                                "\(c): purseBelow is EXCLUSIVE — at \(ceiling) it sleeps")
             })
         let mustNot = IV.Scenario("mustNotFire-nonHeart", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil], purse: ceiling - 1) },
             fire: { $0.guess(0, .higher) },
-            expect: { e, f, c in XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)") })
+            expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
         return [trigger, edge, mustNot]
     }
 

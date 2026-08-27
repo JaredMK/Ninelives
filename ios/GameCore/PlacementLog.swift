@@ -171,7 +171,7 @@ public enum PlacementLog {
         "rankShield", "startPileSizeEight", "eightPeek", "royalSafeNoTwos",
         "rankBury", "rankCoin", "prime", "wildAces", "purgeRank", "chorus",
         "rankFlood", "setValue", "clubZeroRanksBury", "diamondDupeSize",
-        "highestHeart", "queensEye",
+        "highestHeart", "queensEye", "heartZeroRanksCoin", "diamondZeroRanksSize",
     ]
     /// Suit-keyed equipped effects (plus any def carrying a `suit` field).
     private static let suitEffects: Set<String> = [
@@ -181,7 +181,7 @@ public enum PlacementLog {
         "clubZeroRanksBury", "excavator", "highestHeart", "heartPiles",
         "allSuitTop", "kamikaze", "spadePeek", "clubTell", "heartDemolish",
         "diamondBoost", "setSuit", "suitDig", "curseBuryPeek", "queensEye",
-        "linkBury",
+        "linkBury", "pauperHeartPeek", "heartZeroRanksCoin", "diamondZeroRanksSize",
     ]
 
     static func equippedAxes(_ def: ItemDef) -> [(axis: String, from: String)] {

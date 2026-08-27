@@ -134,8 +134,10 @@ final class ArchetypeBatchTests: XCTestCase {
                 }
             }
         }
-        XCTAssertNotNil(found["absentSuitClubBury"], "the sweep shelved Void Tribute")
-        XCTAssertNotNil(found["suitMajoritySafe"], "…Majority Rule")
+        // v6.87: Void Tribute retired — a retired shopRoll item never
+        // shelves; Majority Rule keeps the pillar suit axis exercised.
+        XCTAssertNil(found["absentSuitClubBury"], "Void Tribute retired — never shelves")
+        XCTAssertNotNil(found["suitMajoritySafe"], "the sweep shelved Majority Rule")
         XCTAssertNotNil(found["purgeRank"], "…Rank Purge")
         XCTAssertNotNil(found["transmute"], "…Transmute")
         // v6.78: Transmute's rank is COMPOSITION-DRIVEN (live most common) —

@@ -218,13 +218,16 @@ public enum StoreRoll {
             let pool = types.filter { isUnlocked($0) && !(isEquipped?(key, $0.id) ?? false) }
             return (key, pool.isEmpty ? 0 : w, pool)
         }
+        // v6.87: EVERY class pools through grantableBase() — `inactive`
+        // (and, for stickers, `cursed`) never reaches a shelf. Before this,
+        // only stickers had the filter, so a retired pillar kept rolling.
         let classes: [(key: String, w: Double, types: [ItemDef])] = [
-            cls("sticker", CW["sticker"] ?? 0, data.stickerTypes.grantableBase()),   // cursed never sell
-            cls("pillar", CW["pillar"] ?? 0, data.pillarTypes.all()),
-            cls("base", CW["base"] ?? 0, data.baseTypes.all()),
-            cls("pack", CW["pack"] ?? 0, data.packTypes.all()),
+            cls("sticker", CW["sticker"] ?? 0, data.stickerTypes.grantableBase()),
+            cls("pillar", CW["pillar"] ?? 0, data.pillarTypes.grantableBase()),
+            cls("base", CW["base"] ?? 0, data.baseTypes.grantableBase()),
+            cls("pack", CW["pack"] ?? 0, data.packTypes.grantableBase()),
             ("card", genCard != nil ? (CW["card"] ?? 0) : 0, []),
-            cls("samepower", CW["samepower"] ?? 0, data.samePowerTypes.all()),
+            cls("samepower", CW["samepower"] ?? 0, data.samePowerTypes.grantableBase()),
         ]
         let cwTotalRaw = classes.reduce(0) { $0 + $1.w }
         let cwTotal = cwTotalRaw == 0 ? 1 : cwTotalRaw
@@ -412,6 +415,9 @@ public let oldJokerSalt: UInt32 = 0x4f4a4b52
 /// BOUNCER's ward roll (turning Just a Two away) — its own substream, so
 /// equipping the pillar never shifts any other node roll.
 public let twoWardSalt: UInt32 = 0x424f554e
+/// "QFND" — QUEEN-FINDER's extra shot at the character split (v6.87). Its
+/// own substream for the same reason as the Bouncer's.
+public let queenFinderSalt: UInt32 = 0x51464e44
 /// "OJRS" — details the player's CHOICE needs (which card he cuts).
 public let oldJokerResolveSalt: UInt32 = 0x4f4a5253
 /// "OJLC" — the Purge's leech targets.

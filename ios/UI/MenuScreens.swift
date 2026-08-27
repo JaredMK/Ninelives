@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.86"
-    static let note = "FEEDBACK + FIXES: Donate and Trapdoor got sound/motion; the Old Joker's marks show every sticker; dead piles grey their chips; Same-Safe went conditional (rank-matched, two-row text like all conditionals); flat deal payouts 4/5/6 by difficulty, 7 for a boss; map/pack purge copy unified with the store's; identity-mutating stickers never pre-attach on acquired cards."
+    static let version = "v6.87"
+    static let note = "PILLAR REBALANCE: ten pillars retired (and `inactive` now gates EVERY acquisition pool, not just stickers); the Empty Ranks family grows coin and size legs on three distinct effect keys; Pauper's Heart peeks instead of paying; the Bouncer is certain with no 2s in the deck; Queen-Finder joins the mystery metas; Flat Purge became a one-time on-purchase halving; Dense Bury asks 3+ stickers; Royal Pair is rare."
     static let line = "build \(version) · \(note)"
 }
 

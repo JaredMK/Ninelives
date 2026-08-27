@@ -348,6 +348,14 @@ public final class GameEngine {
         return out
     }
 
+    /// Ranks with ZERO copies in the full deck — the Empty Ranks family's
+    /// shared CONDITION (v6.87: three legs, three effect keys — bury /
+    /// coins / pile size — nothing else shared).
+    func zeroCopyRankCount() -> Int {
+        let counts = fullDeckRankCounts()
+        return (minRank...maxRank).filter { (counts[$0] ?? 0) == 0 }.count
+    }
+
     /// Rank → copies among the full deck's RANKED cards (jokers/blanks are
     /// rankless and never count).
     func fullDeckRankCounts() -> [Int: Int] {
