@@ -293,6 +293,9 @@ public enum EngineEvent {
     /// Trapdoor's drop (v6.86): `count` bottom cards slipped from the pile
     /// back into the deck at the carrier's landing.
     case trapdoorDropped(index: Int, count: Int)
+    /// Final Cut (v6.88): the column's LAST pile fell — the killing card is
+    /// purged from the campaign deck (the flow commits the durable write).
+    case finalCutPurged(col: Int, cardId: Int)
     case reviveOffer(col: Int, dead: [Int])
     case revived(col: Int, index: Int)
     case baseFired(BaseResult)
@@ -357,6 +360,9 @@ public struct BaseResult {
     public var peekCount: Int?
     public var shuffled: Int?
     public var moves: Int?
+    /// Ballast's board-wide walk (v6.88): pile→pile motion for the travel
+    /// animation — presentation data only, identities stay hidden.
+    public var movedCards: [(from: Int, to: Int)]?
     public var harvested: Int?
     public var buried: Int?
     public var refreshed: [Int]?

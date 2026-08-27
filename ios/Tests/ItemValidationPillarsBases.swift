@@ -627,6 +627,8 @@ enum IVPillarsBases {
         case "diamondDupeSize":          return diamondDupeScenarios(def)
         case "eightPeek":                return eightPeekScenarios(def)
         case "pauperHeartPeek":          return pauperHeartPeekScenarios(def)
+        case "stickerCurseWard":         return curseWardScenarios(def)
+        case "finalPilePurge":           return finalCutScenarios(def)
         case "heartZeroRanksCoin":       return zeroRanksCoinScenarios(def)
         case "diamondZeroRanksSize":     return zeroRanksSizeScenarios(def)
         case "pauperDiamondSize":        return pauperDiamondScenarios(def)
@@ -1187,6 +1189,85 @@ enum IVPillarsBases {
             expect: { e, f, c in
                 XCTAssertEqual(e.board.pileSize(0), f.pileCounts[0] + 1, "\(c): only ♦ lands latch")
             })
+        return [trigger, edge, mustNot]
+    }
+
+    /// CURSE WARD (v6.88): a conditional sticker's missed bet does NOT
+    /// convert in this column — the sticker stays and simply didn't fire.
+    static func curseWardScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        // The Tell carrier's ♠ bet misses on a ♥/♦ board — the canonical
+        // conversion setup from ConditionalStickerTests, with the ward.
+        let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")]
+        let deck = [IV.spec(50, 3, "♠", ["tell"]), IV.spec(51, 4, "♥")]
+        let trigger = IV.Scenario("trigger-missedBetKeepsItsSticker", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: deck, pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in
+                let top = e.board.top(0)!
+                XCTAssertTrue(top.stickers.contains { $0.type == "tell" },
+                              "\(c): the sticker STAYED — no conversion in a warded column")
+                XCTAssertEqual(top.stickers.count, 1, "\(c): and no curse arrived")
+                XCTAssertFalse(e.run.tellPiles.contains(0), "\(c): …but it did NOT fire either")
+            })
+        let edge = IV.Scenario("edge-fatalConversionWardedToo", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 9, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
+                               deckOrder: [IV.spec(50, 2, "♠", ["suitImmunity"]), IV.spec(51, 3)],
+                               pillars: [def.id, nil, nil]) },
+            fire: { $0.guess(0, .higher) },
+            expect: { e, _, c in
+                XCTAssertFalse(e.board.isActive(0), "\(c): the unfed guard still cannot save")
+                let buried = e.board.piles[0].cards.last!
+                XCTAssertTrue(buried.stickers.contains { $0.type == "suitImmunity" },
+                              "\(c): the fatal-landing conversion is warded too")
+            })
+        let mustNot = IV.Scenario("mustNotFire-otherColumnStillConverts", allowed: [.guesses, .deck, .board],
+            build: { IV.engine(tops: tops, deckOrder: deck, pillars: [nil, def.id, nil]) },
+            fire: { $0.guess(0, .lower) },
+            expect: { e, _, c in
+                let top = e.board.top(0)!
+                XCTAssertFalse(top.stickers.contains { $0.type == "tell" },
+                               "\(c): the ward guards ITS column only — this one converted")
+            })
+        return [trigger, edge, mustNot]
+    }
+
+    /// FINAL CUT (v6.88): the column's LAST death purges the killer — the
+    /// engine reports via .finalCutPurged; the flow commits the removal.
+    static func finalCutScenarios(_ def: ItemDef) -> [IV.Scenario] {
+        func killer() -> [CardSpec] { [IV.spec(50, 2, "♥"), IV.spec(51, 3)] }
+        let trigger = IV.Scenario("trigger-lastDeathReportsThePurge", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+                               deckOrder: killer(), cols: [1, 2],
+                               pillars: [def.id, nil]) },
+            fire: { e in
+                var purged: (col: Int, cardId: Int)?
+                e.on { if case .finalCutPurged(let col, let id) = $0 { purged = (col, id) } }
+                e.guess(0, .higher)   // 2 on 9: the column's only pile dies
+                XCTAssertEqual(purged?.col, 0, "the event names the column")
+                XCTAssertEqual(purged?.cardId, 50, "…and the KILLING card")
+            },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c)") })
+        let edge = IV.Scenario("edge-columnStillAliveNoPurge", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+                               deckOrder: killer(), cols: [2, 1],
+                               pillars: [def.id, nil]) },
+            fire: { e in
+                var fired = false
+                e.on { if case .finalCutPurged = $0 { fired = true } }
+                e.guess(0, .higher)   // pile 1 in the same column survives
+                XCTAssertFalse(fired, "a column with a survivor purges nothing")
+            },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c)") })
+        let mustNot = IV.Scenario("mustNotFire-noPillar", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+                               deckOrder: killer(), cols: [1, 2]) },
+            fire: { e in
+                var fired = false
+                e.on { if case .finalCutPurged = $0 { fired = true } }
+                e.guess(0, .higher)
+                XCTAssertFalse(fired, "no pillar, no purge")
+            },
+            expect: { e, _, c in XCTAssertFalse(e.board.isActive(0), "\(c)") })
         return [trigger, edge, mustNot]
     }
 

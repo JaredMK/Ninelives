@@ -38,7 +38,7 @@ extension GameEngine {
         case "shuffleColumn":     return !alive.isEmpty
         case "reviveBase":        return !colDeadPiles(col).isEmpty
         case "randomSticker":     return alive.contains { !wildStickerPoolFor(board.top($0)).isEmpty }
-        case "evenOut":           return alive.count >= 2
+        case "evenOut":           return board.aliveCount() >= 2   // v6.88: board-wide
         case "setValue":          return !alive.isEmpty
         // SUIT SETTER (v6.52): green only when it can CHANGE something —
         // more than one alive pile AND at least two different printed suits
@@ -75,6 +75,10 @@ extension GameEngine {
         // ── v6.76 archetype batch ─────────────────────────────────────────
         // PURGE COUPON: a store-side lever — always fireable, nothing in-deal.
         case "purgeDiscount":     return true
+        // BONUS RESET (v6.88): the trade needs a banked bonus WORTH trading
+        // (strictly more than 1 coin) and a deck card to show. A Spoiler
+        // wiping the tally mid-deal legitimately flips this back to amber.
+        case "bonusResetPeek":    return run.bonusCoins > 1 && !deck.isEmpty
         // TRANSMUTE fires at PURCHASE, never in a deal (stays amber forever).
         case "transmute":         return false
         case "sacrifice":         return !alive.isEmpty
@@ -143,6 +147,9 @@ extension GameEngine {
             return "The pile cards here already share one suit."
         case "setValue":
             if alive.isEmpty { return "No alive pile in this column." }
+        case "bonusResetPeek":
+            if deck.isEmpty { return "The deck is empty — nothing to peek." }
+            return "Needs more than 1 bonus coin banked this deal."
         case "clubTell":
             if deck.isEmpty { return "The deck is empty." }
             return "Needs a ♣ on top of a pile in this column."
@@ -381,24 +388,13 @@ extension GameEngine {
             evaluateEnd()
 
         case "evenOut":
-            // SUIT-AGNOSTIC: hand a buried card from the largest pile to the
-            // smallest until every pair is within 1. Composition only.
-            var moves = 0
-            for _ in 0..<500 {
-                let alive = colAlivePiles(col)
-                if alive.count < 2 { break }
-                var big = alive[0], small = alive[0]
-                for i in alive {
-                    if board.pileSize(i) > board.pileSize(big) { big = i }
-                    if board.pileSize(i) < board.pileSize(small) { small = i }
-                }
-                if big == small || board.pileSize(big) - board.pileSize(small) <= 1 { break }
-                if board.piles[big].cards.count <= 1 { break }   // no buried card to give
-                if !board.moveBottomCard(big, small) { break }
-                moves += 1
-            }
-            res.moves = moves
-            logLine("evened out the column: \(moves) buried cards moved (hidden)")
+            // BALLAST (v6.88): BOARD-WIDE now — the same conserve-and-hand-
+            // down walk Donate runs (equalizeAllPiles), every alive pile.
+            // The move list rides the result for the travel animation.
+            let eq = equalizeAllPiles()
+            res.moves = eq.moved
+            res.movedCards = eq.moves
+            logLine("evened out the board: \(eq.moved) buried cards moved (hidden)")
 
         case "setValue":
             // Copy the RANK of the column's BOTTOM alive pile onto every other
@@ -521,6 +517,16 @@ extension GameEngine {
             res.purgePriceCut = base.int("value", 3)
             res.purgePriceFloor = base.int("min", 5)
             logLine("\(base.label): the store's Purge costs \(res.purgePriceCut!) less (never below \(res.purgePriceFloor!)) for the rest of the climb")
+
+        case "bonusResetPeek":
+            // BONUS RESET (v6.88): the banked bonus goes to zero — through
+            // addBonus so the tally stays itemized (the Spoiler idiom) and
+            // the result's coins delta reports the trade — then one peek.
+            let wiped = run.bonusCoins
+            addBonus(base.label, -wiped)
+            run.revealNextActive = true
+            res.peekCount = 1
+            logLine("\(base.label): traded ◉\(Int(wiped)) banked bonus for a look at the next card")
 
         case "sacrifice":
             // SACRIFICE: the chosen pile's TOP card is purged from the game
@@ -832,6 +838,29 @@ extension GameEngine {
             if !hit.isEmpty {
                 logLine("\(def.label): \(hit.count) pile top\(hit.count == 1 ? "" : "s") become \(rk?.label ?? "?")")
                 recT("samePower", def.id, def.label, ["fires": 1, "ranked": Double(hit.count)])
+            }
+
+        case "sameCleanseAll":
+            // CLEANSE ALL (v6.88): board-wide curse strip off every alive
+            // top — durable via the .cursePeeled contract (the Cleanse
+            // Base's idiom), repeatable on every correct Same. Non-cursed
+            // stickers survive, buried cards keep theirs.
+            var peeled = 0
+            var cleansedPiles: [Int] = []
+            for j in powerPiles("alive") {
+                guard let t = board.top(j) else { continue }
+                let curses = t.stickers.filter { stickerTypes.get($0.type)?.cursed == true }
+                if curses.isEmpty { continue }
+                t.stickers.removeAll { stickerTypes.get($0.type)?.cursed == true }
+                peeled += curses.count
+                cleansedPiles.append(j)
+                emit(.cursePeeled(index: j, cardId: t.id, types: curses.map(\.type)))
+            }
+            result.targets = cleansedPiles
+            result.amount = peeled
+            if peeled > 0 {
+                logLine("\(def.label): \(peeled) curse\(peeled == 1 ? "" : "s") cleansed off \(cleansedPiles.count) top\(cleansedPiles.count == 1 ? "" : "s")")
+                recT("samePower", def.id, def.label, ["fires": 1, "cleansed": Double(peeled)])
             }
 
         default: break

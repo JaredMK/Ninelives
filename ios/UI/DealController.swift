@@ -695,6 +695,18 @@ public final class DealController {
                 }
             }
 
+        case .finalCutPurged(let col, let cardId):
+            // FINAL CUT (v6.88): the killer leaves the campaign deck for
+            // good — the durable write happens HERE (the engine reports).
+            if isCampaign { _ = campaign.removeDeckCard(cardId) }
+            Sound.shared.removeCard()
+            if let p = firstPile(inColumn: col) {
+                animQueue.add(priority: 1) { [weak self] done in
+                    self?.scene.floatCue("PURGED", at: p, color: CRT.suitRed)
+                    done()
+                }
+            }
+
         case .trapdoorDropped(let index, let count):
             // Trapdoor (v6.86): the drop was invisible — the pile count just
             // shrank mid-landing. Each dropped card now slips from the pile
@@ -1005,9 +1017,29 @@ public final class DealController {
             // gets a visible CHURN (rock + hop): a quiet goodPulse read as
             // "nothing happened" whenever the same card stayed on top.
             if res.effect == "shuffleColumn" { Sound.shared.shufflePile() }
-            for i in pilesInColumn(res.col) where engine.board.isActive(i) {
-                if res.effect == "shuffleColumn" { scene.shuffleChurn(at: i) }
-                else { scene.goodPulse(at: i) }
+            if res.effect == "evenOut", let mv = res.movedCards, !mv.isEmpty {
+                // BALLAST (v6.88): board-wide now — the buried cards visibly
+                // fly pile → pile, the Donate idiom, identities hidden.
+                let capped = Array(mv.prefix(8))
+                animQueue.add(priority: 1) { [weak self] done in
+                    guard let self else { done(); return }
+                    Sound.shared.shufflePile()
+                    var landed = 0
+                    let fin = { [weak self] in
+                        landed += 1
+                        if landed == capped.count { self?.refreshBoard(); done() }
+                    }
+                    for (k, m) in capped.enumerated() {
+                        self.scene.run(.sequence([.wait(forDuration: Double(k) * 0.09), .run {
+                            self.scene.flyPileToPile(from: m.from, to: m.to) { fin() }
+                        }]))
+                    }
+                }
+            } else {
+                for i in pilesInColumn(res.col) where engine.board.isActive(i) {
+                    if res.effect == "shuffleColumn" { scene.shuffleChurn(at: i) }
+                    else { scene.goodPulse(at: i) }
+                }
             }
         case "randomSticker":
             if let s = res.stickerApplied {

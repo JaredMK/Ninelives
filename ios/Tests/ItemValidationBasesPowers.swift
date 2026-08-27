@@ -420,19 +420,27 @@ enum IVBases {
             ]
 
         case "evenOut":
+            // BALLAST (v6.88): BOARD-WIDE — pile 2 lives in the OTHER column
+            // and must equalize too; the move list rides the result.
             return [
-                IV.Scenario("trigger-evensWithinOne", allowed: .all,
+                IV.Scenario("trigger-evensTheWholeBoard", allowed: .all,
                     build: {
                         let e = baseEngine(def)
-                        for i in 0..<4 {
+                        for i in 0..<6 {
                             e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(90 + i, 3), data: data))
                         }
                         return e
                     },
-                    fire: { _ = $0.baseActivate(col: 0) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.moves, r?.movedCards?.count, "the travel list matches the count")
+                        XCTAssertTrue(r?.movedCards?.contains { $0.to == 2 } ?? false,
+                                      "the OTHER column's pile received cards — board-wide")
+                    },
                     expect: { e, _, c in
-                        let a = e.board.pileSize(0), b = e.board.pileSize(1)
-                        XCTAssertLessThanOrEqual(abs(a - b), 1, "\(c): within 1 after")
+                        let sizes = (0..<3).map { e.board.pileSize($0) }
+                        XCTAssertLessThanOrEqual((sizes.max() ?? 0) - (sizes.min() ?? 0), 1,
+                                                 "\(c): EVERY pile within 1 of the rest")
                         assertSpent(e, c)
                     }),
                 IV.Scenario("edge-alreadyEvenNoMoves", allowed: .all,
@@ -445,15 +453,61 @@ enum IVBases {
                 IV.Scenario("mustNotFire-conserved", allowed: .all,
                     build: {
                         let e = baseEngine(def)
-                        for i in 0..<4 {
+                        for i in 0..<6 {
                             e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(90 + i, 3), data: data))
                         }
                         return e
                     },
                     fire: { _ = $0.baseActivate(col: 0) },
                     expect: { e, f, c in
-                        XCTAssertEqual(e.board.piles[0].cards.count + e.board.piles[1].cards.count,
-                                       f.pileCounts[0] + f.pileCounts[1], "\(c): cards conserved")
+                        XCTAssertEqual((0..<3).map { e.board.piles[$0].cards.count }.reduce(0, +),
+                                       f.pileCounts.reduce(0, +), "\(c): cards conserved board-wide")
+                    }),
+            ]
+
+        case "bonusResetPeek":
+            // BONUS RESET (v6.88): only fireable ABOVE 1 banked bonus coin;
+            // the fire zeroes the tally (itemized) and peeks the next card.
+            return [
+                IV.Scenario("trigger-tradesBonusForAPeek", allowed: .all,
+                    build: {
+                        let e = baseEngine(def)
+                        e.run.bonusCoins = 5
+                        return e
+                    },
+                    fire: { e in
+                        XCTAssertTrue(e.baseAvailable(0), "5 banked → fireable")
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.peekCount, 1)
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.bonusCoins, 0, "\(c): the tally reset to zero")
+                        XCTAssertTrue(e.run.revealNextActive, "\(c): …and the next card shows")
+                        XCTAssertEqual(e.revealedNextCard()?.id, 50, "\(c): the REAL next draw")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-exactlyOneRefuses", allowed: [],
+                    build: {
+                        let e = baseEngine(def)
+                        e.run.bonusCoins = 1
+                        return e
+                    },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "1 banked is NOT more than 1")
+                        XCTAssertNil(e.baseActivate(col: 0))
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): a refused fire keeps the charge")
+                        XCTAssertEqual(e.run.bonusCoins, 1, "\(c): the tally is untouched")
+                    }),
+                IV.Scenario("mustNotFire-zeroBanked", allowed: [],
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        XCTAssertNil(e.baseActivate(col: 0), "0 banked: nothing to trade")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)")
+                        XCTAssertFalse(e.run.revealNextActive, "\(c): no peek either")
                     }),
             ]
 

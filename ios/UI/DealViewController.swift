@@ -533,7 +533,10 @@ public final class DealViewController: UIViewController {
     @objc private func onTap(_ g: UITapGestureRecognizer) {
         let p = scenePoint(g.location(in: view))
 
-        if scene.isHelpVisible { scene.hideHelp(); return }
+        // A visible help panel collapses on the next tap — EXCEPT a tap on
+        // a pile, which falls through so tapping pile-to-pile re-targets the
+        // info instead of needing two taps (v6.88).
+        if scene.isHelpVisible, scene.pileIndex(at: p) == nil { scene.hideHelp(); return }
 
         // Target-pick mode (Sticker Harvest / revive): a tap on an armed pile
         // fires; a tap ANYWHERE ELSE answers exactly like Skip (v6.57 batch) —
@@ -610,6 +613,15 @@ public final class DealViewController: UIViewController {
                 return
             }
             controller.select(pile: pile)
+            // v6.88: a tap surfaces the SAME info a hold does (the fan
+            // overlay's tap/hold parity, brought to the board) — while the
+            // pile is selected; deselecting clears the panel instead.
+            if scene.currentSelection == pile,
+               let (title, rich) = controller.richHelp(forPile: pile) {
+                scene.showHelp(title: title, rich: rich)
+            } else {
+                scene.hideHelp()
+            }
             onTutorialEvent?(.pileTapped(pile))
             return
         }

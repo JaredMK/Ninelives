@@ -542,21 +542,26 @@ final class StoreDetailView: UIView {
                 }
             }
             y += 60
-            if !comparePanel.isHidden {
-                let arrowW: CGFloat = 16, gap: CGFloat = 7
-                let sideW = (cw - arrowW - gap * 2) / 2
-                let h = max(cmpOld.layout(width: sideW), cmpNew.layout(width: sideW))
-                comparePanel.frame = CGRect(x: m, y: y, width: cw, height: h)
-                cmpOld.frame = CGRect(x: 0, y: 0, width: sideW, height: h)
-                cmpArrow.frame = CGRect(x: sideW + gap, y: 0, width: arrowW, height: h)
-                cmpNew.frame = CGRect(x: sideW + gap + arrowW + gap, y: 0, width: sideW, height: h)
-                y += h + 6
-            }
-            if !questionLabel.isHidden {
-                let qH = heightOf(questionLabel, width: cw)
-                questionLabel.frame = CGRect(x: m, y: y, width: cw, height: qH)
-                y += qH + 6
-            }
+        }
+        // v6.88: the compare + question frame INDEPENDENTLY of the column
+        // row — the Same-Power flows (the mystery reveal included) have NO
+        // column buttons, so the EQUIPPED→NEW panel refreshCompare built was
+        // left at zero frame and the panel height never reserved its room:
+        // the comparison was simply invisible.
+        if !comparePanel.isHidden {
+            let arrowW: CGFloat = 16, gap: CGFloat = 7
+            let sideW = (cw - arrowW - gap * 2) / 2
+            let h = max(cmpOld.layout(width: sideW), cmpNew.layout(width: sideW))
+            comparePanel.frame = CGRect(x: m, y: y, width: cw, height: h)
+            cmpOld.frame = CGRect(x: 0, y: 0, width: sideW, height: h)
+            cmpArrow.frame = CGRect(x: sideW + gap, y: 0, width: arrowW, height: h)
+            cmpNew.frame = CGRect(x: sideW + gap + arrowW + gap, y: 0, width: sideW, height: h)
+            y += h + 6
+        }
+        if !questionLabel.isHidden {
+            let qH = heightOf(questionLabel, width: cw)
+            questionLabel.frame = CGRect(x: m, y: y, width: cw, height: qH)
+            y += qH + 6
         }
         if !buyButton.isHidden {
             buyButton.frame = CGRect(x: m, y: y, width: cw, height: 46)

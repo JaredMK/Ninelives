@@ -127,6 +127,16 @@ extension GameEngine {
     /// campaign write rides the `.stickerConverted` event.
     func convertStickerToCurse(_ index: Int, _ card: LiveCard, _ type: ItemDef) {
         guard let at = card.stickers.firstIndex(where: { $0.type == type.id }) else { return }
+        // CURSE WARD (v6.88): a warded column never converts — the sticker
+        // stays put and simply didn't fire. resolvePillarDef keeps the
+        // shared rules (Ditto mirrors the ward, a Jammer blocks it).
+        if let wcol = run.pileColumns?[index],
+           let ward = resolvePillarDef(wcol), ward.effect == "stickerCurseWard" {
+            firePillar(wcol, "stickerCurseWard", ward.label, 0)
+            recT("pillar", ward.id, ward.label, ["warded": 1])
+            logLine("\(ward.label): \(type.label) kept its place on \(cardName(card)) — no curse")
+            return
+        }
         card.stickers.remove(at: at)
         if let curse = rollStickerPathCurse(for: card) {
             card.stickers.append(StickerRecord(type: curse.id))

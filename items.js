@@ -560,6 +560,23 @@ const NINELIVES_ITEMS = {
       kind: "live", effect: "diamondDupeSize", tier: "uncommon", price: 6,
       description: "When a ♦ lands in this column → +1 pile size per duplicate of that card's rank in your full deck" },
 
+    // CURSE WARD (v6.88): the curse archetype's COUNTER-piece — in this
+    // column a conditional sticker's missed bet does NOT convert: the
+    // sticker stays put and simply doesn't fire. Cover punish (Payout /
+    // Anchor) is not a conversion and is not warded; a Jammer blocking the
+    // pillar re-opens conversions (the shared resolvePillarDef rule).
+    // Rarity/cost/unlock proposed — STOP-FLAGGED in the batch report.
+    { id: "stickerCurseWard", unlock: { type: "behavior", stat: "stickersApplied", count: 40 }, label: "Curse Ward", icon: "🧿",
+      kind: "live", effect: "stickerCurseWard", tier: "rare", price: 7,
+      description: "Stickers that would convert into curses in this column don't — they stay as stickers" },
+    // FINAL CUT (v6.88): deck-shaping PAYOFF — when this column's LAST
+    // alive pile falls, the killer is permanently purged from the deck
+    // (removeDeckCard, so it also feeds the removalsUsed unlock ladder).
+    // Jokers/Blanks can't be purged. Proposal STOP-FLAGGED in the report.
+    { id: "finalPilePurge", unlock: { type: "behavior", stat: "pilesLost", count: 50 }, label: "Final Cut", icon: "🎬",
+      kind: "live", effect: "finalPilePurge", tier: "rare", price: 8,
+      description: "Permanently purge whichever card kills the final pile in this column" },
+
     // ---- SAME-TOLERANCE family (family: "sameTolerance") -----------------
     // Four relaxations of what survives a SAME call in this column; `tol`
     // selects the rule. ONE same-tolerance pillar per column MAX, enforced
@@ -715,9 +732,11 @@ const NINELIVES_ITEMS = {
     { id: "randomSticker", unlock: { type: "behavior", stat: "stickersApplied", count: 30 }, label: "Wild Sticker", icon: "🎲",
       kind: "active", effect: "randomSticker", tier: "uncommon", price: 10,
       description: "Apply a random sticker to a random top card in this column" },
+    // BALLAST (v6.88): BOARD-WIDE now — the column walk retired with the
+    // text. Same conserve-and-hand-down algorithm, every alive pile.
     { id: "evenOut", label: "Ballast", icon: "🪨",
       kind: "active", effect: "evenOut", tier: "common", price: 5,
-      description: "Make all piles in this column equal size" },
+      description: "Make ALL piles on the board equal size" },
     { id: "setValue", unlock: { type: "milestone", stat: "runsWon", count: 2 }, label: "Rank Setter", icon: "🗿",
       kind: "active", effect: "setValue", tier: "rare", price: 10,
       description: "Permanently set every top card's rank in this column to the bottom pile's rank" },
@@ -799,7 +818,14 @@ const NINELIVES_ITEMS = {
     // TUNE: price 5 proposed (R4).
     { id: "purgeDiscount", unlock: { type: "behavior", stat: "removalsUsed", count: 3 }, label: "Purge Coupon", icon: "🎟️",
       kind: "active", effect: "purgeDiscount", value: 3, min: 5, tier: "uncommon", price: 5,
-      description: "Reduce the cost of the Store's Purge" },
+      description: "Reduce the cost of the Store's Purge by 3" },
+    // BONUS RESET (v6.88): trade the deal's banked bonus coins for sight.
+    // Only fireable while MORE than 1 bonus coin is banked and the deck
+    // still holds a card to show. Rarity/cost/unlock proposed — STOP-FLAGGED
+    // in the batch report.
+    { id: "bonusResetPeek", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 80 }, label: "Bonus Reset", icon: "🔄",
+      kind: "active", effect: "bonusResetPeek", tier: "uncommon", price: 4,
+      description: "Reset bonus coins earned this deal to zero, then peek the next card" },
     // TRANSMUTE: an ON-PURCHASE base — it fires at BUY time and never in a
     // deal. Its target {rank} is DERIVED LIVE — the rank your full deck
     // holds the most copies of at buy time (ties → lowest; recomputed for
@@ -864,6 +890,12 @@ const NINELIVES_ITEMS = {
     { id: "linkShuffle", label: "Link Shuffler", icon: "🔀",
       effect: "linkShuffle", tier: "rare", price: 9,
       description: "Shuffle every alive pile" },
+    // CLEANSE ALL (v6.88): the Cleanse Base's board-wide, Same-gated
+    // sibling — every correct Same strips every curse from every alive
+    // top, durably (.cursePeeled). Distinctness vs the Base reported.
+    { id: "sameCleanseAll", unlock: { type: "behavior", stat: "correctSames", count: 40 }, label: "Cleanse All", icon: "🫧",
+      effect: "sameCleanseAll", tier: "rare", price: 9,
+      description: "When you call a correct Same → clear all curses from every top card on the board" },
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
       effect: "samePeek", tier: "rare", price: 9,
       description: "Peek the next card" },

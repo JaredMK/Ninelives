@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.87"
-    static let note = "PILLAR REBALANCE: ten pillars retired (and `inactive` now gates EVERY acquisition pool, not just stickers); the Empty Ranks family grows coin and size legs on three distinct effect keys; Pauper's Heart peeks instead of paying; the Bouncer is certain with no 2s in the deck; Queen-Finder joins the mystery metas; Flat Purge became a one-time on-purchase halving; Dense Bury asks 3+ stickers; Royal Pair is rare."
+    static let version = "v6.88"
+    static let note = "STORE + BOARD BATCH: the mystery Same-Power reveal shows the EQUIPPED→NEW compare (the layout never framed it without column buttons); the base fire-or-not prompt sizes to its text (sizeThatFits, stacked buttons); a pile tap surfaces the hold's info; Ballast equalizes the WHOLE board with a travel animation; Bonus Reset, Curse Ward, Final Cut and Cleanse All join the roster."
     static let line = "build \(version) · \(note)"
 }
 

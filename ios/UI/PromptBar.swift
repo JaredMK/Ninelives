@@ -129,15 +129,22 @@ public final class PromptBar: UIView {
         // the slack, the hug-content buttons sit right, vertically centred.
         let btnH: CGFloat = buttons.isEmpty ? 0 : 38
         let btnsW = buttonWidths.reduce(0, +) + CGFloat(max(0, buttons.count - 1)) * 8
-        let textW = w - 24 - (btnsW > 0 ? btnsW + 10 : 0)
-        let textH = textLabel.attributedText?.boundingRect(
-            with: CGSize(width: textW, height: 300), options: .usesLineFragmentOrigin, context: nil
-        ).height ?? 20
-        let helpH: CGFloat = helpLabel.isHidden ? 0 : (helpLabel.attributedText?.boundingRect(
-            with: CGSize(width: textW, height: 200), options: .usesLineFragmentOrigin, context: nil
-        ).height ?? 0) + 1
-        let textBlockH = ceil(textH) + helpH
-        let contentH = max(textBlockH, btnH)
+        // v6.88 (the Diamond Boost confirm was the repro): measured with
+        // sizeThatFits — the v6.20 lesson, boundingRect under-reads VT323's
+        // real line height and clips the last wrapped line — with NO
+        // measurement ceiling; and a help longer than ~2 lines drops the
+        // buttons onto their OWN row so the text keeps the full width
+        // instead of truncating beside them.
+        func measured(_ l: UILabel, _ width: CGFloat) -> CGFloat {
+            ceil(l.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+        }
+        let rowTextW = w - 24 - (btnsW > 0 ? btnsW + 10 : 0)
+        let stacked = btnH > 0 && !helpLabel.isHidden && measured(helpLabel, rowTextW) > 44
+        let textW = stacked ? w - 24 : rowTextW
+        let textH = measured(textLabel, textW)
+        let helpH: CGFloat = helpLabel.isHidden ? 0 : measured(helpLabel, textW) + 1
+        let textBlockH = textH + helpH
+        let contentH = stacked ? textBlockH + 8 + btnH : max(textBlockH, btnH)
         // The bar always fills its host's bounds, so its own insets are the
         // host's — read them directly (a re-parenting can never stale them).
         //
@@ -161,11 +168,12 @@ public final class PromptBar: UIView {
             let safeT = max(safeAreaInsets.top, 0)
             panel.frame = CGRect(x: 8, y: safeT + 8, width: w, height: panelH)
         }
-        textLabel.frame = CGRect(x: 12, y: 8, width: textW, height: ceil(textH))
+        textLabel.frame = CGRect(x: 12, y: 8, width: textW, height: textH)
         helpLabel.frame = CGRect(x: 12, y: textLabel.frame.maxY + 1, width: textW, height: max(0, helpH - 1))
         var x = w - 12 - btnsW
+        let btnY = stacked ? 8 + textBlockH + 8 : 8 + (contentH - btnH) / 2
         for (i, b) in buttons.enumerated() {
-            b.frame = CGRect(x: x, y: 8 + (contentH - btnH) / 2, width: buttonWidths[i], height: btnH)
+            b.frame = CGRect(x: x, y: btnY, width: buttonWidths[i], height: btnH)
             x += buttonWidths[i] + 8
         }
     }

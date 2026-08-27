@@ -1060,6 +1060,16 @@ public final class GameEngine {
         board.kill(index)
         emit(.pileKilled(index: index))
         logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")
+        // FINAL CUT (v6.88): the column's LAST pile just fell — the killer
+        // is purged from the campaign deck, durably (the flow commits it on
+        // the event; the engine only reports). Jokers/Blanks can't be cut.
+        if let pdef = resolvePillarDef(col), pdef.effect == "finalPilePurge",
+           colAlivePiles(col).isEmpty, !drawn.joker, !drawn.blank {
+            firePillar(col, "finalPilePurge", pdef.label, 0)
+            recT("pillar", pdef.id, pdef.label, ["purged": 1])
+            logLine("\(pdef.label): \(cardName(drawn)) killed the column's last pile — purged from the deck")
+            emit(.finalCutPurged(col: col ?? 0, cardId: drawn.id))
+        }
         // Last Rites: a pile in this column just died — peek the next card.
         if let pillar = resolvePillarDef(col), pillar.effect == "lastRites" { peekPillar(col, pillar) }
         // Death Bounty: the DRAWN (killing) card pays a consolation.

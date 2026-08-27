@@ -191,7 +191,8 @@ const OUTCOMES = {
   sizeOneDiamonds: ["Pile Size & Score", [], "while a pile is size 1"],
   pauperDiamondSize: ["Pile Size & Score", ["Pauper"], "while broke"],
   linkHeavy: ["Pile Size & Score", [], "board-wide + hub"], diamondBoost: ["Pile Size & Score", [], "♦ piles in column"],
-  evenOut: ["Pile Size & Score", [], "equalises the column"],
+  evenOut: ["Pile Size & Score", [], "equalises the whole board"],
+  bonusResetPeek: ["Peek", ["Coin Loss"], "trades the deal's banked bonus"],
   diamondDistribution: ["Pile Size & Score", [], "equalises on a ♦"],
   donate: ["Pile Size & Score", [], "conditional: equalises the board"],
   startPileSizeEight: ["Pile Size & Score", ["Deck Shaping"], "column opens at size 8"],
@@ -214,6 +215,9 @@ const OUTCOMES = {
   sacrifice: ["Deck Removal", ["Pile Destruction"], "the chosen top card"],
   linkPurge: ["Deck Removal", [], "chance, from the draw pile"],
   cleanseColumn: ["Curse Removal", [], "strips curses in column"],
+  stickerCurseWard: ["Curse Removal", [], "prevention: no conversions in column"],
+  finalPilePurge: ["Deck Removal", ["Deck Shaping"], "the column's last death purges the killer"],
+  sameCleanseAll: ["Curse Removal", ["Same Shield & Power"], "board-wide, every correct Same"],
 
   // Store Economy — shop-side value, nothing in-deal.
   purgeStepDiscount: ["Store Economy", [], "Purge ladder climbs slower"],
