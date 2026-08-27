@@ -142,6 +142,8 @@ const OUTCOMES = {
   clubSnob: ["Bury", [], "on ♣ contact"], clubRoots: ["Bury", [], "per rank-matching top"],
   clubTribute: ["Bury", [], "sticker-free ♣"], streakTribute: ["Bury", [], "streak-gated"],
   denseBury: ["Bury", [], "sticker-heavy ♣"], clubZeroRanksBury: ["Bury", ["Deck Shaping"], "per empty rank"],
+  heartZeroRanksCoin: ["Coin Gain", ["Deck Shaping"], "per empty rank, ♥ landing"],
+  diamondZeroRanksSize: ["Pile Size & Score", ["Deck Shaping"], "per empty rank, ♦ landing"],
   absentSuitClubBury: ["Bury", ["Deck Shaping"], "if a suit is absent"],
   pauperClubBury: ["Bury", ["Pauper"], "while broke"], clubThin: ["Bury", [], "scales with deck left"],
   suitDig: ["Bury", [], "under each ♣ top"], linkBury: ["Bury", [], "under suit-topped piles"],
@@ -178,7 +180,7 @@ const OUTCOMES = {
   columnAllAlive: ["Coin Gain", [], "if all survive"], columnNoneAlive: ["Coin Gain", [], "if none survive"],
   greedy: ["Coin Gain", ["Loadout"], "only pillar equipped"], tax: ["Coin Gain", [], "per ♥ in column"],
   heartDemolish: ["Coin Gain", ["Pile Destruction"], "kills ♥ piles for coins"],
-  linkCoins: ["Coin Gain", [], "per alive pile"], pauperHeart: ["Coin Gain", ["Pauper"], "while broke"],
+  linkCoins: ["Coin Gain", [], "per alive pile"], pauperHeartPeek: ["Peek", ["Pauper"], "while broke, per ♥ landing"],
   devilsDeal: ["Coin Gain", ["Curse Payoff"], "doubles bonus, adds a curse"],
 
   // Pile Size & Score.
@@ -215,7 +217,7 @@ const OUTCOMES = {
 
   // Store Economy — shop-side value, nothing in-deal.
   purgeStepDiscount: ["Store Economy", [], "Purge ladder climbs slower"],
-  purgeFlat: ["Store Economy", [], "flat Purge price"],
+  purgeHalve: ["Store Economy", [], "one-time Purge halving on purchase"],
   purgeDiscount: ["Store Economy", [], "cuts the Purge price"],
   freebie: ["Store Economy", [], "one free shelf item"],
   rareHunter: ["Store Economy", [], "rares twice as often"],
@@ -225,6 +227,7 @@ const OUTCOMES = {
   ditto: ["Loadout & Meta", [], "mirrors the centre pillar"],
   refreshBases: ["Loadout & Meta", [], "recharges the other bases"],
   twoWard: ["Loadout & Meta", [], "wards off a Just a Two"],
+  queenFinder: ["Loadout & Meta", [], "finds the Beheaded Queen"],
 
   // Deal Control.
   lastResort: ["Deal Control", ["Bury"], "buries the deck, wins the deal"],
@@ -255,9 +258,9 @@ function classify(item) {
 // ── Classes, in the order the page presents them ──────────────────────────
 const CLASSES = [
   { key: "sticker", title: "Stickers", note: "Card-bound imprints. A sticker rides one card for the rest of the climb — WHICH card is the decision. The v6.85 conditionals are checked at the carrier's landing and convert into a curse on a missed bet.", items: ITEMS.stickers.filter((s) => !s.cursed && !s.inactive) },
-  { key: "pillar", title: "Pillars", note: "Column modifiers bound to the top of a board column — passive, all deal, every pile in that column.", items: ITEMS.pillars },
-  { key: "base", title: "Bases", note: "Column artifacts bound to the bottom. Active: they charge each deal and fire once when tapped.", items: ITEMS.bases },
-  { key: "samepower", title: "Same-Powers", note: "Exactly one is equipped; a correct Same triggers it.", items: ITEMS.samePowers },
+  { key: "pillar", title: "Pillars", note: "Column modifiers bound to the top of a board column — passive, all deal, every pile in that column.", items: ITEMS.pillars.filter((p) => !p.inactive) },
+  { key: "base", title: "Bases", note: "Column artifacts bound to the bottom. Active: they charge each deal and fire once when tapped.", items: ITEMS.bases.filter((b) => !b.inactive) },
+  { key: "samepower", title: "Same-Powers", note: "Exactly one is equipped; a correct Same triggers it.", items: ITEMS.samePowers.filter((s) => !s.inactive) },
   { key: "curse", title: "Cursed Stickers", note: "Never sold and never chosen — inflicted by the mystery node, the Old Joker's bargains and the bad door. Price 0.", items: ITEMS.stickers.filter((s) => s.cursed) },
   { key: "pack", title: "Packs", note: "Buy to reveal N random items and keep some.", items: ITEMS.packs.filter((p) => !p.inactive) },
   { key: "retired", title: "Retired", note: "Out of EVERY acquisition pool (`inactive: true`) but still registered — an old save's copy keeps resolving and firing, and the Collection shows it greyed.", items: [...ITEMS.stickers, ...ITEMS.pillars, ...ITEMS.bases, ...ITEMS.samePowers, ...ITEMS.packs].filter((i) => i.inactive) },
