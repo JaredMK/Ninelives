@@ -161,6 +161,10 @@ public enum PlacementLog {
         // reads the suit axis by definition.
         case "quickBury", "gainCoin", "donate", "heavy", "diamondSnob", "tell", "suitImmunity":
             return [("suit", "sticker:\(def.id)")]
+        // v6.90: the Same stickers joined the RANK conditional — placement
+        // reads the rank axis by definition now.
+        case "rechargeSameShield", "activateSamePower":
+            return [("rank", "sticker:\(def.id)")]
         default: return []
         }
     }

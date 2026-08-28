@@ -127,6 +127,72 @@ extension GameEngine {
         case "clubTell":
             // CLUB ORACLE (v6.89): the piles it would arm — Club Dig's idiom.
             return topCount("♣")
+        // ── v6.90 counter sweep: every countable fire gets the live badge ──
+        case "refreshBases":
+            // Bases it would re-arm right now.
+            return refreshableBaseColumns(col).count
+        case "cleanseColumn":
+            // Curses it would strip off this column's tops.
+            return alive.reduce(0) { acc, i in
+                acc + (board.top(i)?.stickers.filter {
+                    stickerTypes.get($0.type)?.cursed == true
+                }.count ?? 0)
+            }
+        case "devilsDeal":
+            // Coins the doubling would GAIN — the current banked bonus.
+            return Int(run.bonusCoins)
+        case "emptyPurse":
+            // Peeks the spend would buy: 1 + purse/10 (campaign-wired only —
+            // no purse provider, no number).
+            guard let purse = purseCoinsProvider?() else { return nil }
+            return 1 + purse / 10
+        case "diamondBoost":
+            // Total pile size it would add: value × ♦-topped alive piles.
+            return topCount("♦") * base.int("value", 3)
+        case "chorus":
+            // Tops it would rewrite (jokers/blanks skipped, already-matching
+            // skipped — the fire's exact rule).
+            guard let rank = mostCopiedRank() else { return 0 }
+            return alive.filter { p in
+                guard let t = board.top(p), !t.joker, !t.blank else { return false }
+                return t.value != rank
+            }.count
+        case "setValue", "setSuit":
+            // Tops the setter would change — the confirm preview's formula.
+            guard let srcPile = alive.last, let src = board.top(srcPile) else { return nil }
+            let isRank = base.effect == "setValue"
+            return alive.filter { p in
+                guard let t = board.top(p) else { return false }
+                return isRank ? t.value != src.value : t.suit != src.suit
+            }.count
+        case "evenOut":
+            // BALLAST: an EXACT pure preview of the equalize walk — virtual
+            // sizes plus each pile's liftable bottom-card weights, first-
+            // index tie-breaks, the real loop's stop rules. Mutates nothing.
+            var size: [Int: Int] = [:]
+            var bottoms: [Int: [Int]] = [:]
+            for i in 0..<board.size where board.isActive(i) {
+                size[i] = board.pileSize(i)
+                bottoms[i] = board.piles[i].cards.dropLast().map { board.weightOf($0) }
+            }
+            guard size.count >= 2 else { return 0 }
+            let keys = size.keys.sorted()
+            var moves = 0
+            for _ in 0..<500 {
+                var big = keys[0], small = keys[0]
+                for i in keys {
+                    if size[i]! > size[big]! { big = i }
+                    if size[i]! < size[small]! { small = i }
+                }
+                if big == small || size[big]! - size[small]! <= 1 { break }
+                guard let w = bottoms[big]?.first else { break }
+                bottoms[big]!.removeFirst()
+                bottoms[small]!.insert(w, at: 0)
+                size[big]! -= w
+                size[small]! += w
+                moves += 1
+            }
+            return moves
         default:
             return nil
         }

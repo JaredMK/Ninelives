@@ -112,7 +112,11 @@ final class SavedLandingTests: XCTestCase {
     }
 
     func testRechargeShieldRebanksOnASameChargeSave() {
-        let e = savedEngine(drawnStickers: ["rechargeSameShield"])
+        // v6.90: the rank bet must be FED — pile 3 shows another 2, so the
+        // saved landing's re-bank still fires under the conditional.
+        let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 2, "♦")],
+                          deckOrder: [IV.spec(50, 2, "♥", ["rechargeSameShield"]), IV.spec(51, 3)],
+                          sameCharge: true)
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0))
         XCTAssertTrue(e.sameCharge, "the save spent the charge; the landed sticker re-banked it")

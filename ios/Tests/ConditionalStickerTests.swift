@@ -305,7 +305,68 @@ final class ConditionalStickerTests: XCTestCase {
         XCTAssertTrue(twin.run.pendingActions.isEmpty)
     }
 
-    // MARK: - 10. The validator accepts `inactive`
+    // MARK: - 10. The Same stickers join the rank conditional (v6.90)
+
+    func testRechargeShieldFiresOnRankMatchAndConvertsOnMiss() {
+        // FED: pile 2's 9♥ shows the carrier's rank → the charge banks.
+        let fed = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 9, "♥"), spec(3, 6, "♦")],
+                            deckOrder: [spec(50, 9, "♠", ["rechargeSameShield"]), spec(51, 2)])
+        fed.guess(0, .higher)
+        XCTAssertTrue(fed.sameCharge, "another 9 top → the charge banks")
+        XCTAssertTrue(fed.board.top(0)!.stickers.contains { $0.type == "rechargeSameShield" },
+                      "a fed bet keeps the sticker")
+        // UNFED: no other 9 → converts (one curse, dormant this landing).
+        let unfed = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 7, "♥"), spec(3, 6, "♦")],
+                              deckOrder: [spec(50, 9, "♠", ["rechargeSameShield"]), spec(51, 2)])
+        var curseFiredThisLanding = false
+        unfed.on { if case .curseFired = $0 { curseFiredThisLanding = true } }
+        let coins = unfed.run.bonusCoins
+        unfed.guess(0, .higher)
+        XCTAssertFalse(unfed.sameCharge, "no 9 anywhere else → nothing banks")
+        let top = unfed.board.top(0)!
+        XCTAssertFalse(top.stickers.contains { $0.type == "rechargeSameShield" }, "converted")
+        XCTAssertEqual(top.stickers.filter { data.stickerTypes.get($0.type)?.cursed == true }.count, 1,
+                       "exactly ONE curse took its place")
+        XCTAssertFalse(curseFiredThisLanding, "the new curse is dormant this landing")
+        XCTAssertEqual(unfed.run.bonusCoins, coins, "no toll this landing even when the roll is a Leech")
+    }
+
+    func testTapPowerFiresOnRankMatchAndConvertsOnMiss() {
+        let fed = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 9, "♥"), spec(3, 6, "♦")],
+                            deckOrder: [spec(50, 9, "♠", ["activateSamePower"]), spec(51, 2)],
+                            samePower: "linkCoins")
+        let before = fed.run.bonusCoins
+        fed.guess(0, .higher)
+        XCTAssertGreaterThan(fed.run.bonusCoins, before, "the fed bet fired Link Coins")
+        XCTAssertTrue(fed.board.top(0)!.stickers.contains { $0.type == "activateSamePower" },
+                      "a fed bet keeps the sticker")
+        let unfed = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 7, "♥"), spec(3, 6, "♦")],
+                              deckOrder: [spec(50, 9, "♠", ["activateSamePower"]), spec(51, 2)],
+                              samePower: "linkCoins")
+        let b2 = unfed.run.bonusCoins
+        unfed.guess(0, .higher)
+        XCTAssertEqual(unfed.run.bonusCoins, b2, "a missed bet fires nothing")
+        let top = unfed.board.top(0)!
+        XCTAssertFalse(top.stickers.contains { $0.type == "activateSamePower" }, "converted")
+        XCTAssertEqual(top.stickers.filter { data.stickerTypes.get($0.type)?.cursed == true }.count, 1)
+    }
+
+    func testSameStickersAreExemptOnTheLastPile() {
+        for sid in ["rechargeSameShield", "activateSamePower"] {
+            let e = IV.engine(tops: [spec(1, 5, "♠"), nil, nil],
+                              deckOrder: [spec(50, 9, "♠", [sid]), spec(51, 2)],
+                              samePower: "linkCoins")
+            let coins = e.run.bonusCoins
+            e.guess(0, .higher)
+            let top = e.board.top(0)!
+            XCTAssertTrue(top.stickers.contains { $0.type == sid },
+                          "\(sid): exempt on the last alive pile — no conversion")
+            XCTAssertFalse(e.sameCharge, "\(sid): …and no fire either")
+            XCTAssertEqual(e.run.bonusCoins, coins, "\(sid): no power fire either")
+        }
+    }
+
+    // MARK: - 11. The validator accepts `inactive`
 
     func testValidatorAcceptsInactiveAndTheNewPathway() {
         // The shipped registry loaded with 20 inactive stickers and the

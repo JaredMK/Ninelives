@@ -557,7 +557,9 @@ final class ItemValidationTests: IVCase {
         //    RECORD: curses fire at the touch (first), expansion stickers
         //    after — so the drain empties the OLD charge and the recharge
         //    banks a fresh one. The card ends up charged.
-        let e1 = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+        //    v6.90: the recharge is rank-conditional now — pile 2's 9♥
+        //    feeds its bet so the collision still plays out.
+        let e1 = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 9, "♥"), IV.spec(3, 6)],
                            deckOrder: [IV.spec(50, 9, "♠", ["rechargeSameShield", "drainShield"]),
                                        IV.spec(51, 2)], sameCharge: true)
         e1.guess(0, .higher)

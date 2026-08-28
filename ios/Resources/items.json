@@ -743,7 +743,7 @@
       "behavior": "rechargeSameShield",
       "tier": "rare",
       "price": 8,
-      "description": "Charge the Same Shield"
+      "description": "If another pile's top card matches this rank → Charge Same Shield\nIf no pile's top card matches this rank → Sticker becomes cursed"
     },
     {
       "id": "activateSamePower",
@@ -758,7 +758,7 @@
       "behavior": "activateSamePower",
       "tier": "rare",
       "price": 6,
-      "description": "Fire your Same-Power"
+      "description": "If another pile's top card matches this rank → Fire Same Power\nIf no pile's top card matches this rank → Sticker becomes cursed"
     },
     {
       "id": "leech",

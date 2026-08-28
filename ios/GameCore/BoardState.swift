@@ -34,6 +34,9 @@ public final class BoardState {
     /// SHRINK curse: the card counts against its pile's size. (The Heavy
     /// family's passive weight retired in v6.85 — Heavy is a conditional
     /// LANDING effect now, latched through sizeBonus like Same Heavy.)
+    /// Internal read for pure previews (the Ballast counter's exact walk).
+    func weightOf(_ c: LiveCard) -> Int { cardWeight(c) }
+
     private func cardWeight(_ c: LiveCard) -> Int {
         var w = 1
         for s in c.stickers {

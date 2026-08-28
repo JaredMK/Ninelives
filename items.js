@@ -293,11 +293,15 @@ const NINELIVES_ITEMS = {
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
     { id: "tell", label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 4,
       description: "If another pile's top card matches this card's suit → this card shows a tell (higher, lower, or same) for the next draw.\nIf none does → this sticker becomes a curse" },
-    // ---- Same-charge / Same-power stickers (fire on correct placement) ----
+    // ---- Same-charge / Same-power stickers (CONDITIONAL, v6.90) ----------
+    // The last two held-back rank conditionals go LIVE on the shared v6.85
+    // template: the CARRIER's rank is the bet, read against the OTHER alive
+    // tops at its landing — a hit fires, a miss converts (the ~21% hold
+    // rate is the INTENDED risk), no other alive pile is exempt.
     { id: "rechargeSameShield", unlock: { type: "behavior", stat: "correctSames", count: 10 }, label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "rare", price: 8,
-      description: "Charge the Same Shield" },
+      description: "If another pile's top card matches this rank → Charge Same Shield\nIf no pile's top card matches this rank → Sticker becomes cursed" },
     { id: "activateSamePower", unlock: { type: "behavior", stat: "correctSames", count: 34 }, label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "rare", price: 6,
-      description: "Fire your Same-Power" },
+      description: "If another pile's top card matches this rank → Fire Same Power\nIf no pile's top card matches this rank → Sticker becomes cursed" },
     // ---- CURSED stickers -----------------------------------------------------
     // cursed: true keeps a sticker OUT of every normal grant pool (store offers,
     // sticker packs, pack-card generation, Mr. Smith's grants, Wild Sticker).

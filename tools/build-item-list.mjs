@@ -203,8 +203,8 @@ const OUTCOMES = {
   shuffleColumn: ["Shuffle", [], "this column"], linkShuffle: ["Shuffle", [], "every alive pile"],
 
   // Same Shield & Power.
-  rechargeSameShield: ["Same Shield & Power", [], "charges the shield"],
-  activateSamePower: ["Same Shield & Power", [], "fires the equipped power"],
+  rechargeSameShield: ["Same Shield & Power", [], "conditional: rank-matched charge"],
+  activateSamePower: ["Same Shield & Power", [], "conditional: rank-matched power fire"],
 
   // Sticker Grant.
   flypaper: ["Sticker Grant", [], "chance, on landing"], randomSticker: ["Sticker Grant", [], "one column top"],

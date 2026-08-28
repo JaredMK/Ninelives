@@ -1,6 +1,6 @@
 {
- "version": "v6.89",
- "generatedAt": "2026-08-28 04:12",
+ "version": "v6.90",
+ "generatedAt": "2026-08-28 18:31",
  "rows": [
   {
    "cls": "Stickers",
@@ -539,7 +539,7 @@
    "cls": "Stickers",
    "inactive": false,
    "outcome": "Same Shield & Power",
-   "outcomeDetail": "charges the shield",
+   "outcomeDetail": "conditional: rank-matched charge",
    "outcomeAlso": [],
    "effectKey": "rechargeSameShield",
    "id": "rechargeSameShield",
@@ -554,7 +554,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Charge the Same Shield",
+   "description": "If another pile's top card matches this rank → Charge Same Shield\nIf no pile's top card matches this rank → Sticker becomes cursed",
    "flags": "",
    "flagNotes": ""
   },
@@ -562,7 +562,7 @@
    "cls": "Stickers",
    "inactive": false,
    "outcome": "Same Shield & Power",
-   "outcomeDetail": "fires the equipped power",
+   "outcomeDetail": "conditional: rank-matched power fire",
    "outcomeAlso": [],
    "effectKey": "activateSamePower",
    "id": "activateSamePower",
@@ -577,7 +577,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Fire your Same-Power",
+   "description": "If another pile's top card matches this rank → Fire Same Power\nIf no pile's top card matches this rank → Sticker becomes cursed",
    "flags": "",
    "flagNotes": ""
   },
@@ -2165,7 +2165,7 @@
    "cls": "Bases",
    "inactive": false,
    "outcome": "Same Shield & Power",
-   "outcomeDetail": "charges the shield",
+   "outcomeDetail": "conditional: rank-matched charge",
    "outcomeAlso": [],
    "effectKey": "rechargeSameShield",
    "id": "rechargeSame",
@@ -2188,7 +2188,7 @@
    "cls": "Bases",
    "inactive": false,
    "outcome": "Same Shield & Power",
-   "outcomeDetail": "fires the equipped power",
+   "outcomeDetail": "conditional: rank-matched power fire",
    "outcomeAlso": [],
    "effectKey": "activateSamePower",
    "id": "activateSame",

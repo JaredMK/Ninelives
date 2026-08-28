@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.89"
-    static let note = "FIXES + FEEDBACK: Ripple fires ONLY at its carrier's landing (two stale bidirectional paths deleted); map cards — sealed packs included — carry ZERO stickers (the grant-time dressing pathway is gone); retired items vanish from the Collection and the unlock pops; sticker conversions and Flypaper catches land first and reveal on a beat; Long Odds is 50%; Chorus names its live rank; Club Oracle counts its piles."
+    static let version = "v6.90"
+    static let note = "THE LAST RANK CONDITIONALS + LIVE COUNTERS: Recharge Shield and Tap Power join the conditional template (rank-matched fire, convert on a miss, exempt on the last pile — the ~21% hold rate is the intended risk); eight more bases wear Club Dig's live counter (Ballast, Rank/Suit Setter, Refresh, Empty Purse, Devil's Deal, Cleanse, Chorus, Diamond Boost); the grammar table now carries descriptions and the retired rows."
     static let line = "build \(version) · \(note)"
 }
 

@@ -561,28 +561,55 @@ enum IVStickers {
                     })]
 
         case "rechargeSameShield":
-            return landingFamily(def, allowed: [.charge],
-                expect: { e, _, c in XCTAssertTrue(e.sameCharge, "\(c): banks the charge") },
+            // CONDITIONAL (v6.90): the rank bet — pile 3's 9♦ feeds the
+            // default drawn 9; a board with no other 9 converts.
+            return landingFamily(def, boardTops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 9, "♦")],
+                allowed: [.charge],
+                expect: { e, _, c in XCTAssertTrue(e.sameCharge, "\(c): the fed bet banks the charge") },
                 expectNoFire: { e, _, c in XCTAssertFalse(e.sameCharge, "\(c)") })
+                + [IV.Scenario("mustNotFire-noMatchConverts", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")],
+                                       deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.sameCharge, "\(c): the missed bet banks nothing")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                       "\(c): the sticker converted away")
+                    })]
 
         case "activateSamePower":
+            // CONDITIONAL (v6.90): the rank bet gates the power fire.
             return [
-                IV.Scenario("trigger-firesEquippedPower", allowed: [.coins, .guesses, .deck, .board, .charge],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                IV.Scenario("trigger-fedBetFiresEquippedPower", allowed: [.coins, .guesses, .deck, .board, .charge],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♣")],
                                        deckOrder: [IV.spec(50, 9, "♠", ["activateSamePower"]), IV.spec(51, 2)],
                                        samePower: "linkCoins") },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
                         XCTAssertGreaterThan(e.run.bonusCoins, f.bonusCoins,
-                                             "\(c): Link Coins fired on the landing")
+                                             "\(c): pile 2's 9 fed the bet — Link Coins fired")
                     }),
                 IV.Scenario("edge-noPowerEquippedIsQuietNoOp", allowed: [.guesses, .deck, .board],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♣")],
                                        deckOrder: [IV.spec(50, 9, "♠", ["activateSamePower"]), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
-                    expect: { e, f, c in XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)") }),
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): a FED bet with no power is a quiet no-op — it persists")
+                    }),
+                IV.Scenario("edge-noMatchConverts", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♣")],
+                                       deckOrder: [IV.spec(50, 9, "♠", ["activateSamePower"]), IV.spec(51, 2)],
+                                       samePower: "linkCoins") },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): the missed bet fires nothing")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                       "\(c): the sticker converted away")
+                    }),
                 IV.Scenario("mustNotFire", allowed: [.guesses, .deck, .board],
-                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♣")],
                                        deckOrder: [IV.spec(50, 9), IV.spec(51, 2)],
                                        samePower: "linkCoins") },
                     fire: { $0.guess(0, .higher) },

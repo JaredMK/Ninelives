@@ -483,9 +483,11 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   rank; a carrier's missed bet converts at ANY of its landings (fatal
   included); exemption as above (and an exempt/unfed tie is NOT saved). The
   pile-top wearer still gates ties bidirectionally but never converts —
-  conversions belong to the landing CARRIER. The remaining rank
-  conditionals (Recharge Shield, Tap Power, Twin Spark) stay HELD BACK
-  untouched pending tuning (~21% hit rate).
+  conversions belong to the landing CARRIER. RECHARGE SHIELD and
+  TAP POWER went LIVE in v6.90 on the same rank axis (fire on a match,
+  convert per instance on a miss, exempt on the last pile; a fed Tap Power
+  with no equipped power is a quiet no-op and persists). Only TWIN SPARK
+  remains held back untouched (fires on a match, never converts).
 - **Odds Assist (iOS, v6.78): ALL-BEST + legality.**
   `assistRecommendations()` returns EVERY (pile, call) pair tying the max
   survival probability — no tie-break ladder — and respects guess()'s

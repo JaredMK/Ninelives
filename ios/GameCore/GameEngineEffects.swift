@@ -808,20 +808,39 @@ extension GameEngine {
             }
         }
 
-        // --- Same-charge / Same-power stickers ---
-        if n("rechargeSameShield") > 0 {
-            let was = sameCharge
-            sameCharge = true
-            if !was { logLine("Recharge Shield: banked a Same Charge") }
-            recT("sticker", "rechargeSameShield", "Recharge Shield", ["saves": was ? 0 : 1])
-            emit(.sameBanked(index: index, sameCharge: sameCharge))
+        // --- Same-charge / Same-power stickers (CONDITIONAL, v6.90) ---
+        // The last two held-back rank conditionals, on the shared template:
+        // fire on a rank match among the OTHER alive tops, convert on a
+        // miss (per instance), exempt with no other alive pile.
+        let rc = n("rechargeSameShield")
+        if rc > 0, let rdef = stickerTypes.get("rechargeSameShield") {
+            if let rm = conditionalRankMatches(index, drawn) {
+                if rm.isEmpty {
+                    for _ in 0..<rc { convertStickerToCurse(index, drawn, rdef) }
+                } else {
+                    let was = sameCharge
+                    sameCharge = true
+                    if !was { logLine("Recharge Shield: banked a Same Charge") }
+                    recT("sticker", "rechargeSameShield", "Recharge Shield", ["saves": was ? 0 : 1])
+                    emit(.sameBanked(index: index, sameCharge: sameCharge))
+                }
+            }
         }
         // Tap Power: fire the equipped Same-Power on THIS pile, once per
         // instance. It banks NO charge, and fireSamePower is a no-op when
-        // nothing is equipped (intended).
+        // nothing is equipped (a fed bet with no power is a quiet no-op —
+        // the sticker persists).
         let tp = n("activateSamePower")
-        for _ in 0..<tp { fireSamePower(index) }
-        if tp > 0 { recT("sticker", "activateSamePower", "Tap Power", ["copies": Double(tp)]) }
+        if tp > 0, let tdef = stickerTypes.get("activateSamePower") {
+            if let tm = conditionalRankMatches(index, drawn) {
+                if tm.isEmpty {
+                    for _ in 0..<tp { convertStickerToCurse(index, drawn, tdef) }
+                } else {
+                    for _ in 0..<tp { fireSamePower(index) }
+                    recT("sticker", "activateSamePower", "Tap Power", ["copies": Double(tp)])
+                }
+            }
+        }
     }
 
     /// SAVED-LANDING stickers (v6.57) — the complement of the v6.52/53
