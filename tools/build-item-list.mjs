@@ -65,7 +65,7 @@ try {
 // Mirrors CampaignState.itemDescription (iOS). Keep the two in step: if a new
 // live-substituted effect appears there, add it here or this page will call
 // it UNWIRED.
-const RANK_LIVE_EFFECTS = new Set(["transmute", "rankShield"]);   // composition-driven, per display
+const RANK_LIVE_EFFECTS = new Set(["transmute", "rankShield", "chorus"]);   // composition-driven, per display (chorus: v6.89)
 const RANK_VARIANT_EFFECTS = new Set(["rankBury", "rankCoin"]);   // climb-locked pillarRankVariants
 const SUIT_VARIANT_IDS = new Set(["linkBury"]);                   // samePowerVariant (suit)
 

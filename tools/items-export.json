@@ -2513,8 +2513,8 @@
    "packSize": null,
    "packKeep": null,
    "description": "Set every top card in this column to {rank}",
-   "flags": "UNWIRED",
-   "flagNotes": "UNWIRED: {rank} has no substitution path"
+   "flags": "TEMPLATE",
+   "flagNotes": "TEMPLATE: {rank} substituted live"
   },
   {
    "cls": "Bases",
