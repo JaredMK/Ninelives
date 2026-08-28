@@ -602,21 +602,10 @@ extension GameEngine {
             payCoins("Heart Snob", amt)
             recT("sticker", "heartSnob", "Heart Snob", ["coins": amt])
         }
-        if cn("diamondSnob") > 0 && landsOn("♦") {
-            // ♦ PILES ONLY. Shuffling the whole board made this the single
-            // most disruptive sticker in the game and gave the player no way
-            // to plan around it; scoped to its own suit it's a ♦ effect that
-            // rewards a ♦-topped board.
-            var sh = 0
-            for i in 0..<board.size where board.isActive(i) && matchesSuit(board.top(i), "♦") {
-                board.shufflePile(i, rng); sh += 1
-            }
-            if sh > 0 {
-                firePillar(col, "shuffler", "Diamond Snob", 0)
-                logLine("Diamond Snob: shuffled \(sh) ♦-topped pile(s)")
-                recT("sticker", "diamondSnob", "Diamond Snob", ["shuffled": Double(sh)])
-            }
-        }
+        // (v6.89: the stale v6.51 bidirectional Diamond Snob auto-shuffle is
+        // GONE — Ripple fires ONLY at its CARRIER's landing, through the
+        // v6.85 conditional offer in maybeStickerActions. A ♦ landing ON a
+        // Ripple carrier fires nothing.)
         let csn = cn("clubSnob")
         if csn > 0 && landsOn("♣") {
             let nb = buryTribute(index, csn * (stickerTypes.get("clubSnob")?.int("digCount", 1) ?? 1), "Club Snob")
@@ -639,18 +628,8 @@ extension GameEngine {
             payCoins("Heart Snob", amt)
             recT("sticker", "heartSnob", "Heart Snob", ["coins": amt])
         }
-        if n("diamondSnob") > 0 && topWears("♦") {
-            // Same scoping as the forward direction: ♦-topped piles only.
-            var sh = 0
-            for i in 0..<board.size where board.isActive(i) && matchesSuit(board.top(i), "♦") {
-                board.shufflePile(i, rng); sh += 1
-            }
-            if sh > 0 {
-                firePillar(col, "shuffler", "Diamond Snob", 0)
-                logLine("Diamond Snob: shuffled \(sh) ♦-topped pile(s)")
-                recT("sticker", "diamondSnob", "Diamond Snob", ["shuffled": Double(sh)])
-            }
-        }
+        // (v6.89: the reverse-direction auto-shuffle is gone with it — it
+        // double-fired beside the carrier's own conditional offer.)
         let rcsn = n("clubSnob")
         if rcsn > 0 && topWears("♣") {
             let nb = buryTribute(index, rcsn * (stickerTypes.get("clubSnob")?.int("digCount", 1) ?? 1), "Club Snob")

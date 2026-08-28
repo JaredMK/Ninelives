@@ -153,7 +153,13 @@ public final class ItemUnlocks {
     @discardableResult
     public func checkNewUnlocks() -> [Unlocked] {
         var known = knownSet()
-        let fresh = allDefs().filter { $0.unlock != nil && isUnlocked($0) && !known.contains($0.id) }
+        // v6.89: a RETIRED item never pops — 27 inactive items still carry
+        // gates, and crossing one at run end celebrated an item that can
+        // never be granted or bought. (The filter arrived with `inactive`
+        // for the acquisition pools in v6.85 but this list predates it.)
+        let fresh = allDefs().filter {
+            $0.unlock != nil && !$0.inactive && isUnlocked($0) && !known.contains($0.id)
+        }
         if !fresh.isEmpty {
             known.append(contentsOf: fresh.map(\.id))
             knownCache = known
@@ -173,7 +179,7 @@ public final class ItemUnlocks {
     /// The n LOCKED items closest to unlocking, by progress fraction desc.
     public func nearestLocked(_ n: Int = 1) -> [NearMiss] {
         allDefs()
-            .filter { $0.unlock != nil && !isUnlocked($0) }
+            .filter { $0.unlock != nil && !$0.inactive && !isUnlocked($0) }
             .map { d -> NearMiss in
                 let u = d.unlock!
                 let current = statValue(u.stat)

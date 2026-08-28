@@ -555,11 +555,27 @@ public final class PileNode: SKNode {
     /// clamped ±15°), a ×count when a type stacks (Snowball/Compound carry
     /// their live per-card counter instead). The art is `ItemArt.sticker` —
     /// the same pixel chip the store/help surfaces show, cursed included.
+    /// v6.89: a temporary DISPLAY-ONLY sticker list (the deferred-reveal
+    /// window). The engine's truth is untouched; nil = the card's real list.
+    public var badgeOverride: [StickerRecord]?
+
+    /// v6.89: the deferred-reveal beat — the chip fan pops and settles.
+    public func badgePop() {
+        badgeRow.removeAction(forKey: "badgePop")
+        badgeRow.setScale(1)
+        badgeRow.run(.sequence([
+            .scale(to: 1.45, duration: 0.09),
+            .scale(to: 1.0, duration: 0.14),
+        ]), withKey: "badgePop")
+    }
+
     private func syncStickerBadges(_ top: LiveCard?) {
         badgeRow.removeAllChildren()
-        guard let top, !top.stickers.isEmpty else { return }
+        guard let top else { return }
+        let records = badgeOverride ?? top.stickers
+        guard !records.isEmpty else { return }
         var counts: [String: Int] = [:]
-        for s in top.stickers { counts[s.type, default: 0] += 1 }
+        for s in records { counts[s.type, default: 0] += 1 }
         // CANONICAL STICKER CHIP LAYOUT (v6.72) — see StickerChipLayout above.
         // 20 → 26 (router batch) → 30 (v6.52) → card-scaled (v6.72): the chips
         // are the card's whole story mid-deal — full cards now carry 38pt

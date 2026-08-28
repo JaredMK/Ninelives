@@ -569,6 +569,25 @@ public final class DealScene: SKScene {
         }
     }
 
+    /// v6.89: a DISPLAY-ONLY badge override for one pile — the deferred-
+    /// reveal window between a landing and its queued morph/grant beat. The
+    /// engine's truth is untouched; nil clears. Takes effect on the next
+    /// board sync (the handlers set it BEFORE refreshAll repaints).
+    public func setBadgeOverride(_ pile: Int, _ stickers: [StickerRecord]?) {
+        guard pile >= 0, pile < piles.count else { return }
+        piles[pile].badgeOverride = stickers
+    }
+    public func badgeOverride(for pile: Int) -> [StickerRecord]? {
+        guard pile >= 0, pile < piles.count else { return nil }
+        return piles[pile].badgeOverride
+    }
+
+    /// v6.89: the reveal beat's badge flash — the chip fan pops and settles.
+    public func badgeMorphFlash(at pile: Int) {
+        guard pile >= 0, pile < piles.count else { return }
+        piles[pile].badgePop()
+    }
+
     public func syncBoard(_ snap: BoardSnapshot) {
         // A board change invalidates any open pile fan (stale card faces).
         hidePileFan()

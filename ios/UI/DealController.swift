@@ -493,12 +493,28 @@ public final class DealController {
             // campaign card (the sticker leaves, the curse arrives). Zen and
             // debug boards live on the LiveCard alone.
             if isCampaign { _ = campaign.convertStickerOnCard(cardId, from: from, to: to) }
-            Sound.shared.stripSticker()
-            if let to, let label = GameData.shared.stickerTypes.get(to)?.label {
-                animQueue.add(priority: 1) { [weak self] done in
-                    self?.scene.curseIndicator(at: index, label: label)
+            // v6.89: the card LANDS still wearing the OLD sticker — the
+            // engine's truth converted at the landing, but the scene shows
+            // the pre-conversion look until the queued morph beat (sound +
+            // badge pop + red ring), the Flypaper timing's mirror.
+            if let top = engine?.board.top(index), top.id == cardId {
+                var shown = scene.badgeOverride(for: index) ?? top.stickers
+                if let to { shown.removeAll { $0.type == to } }
+                shown.append(StickerRecord(type: from))
+                scene.setBadgeOverride(index, shown)
+            }
+            let morphLabel = to.flatMap { GameData.shared.stickerTypes.get($0)?.label }
+            animQueue.add(priority: 1) { [weak self] done in
+                guard let self else { done(); return }
+                self.scene.run(.sequence([.wait(forDuration: 0.35), .run { [weak self] in
+                    guard let self else { return }
+                    self.scene.setBadgeOverride(index, nil)
+                    self.refreshBoard()
+                    Sound.shared.stripSticker()
+                    self.scene.badgeMorphFlash(at: index)
+                    if let morphLabel { self.scene.curseIndicator(at: index, label: morphLabel) }
                     done()
-                }
+                }]))
             }
         case .coverCursed(let index, let cardId, let typeId, _):
             // v6.85 COVER PUNISH: the card that landed on Payout/Anchor
@@ -512,13 +528,28 @@ public final class DealController {
                 }
             }
         case .pillarSticker(let col, let pileIndex, let cardId, let typeId):
-            // Flypaper's catch: persist the sticker durably and pulse the pile.
+            // Flypaper's catch: persist the sticker durably. v6.89: the card
+            // LANDS bare — the catch (sound + badge pop + pulse) plays a
+            // beat later, so the sticker visibly ARRIVES instead of the
+            // card landing pre-dressed.
             _ = campaign.applyStickerDirect(cardId, typeId)
             _ = col
-            Sound.shared.sticker()   // a sticker landed — same cue as every apply
+            if let top = engine?.board.top(pileIndex), top.id == cardId {
+                var shown = scene.badgeOverride(for: pileIndex) ?? top.stickers
+                if let i = shown.lastIndex(where: { $0.type == typeId }) { shown.remove(at: i) }
+                scene.setBadgeOverride(pileIndex, shown)
+            }
             animQueue.add(priority: 1) { [weak self] done in
-                self?.scene.goodPulse(at: pileIndex)
-                done()
+                guard let self else { done(); return }
+                self.scene.run(.sequence([.wait(forDuration: 0.35), .run { [weak self] in
+                    guard let self else { return }
+                    self.scene.setBadgeOverride(pileIndex, nil)
+                    self.refreshBoard()
+                    Sound.shared.sticker()
+                    self.scene.badgeMorphFlash(at: pileIndex)
+                    self.scene.goodPulse(at: pileIndex)
+                    done()
+                }]))
             }
 
         case .tieSafeSaved(let index):
@@ -1690,7 +1721,7 @@ public final class DealController {
         guard engine.baseCanActivate(col) else {
             onBaseNotice?(engine.baseUnavailableReason(col)
                             ?? "\(def.label) can't do anything right now.",
-                          def.description)
+                          liveBaseDescription(def))
             return
         }
 
@@ -1725,7 +1756,7 @@ public final class DealController {
                 prompt = "\(def.label): tap a pile in this column."
             }
             guard !targets.isEmpty, let handler = onBaseTarget else {
-                onBaseNotice?("\(def.label) has nothing to target.", def.description)
+                onBaseNotice?("\(def.label) has nothing to target.", liveBaseDescription(def))
                 return
             }
             promptActive = true
@@ -1744,7 +1775,7 @@ public final class DealController {
             return
         }
         promptActive = true
-        var confirmDesc = def.description
+        var confirmDesc = liveBaseDescription(def)
         if def.effect == "emptyPurse" {
             // v6.74: the yield AND the cost, brutally clear — the exact peek
             // count and the exact number about to vanish, both computed live.
@@ -1765,6 +1796,16 @@ public final class DealController {
                 }.count
                 confirmDesc += "\nSet \(n) card\(n == 1 ? "" : "s") to \(isRank ? src.label : src.suit)"
             }
+        }
+        if def.effect == "chorus", let r = engine.mostCopiedRank(),
+           let label = DeckManager.ranks.first(where: { $0.value == r })?.label {
+            // CHORUS (v6.89): the live count, the setValue idiom — the rank
+            // itself is already substituted by liveBaseDescription.
+            let n = baseTargetPiles(col: col).filter { p in
+                guard let t = engine.board.top(p) else { return false }
+                return !t.joker && !t.blank && t.value != r
+            }.count
+            confirmDesc += "\nSet \(n) card\(n == 1 ? "" : "s") to \(label)"
         }
         // (v6.53 batch 3: Last Resort's destruction warning now lives in its
         // registry description — appending it here printed it twice.)
@@ -1914,7 +1955,7 @@ public final class DealController {
     /// plaque IS on its column) and no "tap the plaque" coaching line.
     public func helpText(forBase col: Int) -> (String, String)? {
         guard let id = currentBaseId(col), let def = GameData.shared.baseTypes.get(id) else { return nil }
-        var body = def.description
+        var body = liveBaseDescription(def)
         var title = def.label
         if engine != nil {
             let spent = engine.run.basesUsed?[safe: col] ?? false
@@ -2001,6 +2042,23 @@ public final class DealController {
     private func rankShieldLabel() -> String? {
         guard let r = engine?.run.shopRolls["rankShield"]?.rank else { return nil }
         return DeckManager.ranks.first { $0.value == r }?.label
+    }
+
+    /// A Base description with LIVE template values (v6.89): Chorus's
+    /// {rank} names the deck's current most-copied rank everywhere the deal
+    /// shows the text (confirm, amber notice, hold-help). Falls back to the
+    /// generic wording when no engine is up.
+    private func liveBaseDescription(_ def: ItemDef) -> String {
+        var out = def.description
+        if out.contains("{rank}") {
+            if let r = engine?.mostCopiedRank(),
+               let label = DeckManager.ranks.first(where: { $0.value == r })?.label {
+                out = out.replacingOccurrences(of: "{rank}", with: label)
+            } else {
+                out = out.replacingOccurrences(of: "{rank}", with: "your deck's most common rank")
+            }
+        }
+        return out
     }
 
     public func refreshBoard() {

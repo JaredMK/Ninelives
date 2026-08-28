@@ -124,6 +124,9 @@ extension GameEngine {
             // Cards buried — only Club Dig ships in the roster.
             guard base.suit == "♣" else { return nil }
             return topCount("♣") * max(1, base.int("digCount", 1))
+        case "clubTell":
+            // CLUB ORACLE (v6.89): the piles it would arm — Club Dig's idiom.
+            return topCount("♣")
         default:
             return nil
         }
@@ -781,7 +784,7 @@ extension GameEngine {
             // A CHANCE to burn one card out of the rest of the deck. Nothing
             // on the board is touched — this only shortens what is coming.
             // The roll reports its HIT/MISS (v6.57).
-            let odds = def.num("chance", 0.25)
+            let odds = def.num("chance", 0.5)
             if rollChance("samePower", def.id, def.label, odds, index: hub),
                let gone = deck.removeRandomRemaining(rng) {
                 result.amount = 1

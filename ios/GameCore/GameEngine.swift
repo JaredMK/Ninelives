@@ -375,7 +375,8 @@ public final class GameEngine {
 
     /// The full deck's most-copied rank; TIES BREAK TO THE LOWEST RANK (the
     /// ascending scan keeps the incumbent). nil when no ranked cards remain.
-    func mostCopiedRank() -> Int? {
+    /// Public (v6.89): the Chorus confirm prompt names this before firing.
+    public func mostCopiedRank() -> Int? {
         let counts = fullDeckRankCounts()
         var best: Int? = nil
         for r in minRank...maxRank {

@@ -2264,7 +2264,7 @@
       "effect": "chorus",
       "tier": "rare",
       "price": 8,
-      "description": "Set every top card in this column to the rank your full deck holds the most copies of"
+      "description": "Set every top card in this column to {rank}"
     },
     {
       "id": "diamondBoost",
@@ -2388,10 +2388,10 @@
       "label": "Long Odds",
       "icon": "🎯",
       "effect": "linkPurge",
-      "chance": 0.25,
+      "chance": 0.5,
       "tier": "rare",
       "price": 9,
-      "description": "25% chance to permanently purge a card from the deck"
+      "description": "50% chance to purge a card from the deck"
     },
     {
       "id": "linkHeavy",

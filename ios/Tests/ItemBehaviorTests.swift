@@ -359,21 +359,36 @@ final class ItemBehaviorTests: XCTestCase {
                        "the drawn clubSnob buries under its landing pile on a ♣ top")
     }
 
-    func testDiamondSnobReverseShufflesWithoutMovingCards() {
-        var specs = DeckManager.buildStandardDeck()
-        let i = specs.firstIndex { $0.suit == "♣" && $0.currentRank == 9 }!
-        specs[i].stickers.append(StickerRecord(type: "diamondSnob"))
-        let e = engine(specs: specs)
-        e.board.piles[0].cards = [LiveCard(id: 904, label: "5", value: 5, suit: "♦", red: true)]
-        e.board.piles[1].cards = [LiveCard(id: 905, label: "6", value: 6, suit: "♦", red: true)]
-        let counts = (0..<e.board.size).map { e.board.piles[$0].cards.count }
-        e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
-        e.guess(0, .higher)                               // 9♣ lands on a ♦ top
-        XCTAssertEqual(e.run.bonusCoins, 0, "a shuffle pays nothing")
-        var after = counts
-        after[0] += 1                                     // only the landing adds a card
-        XCTAssertEqual((0..<e.board.size).map { e.board.piles[$0].cards.count }, after,
-                       "the shuffle moves no cards between piles")
+    func testRippleNeverFiresWhenLandedOn() {
+        // v6.89 ROOT-CAUSE FIX: two stale v6.51 bidirectional snob paths in
+        // maybeExpansionStickers auto-shuffled on ♦ contact with a Ripple
+        // carrier (reading the LANDED-ON top's stickers). The conditional
+        // template is CARRIER-only: a ♦ landing ON a Ripple top fires
+        // NOTHING — no shuffle, no offer, no conversion.
+        let e = IV.engine(tops: [IV.spec(1, 5, "♦", ["diamondSnob"]), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♠")],
+                          deckOrder: [IV.spec(50, 9, "♦"), IV.spec(51, 2)])
+        var shuffler = false
+        e.on { if case .pillarFired(_, let effect, _, _, _) = $0, effect == "shuffler" { shuffler = true } }
+        e.guess(0, .higher)                               // a ♦ lands ON the carrier
+        XCTAssertFalse(shuffler, "no auto-shuffle — the stale bidirectional path is gone")
+        XCTAssertTrue(e.run.pendingActions.isEmpty, "no offer either — the DRAWN card carries nothing")
+        let buried = e.board.piles[0].cards.first { $0.id == 1 }
+        XCTAssertTrue(buried?.stickers.contains { $0.type == "diamondSnob" } ?? false,
+                      "the landed-on carrier keeps its Ripple, unconverted")
+    }
+
+    func testRippleCarrierOnDiamondTopFiresOnceThroughTheOffer() {
+        // The v6.51 reverse path double-fired an auto-shuffle BESIDE the
+        // v6.85 offer when a ♦-suited carrier landed on a ♦ top. Now: the
+        // offer, exactly once, and nothing else.
+        let e = IV.engine(tops: [IV.spec(1, 5, "♦"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♠")],
+                          deckOrder: [IV.spec(50, 9, "♦", ["diamondSnob"]), IV.spec(51, 2)])
+        var shuffler = false
+        e.on { if case .pillarFired(_, let effect, _, _, _) = $0, effect == "shuffler" { shuffler = true } }
+        e.guess(0, .higher)
+        XCTAssertFalse(shuffler, "no auto-shuffle beside the offer (the old double-fire)")
+        XCTAssertEqual(e.run.pendingActions.map(\.kind), ["suitRipple"], "exactly ONE offer")
+        e.answerAction(false)
     }
 
     func testSnobBothDirectionsFireOnOnePlacement() {

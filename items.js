@@ -859,7 +859,11 @@ const NINELIVES_ITEMS = {
     // TUNE: price 8 proposed (R4).
     { id: "chorus", unlock: { type: "milestone", stat: "bestCampaignScore", count: 160 }, label: "Chorus", icon: "🎼",
       kind: "active", effect: "chorus", tier: "rare", price: 8,
-      description: "Set every top card in this column to the rank your full deck holds the most copies of" },
+      // v6.89: {rank} names the LIVE most-common rank wherever the player
+      // can see it before firing (shelf, confirm prompt, hold-help) — the
+      // generic fallback still reads "your deck's most common rank" where
+      // no deck exists yet (unlock popup, Collection).
+      description: "Set every top card in this column to {rank}" },
     // DIAMOND BOOST (v6.78: column-wide, no target pick) — value = the pile
     // size added to EVERY ♦-topped pile in the column.
     // TUNE: price 3 proposed (R4).
@@ -911,10 +915,10 @@ const NINELIVES_ITEMS = {
       effect: "linkSticker", tier: "rare", price: 9,
       description: "Apply a random sticker to every top card in this column" },
     // chance = probability (0–1) that a card is purged from the REMAINING deck
-    // — it never touches the board, only what is still to come.
+    // — it never touches the board, only what is still to come. v6.89: 50%.
     { id: "linkPurge", unlock: { type: "behavior", stat: "removalsUsed", count: 14 }, label: "Long Odds", icon: "🎯",
-      effect: "linkPurge", chance: 0.25, tier: "rare", price: 9,
-      description: "25% chance to permanently purge a card from the deck" },
+      effect: "linkPurge", chance: 0.5, tier: "rare", price: 9,
+      description: "50% chance to purge a card from the deck" },
     { id: "linkHeavy", unlock: { type: "behavior", stat: "perfectDeals", count: 4 }, label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 1, hubValue: 3, tier: "rare", price: 9,
       description: "Add +1 pile size to every pile, and +3 to the pile you called Same on" },

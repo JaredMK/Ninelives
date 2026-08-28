@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.88"
-    static let note = "STORE + BOARD BATCH: the mystery Same-Power reveal shows the EQUIPPED→NEW compare (the layout never framed it without column buttons); the base fire-or-not prompt sizes to its text (sizeThatFits, stacked buttons); a pile tap surfaces the hold's info; Ballast equalizes the WHOLE board with a travel animation; Bonus Reset, Curse Ward, Final Cut and Cleanse All join the roster."
+    static let version = "v6.89"
+    static let note = "FIXES + FEEDBACK: Ripple fires ONLY at its carrier's landing (two stale bidirectional paths deleted); map cards — sealed packs included — carry ZERO stickers (the grant-time dressing pathway is gone); retired items vanish from the Collection and the unlock pops; sticker conversions and Flypaper catches land first and reveal on a beat; Long Odds is 50%; Chorus names its live rank; Club Oracle counts its piles."
     static let line = "build \(version) · \(note)"
 }
 
@@ -1437,14 +1437,17 @@ final class CollectionViewController: MenuScreenBase {
     /// Web COLLECTION_GROUPS × items.js array order (stickers cursed-filtered,
     /// as the web's grant pools are). The grid AND the detail pager both read
     /// this so they can never disagree about the flat item list.
+    /// v6.89: RETIRED (`inactive`) items are HIDDEN outright — the v6.85
+    /// greyed-tile treatment is superseded (the tile code below stays for
+    /// any future surface that wants it, but nothing reaches it from here).
     static func groups() -> [(String, [ItemDef], String)] {
         let data = GameData.shared
         return [
-            ("STICKERS", data.items.stickers.filter { !$0.cursed }, "sticker"),
-            ("PILLARS", data.items.pillars, "pillar"),
-            ("BASES", data.items.bases, "base"),
-            ("SAME-POWERS", data.items.samePowers, "samepower"),
-            ("PACKS", data.items.packs, "pack"),
+            ("STICKERS", data.items.stickers.filter { !$0.cursed && !$0.inactive }, "sticker"),
+            ("PILLARS", data.items.pillars.filter { !$0.inactive }, "pillar"),
+            ("BASES", data.items.bases.filter { !$0.inactive }, "base"),
+            ("SAME-POWERS", data.items.samePowers.filter { !$0.inactive }, "samepower"),
+            ("PACKS", data.items.packs.filter { !$0.inactive }, "pack"),
         ]
     }
 

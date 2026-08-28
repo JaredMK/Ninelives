@@ -93,19 +93,25 @@ final class MapCardStickerTests: XCTestCase {
     }
 
     /// v6.86 (batch item 11): sealed-pack cards may arrive DRESSED — but
-    /// never with an identity-MUTATING sticker (suit changers, ±rank,
-    /// random rank). Wild Suit and plain stickers stay possible.
-    func testSealedPackCardsNeverPreCarryMutatingStickers() {
-        for seed: UInt32 in [11, 4242, 987_654] {
-            let c = climb("pink", seed: seed)
+    /// v6.89 (the batch's item 7, root-caused): sealed packs ride BARE —
+    /// the v6.73 "dress as granted" pathway (applyPackCardStickers) is
+    /// deleted. EVERY card the map hands over carries ZERO stickers and
+    /// zero curses; pre-attached stickers exist only on store-purchased
+    /// cards. Swept wide, the mandated test.
+    func testSealedPackCardsCarryZeroStickers() {
+        var grants = 0
+        for i in 1...40 {
+            let c = climb("pink", seed: UInt32(i * 7919 + 13))
             for (key, card) in sealedPackGrants(c) {
-                let dressed = c.baseDeck.first { $0.id == card.id } ?? card
-                for s in dressed.stickers {
-                    XCTAssertFalse(GameData.shared.stickerTypes.get(s.type)?.mutatesCardIdentity ?? false,
-                                   "seed \(seed) \(key): pack card pre-carried mutating '\(s.type)'")
-                }
+                grants += 1
+                XCTAssertTrue(card.stickers.isEmpty,
+                              "seed \(i * 7919 + 13) \(key): a map-pack card carries '\(card.stickers.map(\.type))'")
+                let owned = c.baseDeck.first { $0.id == card.id }
+                XCTAssertTrue(owned?.stickers.isEmpty ?? true,
+                              "seed \(i * 7919 + 13) \(key): …and the OWNED copy is bare too")
             }
         }
+        XCTAssertGreaterThan(grants, 100, "the sweep saw a real population")
     }
 
     /// …and the draft POOL stays clean at generation: the pre-v6.73 bug rolled
@@ -121,40 +127,8 @@ final class MapCardStickerTests: XCTestCase {
         }
     }
 
-    // MARK: - The distribution (pink — no deck override in play)
-
-    func testStickerCountDistributionAndCurseShare() {
-        var counts = [0, 0, 0, 0]          // cards carrying 0/1/2/3 stickers
-        var rolled = 0, cursed = 0
-        // v6.73: the distribution lives on PACK CONTENTS only — the pair
-        // population is smaller than the old pickups+pairs sweep, so more
-        // seeds keep the sample honest.
-        for i in 1...90 {
-            let c = climb("pink", seed: UInt32(i * 7919 + 13))
-            for (_, card) in sealedPackGrants(c) {
-                counts[min(3, card.stickers.count)] += 1
-                rolled += card.stickers.count
-                cursed += card.stickers.filter {
-                    GameData.shared.stickerTypes.get($0.type)?.cursed == true
-                }.count
-            }
-        }
-        let total = counts.reduce(0, +)
-        XCTAssertGreaterThan(total, 250, "the seed sample yields a real population")
-        // 75 / 20 / 4 / 1 within ±5 points. (An eligibility miss can only
-        // push a card DOWN a bucket and is rare — well inside the tolerance.)
-        let expect = [0.75, 0.20, 0.04, 0.01]
-        for (i, e) in expect.enumerated() {
-            XCTAssertEqual(Double(counts[i]) / Double(total), e, accuracy: 0.05,
-                           "cards with \(i) sticker(s): \(counts[i]) of \(total)")
-        }
-        // ~5% of rolled stickers are curses — very wide tolerance (the
-        // population of rolled stickers is only a few hundred).
-        XCTAssertGreaterThan(rolled, 40, "stickers actually rolled")
-        XCTAssertGreaterThan(cursed, 0, "the curse branch is reachable")
-        XCTAssertEqual(Double(cursed) / Double(rolled), 0.05, accuracy: 0.05,
-                       "curse share: \(cursed) of \(rolled)")
-    }
+    // (v6.89: testStickerCountDistributionAndCurseShare is GONE with the
+    // pathway it measured — sealed packs no longer dress at all.)
 
     // MARK: - Determinism
 

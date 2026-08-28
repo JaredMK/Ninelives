@@ -305,7 +305,8 @@ public final class CampaignState {
         // deck's LIVE most common rank; Rank Shield names the rank it
         // protects — the climb's incumbent when one exists, else the live
         // leader it would protect at the next deal's start.
-        if def.effect == "transmute" || def.effect == "rankShield", out.contains("{rank}") {
+        if def.effect == "transmute" || def.effect == "rankShield" || def.effect == "chorus",
+           out.contains("{rank}") {
             let r = (def.effect == "rankShield" ? shopRolls[def.id]?.rank : nil) ?? mostCommonRank()
             if let r, let label = DeckManager.ranks.first(where: { $0.value == r })?.label {
                 out = out.replacingOccurrences(of: "{rank}", with: label)
@@ -742,49 +743,6 @@ public final class CampaignState {
     /// cards roll as they are granted, off the items.js `packStickerOdds`
     /// table (75% bare, 20% one sticker, 4% two, 1% three — Convention 1:
     /// the shape is tuned in the data file, never hardcoded here, v6.74);
-    /// each rolled sticker has a 5% chance of being a CURSE (the shared
-    /// weighted `rollCurse` pick, path "map") instead of a normal grantable
-    /// sticker (the startStickers eligibility filter). Rolls on its OWN keyed
-    /// substream — (runSeed, "packsticker", nodeId, slot) — so a reload shows
-    /// the same stickers and no existing seeded draw (draft, pack, badge
-    /// replay) shifts.
-    /// Deck gates: Rocko (noStickers) takes NO stickers of any kind from
-    /// this feature — his only curse source stays Just a Two; Mr. Garden
-    /// (stickerEverything) is skipped whole — his coat already dressed the
-    /// entire draft pool and this must not stack on top. Jokers/Blanks
-    /// (and the ±sentinels) never dress.
-    func applyPackCardStickers(cardId: Int, keys: [RunKey]) {
-        guard !rules().noStickers, !rules().stickerEverything else { return }
-        guard let i = index(of: cardId) else { return }   // sentinel ids skip
-        guard !baseDeck[i].joker, !baseDeck[i].blank else { return }
-        let rng = runRng(seed: runSeed, keys)
-        // v6.74: the count comes from the items.js table (same single draw,
-        // same 75/20/4/1 shape) — Convention 1, no hardcoded odds here.
-        let count = StoreRoll.stickerCount(rng.next(), odds: data.items.packStickerOdds)
-        guard count > 0 else { return }
-        for _ in 0..<count {
-            if rng.next() < 0.05 {
-                // A curse is INFLICTED — the same weighted pool every cursing
-                // pathway shares (curseWeight in items.js), on its own path.
-                if let t = data.stickerTypes.rollCurse(path: "map", roll: rng.next()) {
-                    applyStickerToCard(&baseDeck[i], t.id, rng: rng)
-                }
-                continue
-            }
-            // The normal pool: grantable + per-card eligibility. v6.86:
-            // every identity-MUTATING sticker is out (the v6.71 suit-changer
-            // exclusion, widened to ±rank and random rank) — an acquired
-            // card is dressed, never repainted. Recomputed per roll so a
-            // sticker applied this loop keeps the next pick honest.
-            let card = baseDeck[i]
-            let elig = grantableStickers().filter { t in
-                guard !t.mutatesCardIdentity else { return false }
-                return CardRules.stickerEligible(card, t.id, data: data)
-            }
-            guard !elig.isEmpty else { continue }
-            applyStickerToCard(&baseDeck[i], elig[rng.index(elig.count)].id, rng: rng)
-        }
-    }
 
     /// v6.57 DEBUG toggle (the debug panel's "1-SUIT PACKS" row): while on,
     /// EVERY pack grants cards of ONE seeded suit per node and the map badge
@@ -1196,15 +1154,17 @@ public final class CampaignState {
             granted = pair
         } else {
             let rng = rrng(.s("pack"), .n(node.id))
-            for slot in 0..<count {
+            for _ in 0..<count {
                 let suit = packSlotSuit(node, rng: rng)
                 let id = pickSuitDraftId(suit, rng: rng)
                 granted.append(id)
-                // SEALED PACK CONTENTS dress as they are GRANTED (v6.73) —
-                // never at map-lock time, so nothing the map displays is
-                // stickered and no unclaimed pool card is touched. Its own
-                // keyed substream keeps `rng` (the grant stream) undisturbed.
-                applyPackCardStickers(cardId: id, keys: [.s("packsticker"), .n(node.id), .n(slot)])
+                // v6.89: SEALED PACK CONTENTS ride BARE — the v6.73 "dress as
+                // granted" rule is retired with its whole pathway. EVERY card
+                // the map hands over (pickups, revealed pairs, sealed packs)
+                // carries zero stickers and zero curses; pre-attached
+                // stickers exist ONLY on store-purchased cards (the store
+                // card slot + bought card packs). Mr. Garden's coat is
+                // untouched — it dresses the baseDeck itself, not grants.
                 // Reserve IN THE LOOP (the web pushes ownedIds per slot) —
                 // without this the next slot's pickSuitDraftId re-rolls the
                 // same unowned card and a +N pack grants N identical cards.

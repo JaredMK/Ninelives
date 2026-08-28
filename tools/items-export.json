@@ -1,6 +1,6 @@
 {
- "version": "v6.88",
- "generatedAt": "2026-08-27 06:34",
+ "version": "v6.89",
+ "generatedAt": "2026-08-28 04:12",
  "rows": [
   {
    "cls": "Stickers",
@@ -2512,9 +2512,9 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Set every top card in this column to the rank your full deck holds the most copies of",
-   "flags": "",
-   "flagNotes": ""
+   "description": "Set every top card in this column to {rank}",
+   "flags": "UNWIRED",
+   "flagNotes": "UNWIRED: {rank} has no substitution path"
   },
   {
    "cls": "Bases",
@@ -2744,7 +2744,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "25% chance to permanently purge a card from the deck",
+   "description": "50% chance to purge a card from the deck",
    "flags": "",
    "flagNotes": ""
   },
