@@ -87,13 +87,35 @@ sharing switch's own effect of going silent), device identifiers, free text.
 ## Dashboard setup (TelemetryDeck)
 
 App ID `8FC986B9-0F2C-44AA-8ED2-F95676B952FE` is wired in `UI/Telemetry.swift`.
-Suggested insights: `mode_start` grouped by `picked_mode` and `deck` (what do
-testers actually play) · funnel `session_start → mode_start → run_start →
-deal_end → run_end` · `run_end.outcome` split + `stage_reached` histogram ·
-`conditional_outcome.outcome` grouped by `sticker_id` (the conversion rates) ·
-`base_expired_uncharged` count vs `base_fired` (base discovery) ·
-`restock_used`/`redeal_used` existence (do they find them) · `tutorial.phase`
-funnel · retention comes free from `session_start`.
+The **TestFlight Beta** dashboard is BUILT and live (org `com.jarheadlabs` →
+shoulda said same → Dashboards); its versioned spec lives at
+[`telemetry-dashboard.json`](telemetry-dashboard.json) — re-import any time via
+Dashboards → Import Dashboard. Nine insights, all validated against test-mode
+signals in the SDK's own wire format:
+
+1. Mode adoption — `mode_start` by `picked_mode` (Top N donut)
+2. Mode adoption — `mode_start` by `deck` (Top N donut)
+3. Session funnel — `session_start → mode_start → run_start → deal_end →
+   run_end` (Funnel; the last step's condition is wrapped in a one-element
+   `or` — semantically identical)
+4. Run outcomes — `run_end` by `outcome` (Top N donut)
+5. Stage reached — `run_end` by `stage_reached` (Top N bar chart)
+6. Conditional stickers — `conditional_outcome` by `sticker_id` + `outcome`
+   (Advanced TQL `groupBy`, two dimensions — the conversion-rate table)
+7. Base discovery — `base_fired` vs `base_expired_uncharged` (Advanced TQL
+   `groupBy` on `type` with an `in` filter)
+8. Restocks & redeals — by `kind` paid/free (Advanced TQL `groupBy` on
+   `type` + `kind`, `in` filter over `restock_used`/`redeal_used`)
+9. Tutorial funnel — `phase=started → phase=step → phase=completed` (Funnel;
+   `phase` only rides `tutorial` signals, so no type clause needed)
+
+Retention and session length need no insight: they're built into the app's
+**Customers** tab (Acquisition / Activation / Retention — hourly/daily/weekly/
+monthly returning users) fed by the SDK's default payload (SwiftSDK ≥ 2.8.0;
+we ship 2.14.2). Toggle the **Test Mode** chip to switch between beta test
+signals and production data. Note: TelemetryDeck's free tier queues data
+processing — signals can take a while to appear ("Queued for Data
+Processing" banner); paid plans process in real time.
 
 ## App Store Connect privacy questionnaire
 

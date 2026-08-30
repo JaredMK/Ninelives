@@ -1,0 +1,176 @@
+{
+  "title": "TestFlight Beta",
+  "insights": [
+    {
+      "breakdownKey": "deck",
+      "displayMode": "pieChart",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Mode adoption — mode_start by deck",
+      "type": "topN",
+      "uniqueUser": false
+    },
+    {
+      "breakdownKey": "type",
+      "displayMode": "raw",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Conditional stickers — conditional_outcome by sticker_id + outcome",
+      "type": "customQuery",
+      "uniqueUser": false,
+      "customQuery": {
+        "aggregations": [
+          {
+            "fieldName": "count",
+            "name": "count",
+            "type": "longSum"
+          }
+        ],
+        "dimensions": [
+          {
+            "dimension": "sticker_id",
+            "outputName": "sticker_id",
+            "type": "default"
+          },
+          {
+            "dimension": "outcome",
+            "outputName": "outcome",
+            "type": "default"
+          }
+        ],
+        "filter": {
+          "dimension": "type",
+          "type": "selector",
+          "value": "conditional_outcome"
+        },
+        "granularity": "all",
+        "queryType": "groupBy"
+      }
+    },
+    {
+      "breakdownKey": "type",
+      "displayMode": "raw",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Base discovery — base_fired vs base_expired_uncharged",
+      "type": "customQuery",
+      "uniqueUser": false,
+      "customQuery": {
+        "aggregations": [
+          {
+            "fieldName": "count",
+            "name": "count",
+            "type": "longSum"
+          }
+        ],
+        "dimensions": [
+          {
+            "dimension": "type",
+            "outputName": "type",
+            "type": "default"
+          }
+        ],
+        "filter": {
+          "dimension": "type",
+          "type": "in",
+          "values": [
+            "base_fired",
+            "base_expired_uncharged"
+          ]
+        },
+        "granularity": "all",
+        "queryType": "groupBy"
+      }
+    },
+    {
+      "breakdownKey": "picked_mode",
+      "displayMode": "pieChart",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Mode adoption — mode_start by picked_mode",
+      "type": "topN",
+      "uniqueUser": false
+    },
+    {
+      "breakdownKey": "type",
+      "displayMode": "funnelChart",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Tutorial funnel — started → step → completed",
+      "type": "funnel",
+      "uniqueUser": true
+    },
+    {
+      "breakdownKey": "type",
+      "displayMode": "funnelChart",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Session funnel — session_start → run_end",
+      "type": "funnel",
+      "uniqueUser": true
+    },
+    {
+      "breakdownKey": "stage_reached",
+      "displayMode": "barChart",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Stage reached — run_end by stage_reached",
+      "type": "topN",
+      "uniqueUser": false
+    },
+    {
+      "breakdownKey": "type",
+      "displayMode": "raw",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Restocks & redeals — by kind (paid/free)",
+      "type": "customQuery",
+      "uniqueUser": false,
+      "customQuery": {
+        "aggregations": [
+          {
+            "fieldName": "count",
+            "name": "count",
+            "type": "longSum"
+          }
+        ],
+        "dimensions": [
+          {
+            "dimension": "type",
+            "outputName": "type",
+            "type": "default"
+          },
+          {
+            "dimension": "kind",
+            "outputName": "kind",
+            "type": "default"
+          }
+        ],
+        "filter": {
+          "dimension": "type",
+          "type": "in",
+          "values": [
+            "restock_used",
+            "redeal_used"
+          ]
+        },
+        "granularity": "all",
+        "queryType": "groupBy"
+      }
+    },
+    {
+      "breakdownKey": "outcome",
+      "displayMode": "pieChart",
+      "groupBy": "all",
+      "isExpanded": false,
+      "title": "Run outcomes — run_end by outcome",
+      "type": "topN",
+      "uniqueUser": false
+    }
+  ],
+  "_exportMetadata": {
+    "version": 1,
+    "exportedAt": "2026-08-30T21:04:16.728Z",
+    "dynamicFields": []
+  }
+}
