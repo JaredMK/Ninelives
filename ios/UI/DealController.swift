@@ -278,6 +278,7 @@ public final class DealController {
                                  shopRolls: campaign.shopRolls,
                                  noStickers: campaign.rules().noStickers))
         engine.on { [weak self] in self?.handle($0) }
+        engine.telemetry = { TelemetryCore.shared.recordItemFire(klass: $0, id: $1, label: $2, values: $3) }
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
@@ -329,10 +330,15 @@ public final class DealController {
                                  // …and Last Resort seals itself on this.
                                  isBoss: p.isBoss))
         engine.on { [weak self] in self?.handle($0) }
+        // TELEMETRY (v6.92): the engine's one instrumentation stream (recT)
+        // feeds the remote sink through its long-dormant hook — item_fired,
+        // base_fired and conditional_outcome all derive from this line.
+        engine.telemetry = { TelemetryCore.shared.recordItemFire(klass: $0, id: $1, label: $2, values: $3) }
         // PAUPER family (v6.76): the engine reads the LIVE campaign purse through
         // this closure — never a snapshot (captures the shared campaign, not self,
         // so no retain cycle).
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
+        if isCampaign { Telemetry.loadout(campaign) }
         // FULL-DECK composition hook (v6.78, web setCompositionHook parity):
         // campaign deals read composition off the LIVE owned deck — the deck
         // the histogram shows — even on subset deals. Zen keeps the deal-deck
@@ -1223,6 +1229,13 @@ public final class DealController {
     }
 
     private func finish(win: Bool) {
+        // TELEMETRY (v6.92): a deal ending with a CHARGED base never fired —
+        // the "they don't know bases exist" signal. Read here, while the
+        // engine is alive (DealOutcome never carried basesUsed).
+        if isCampaign {
+            TelemetryCore.shared.recordUnfiredBases(bases: engine?.run.bases,
+                                                    used: engine?.run.basesUsed)
+        }
         isOver = true
         interactionLocked = true
         scene.crtFlicker()               // the ONE-SHOT flicker, deal end only
@@ -2400,6 +2413,10 @@ public final class DealController {
 
         case .campaign:
             guard let runMap, campaign.spendCoins(Int(redealCost)) else { return }
+            TelemetryCore.shared.record("redeal_used", [
+                "kind": redealCost > 0 ? "paid" : "free",
+                "cost": String(Int(redealCost)),
+            ])
             // A PAID redeal: the spend falls first, then the riffle (a free
             // one — redealCost 0 — spends nothing and stays a plain shuffle).
             if redealCost > 0 { Sound.shared.coinLoss() }

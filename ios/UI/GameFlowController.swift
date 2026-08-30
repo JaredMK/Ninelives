@@ -647,6 +647,8 @@ public final class GameFlowController: UIViewController {
         campaign.setTier(tier)
         campaign.setSeedOverride(seedU32)
         campaign.startNewRun()
+        Telemetry.climbStarted(campaign: campaign, deck: deckId, tier: tier,
+                               seed: seedU32 ?? campaign.runSeed)
         runMap.setDifficultyTier(tier)
         reshuffleIndex = 0
         redealCost = DealPlanner.redealBaseCost
@@ -711,6 +713,9 @@ public final class GameFlowController: UIViewController {
     }
 
     private func reallyShowStore(fresh: Bool, nodeId: Int?) {
+        if Telemetry.firstTime("store") {
+            TelemetryCore.shared.record("milestone_first_store")
+        }
         currentPhase = "store"
         if fresh { campaign.discardStoreOffer() }
         let sv = StoreViewController(campaign: campaign)
@@ -866,6 +871,7 @@ public final class GameFlowController: UIViewController {
             leaderboards.reportRunEnd(deck: campaign.deckId, tier: campaign.difficultyTier,
                                       exhibition: exhibition,
                                       score: campaign.getRunScore())
+            Telemetry.runEnded(campaign: campaign, outcome: "loss")
             clearSave()   // a loss wipes the campaign — no resume of a dead run
             let failed = FailedInfo(correct: o.correctGuesses,
                                     wrong: o.totalGuesses - o.correctGuesses,
@@ -889,6 +895,9 @@ public final class GameFlowController: UIViewController {
             bonusEvents.append(("Ambush", ambushBounty))
         }
         let node = campaign.currentNode()
+        Telemetry.dealEnded(campaign: campaign, won: o.won, pilesAlive: o.aliveCount,
+                            stage: (node?.phase ?? -1) + 1,
+                            nodeId: node?.id, nodeType: node?.type)
         let payoutBoss = !wasAmbush && node?.type == "boss"
         let payoutStage = !wasAmbush ? ((node?.phase ?? -1) + 1) : 0
         let payoutRating = payoutBoss ? 3
@@ -1156,6 +1165,7 @@ public final class GameFlowController: UIViewController {
     }
 
     func showPinkyHome() {
+        Telemetry.runEnded(campaign: campaign, outcome: "win")
         currentPhase = "map"
         let s = campaign.stats.get()
         let overlay = PhaseOverlayView.pinkyHome(
@@ -1177,6 +1187,7 @@ public final class GameFlowController: UIViewController {
     }
 
     private func enterEndless() {
+        Telemetry.enteredEndless(campaign: campaign)
         campaign.startEndless()
         persist(phase: "map")
         dismissOverlay()
@@ -1523,6 +1534,7 @@ public final class GameFlowController: UIViewController {
     // MARK: - Zen
 
     func startZen(diff: String) {
+        Telemetry.zenStarted(campaign: campaign, diff: diff)
         zenDiff = diff
         zenCounted = false
         zenFlips = 0
@@ -1539,8 +1551,14 @@ public final class GameFlowController: UIViewController {
         if campaign.saveStore.pref("tutorial2") != "1" || tutorialReplayArmed {
             tutorialReplayArmed = false
             tutorialRanThisSession = true
-            let tour = TutorialView(steps: GameData.shared.tutorial.steps("deal")) { [weak self] _ in
+            TelemetryCore.shared.record("tutorial", ["phase": "started"])
+            let tour = TutorialView(steps: GameData.shared.tutorial.steps("deal")) { [weak self] completed in
+                TelemetryCore.shared.record("tutorial",
+                    ["phase": completed ? "completed" : "abandoned"])
                 self?.campaign.saveStore.setPref("tutorial2", "1")
+            }
+            tour.onStep = { i in
+                TelemetryCore.shared.record("tutorial", ["phase": "step", "step": String(i)])
             }
             vc.tutorialGuided = true
             tour.anchorProvider = { [weak vc] key in vc?.tutorialAnchorRect(key) }
@@ -1579,6 +1597,7 @@ public final class GameFlowController: UIViewController {
     }
 
     private func onZenEnd(_ o: DealOutcome) {
+        Telemetry.zenEnded()
         guard let d = zenDiff else { return }
         var e = campaign.zenStats.get(d)
         var unlockLabel: String? = nil
@@ -1634,6 +1653,7 @@ public final class GameFlowController: UIViewController {
     }
 
     private func zenTeardown() {
+        Telemetry.zenEnded()
         zenDiff = nil
     }
 }
@@ -1800,6 +1820,15 @@ extension GameFlowController: MapScreenDelegate {
             return
         }
         autopilot?.noteMystery(key)
+        // TELEMETRY (v6.92): the branch IS the outcome key; the character is
+        // the pool it came from (the Joker's visits log at his own seam).
+        TelemetryCore.shared.record("mystery_choice", [
+            "character": MysteryConfig.queenKeys.contains(key) ? "queen" : "two",
+            "event": key,
+        ])
+        if Telemetry.firstTime("mystery") {
+            TelemetryCore.shared.record("milestone_first_mystery")
+        }
         guard var outcome = campaign.applyMysteryEvent(key, nodeId: node.id) else {
             _ = campaign.markNodeCleared(node.id)
             persist(phase: "map")
@@ -2471,6 +2500,14 @@ extension GameFlowController: MapScreenDelegate {
 
 extension GameFlowController: StoreScreenDelegate, CampaignCheckpointing {
     public func storeDone(_ storeVC: StoreViewController) {
+        // TELEMETRY (v6.92): what stayed on the shelf = skipped; the purse
+        // on the way out closes the store_visit pair.
+        if let offer = campaign.getStoreOffer() {
+            for s in offer.slots.compactMap({ $0 }) where s.kind != "card" {
+                TelemetryCore.shared.record("item_skipped", ["item_id": s.id, "kind": s.kind])
+            }
+        }
+        TelemetryCore.shared.record("store_exit", ["purse": String(campaign.getCoins())])
         // His comp was for THIS visit. Walking out ends it whether or not you
         // spent it — otherwise a declined shop would bank a free one forever.
         campaign.endFreeShop()

@@ -602,13 +602,15 @@ final class SettingsSheetView: SheetView {
     /// every other unlock and survives save/restore and the deck renames.
     private let assistButton = PixelButtonView("", role: .plain, fontSize: 16)
     private let assistHint = CRTKit.label("", size: 14, color: CRT.muted)
+    private let shareButton = PixelButtonView("", role: .plain, fontSize: 16)
+    private let shareHint = CRTKit.label("", size: 14, color: CRT.muted)
     private let resetButton = PixelButtonView("RESET PROGRESS", role: .danger, fontSize: 16)
     private let foot = CRTKit.label(BuildStamp.line, size: 14, color: CRT.muted)
 
     init(campaign: CampaignState) {
         self.campaign = campaign
         super.init(title: "Settings")
-        setBodyHeight(292)
+        setBodyHeight(370)
         soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
         soundButton.onTap = { [weak self] in
             Sound.shared.enabled.toggle()
@@ -621,6 +623,14 @@ final class SettingsSheetView: SheetView {
             self.refreshAssistRow()
         }
         refreshAssistRow()
+        // TELEMETRY (v6.92): the sharing switch — reads/writes the pref the
+        // bridge consults live, so OFF stops the very next signal.
+        shareButton.onTap = { [weak self] in
+            Telemetry.setSharing(!Telemetry.sharingEnabled)
+            self?.refreshShareRow()
+        }
+        refreshShareRow()
+        shareHint.textAlignment = .center
         assistHint.textAlignment = .center
         resetButton.onTap = { [weak self] in self?.onResetProgress?() }
         foot.textAlignment = .center
@@ -629,8 +639,17 @@ final class SettingsSheetView: SheetView {
         body.addSubview(soundButton)
         body.addSubview(assistButton)
         body.addSubview(assistHint)
+        body.addSubview(shareButton)
+        body.addSubview(shareHint)
         body.addSubview(resetButton)
         body.addSubview(foot)
+    }
+
+    private func refreshShareRow() {
+        shareButton.setTitle("SHARE ANONYMOUS GAMEPLAY DATA: \(Telemetry.sharingEnabled ? "ON" : "OFF")")
+        shareHint.attributedText = CRTKit.attributed(
+            "Anonymous balance data only — never anything identifying.",
+            size: 14, color: CRT.muted)
     }
 
     private func refreshAssistRow() {
@@ -658,8 +677,10 @@ final class SettingsSheetView: SheetView {
         soundButton.frame = CGRect(x: 14, y: 8, width: w, height: 48)
         assistButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
         assistHint.frame = CGRect(x: 14, y: 118, width: w, height: 16)
-        resetButton.frame = CGRect(x: 14, y: 146, width: w, height: 48)
-        foot.frame = CGRect(x: 14, y: 206, width: w, height: 34)
+        shareButton.frame = CGRect(x: 14, y: 144, width: w, height: 48)
+        shareHint.frame = CGRect(x: 14, y: 196, width: w, height: 16)
+        resetButton.frame = CGRect(x: 14, y: 224, width: w, height: 48)
+        foot.frame = CGRect(x: 14, y: 284, width: w, height: 34)
     }
 }
 

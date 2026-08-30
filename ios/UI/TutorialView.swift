@@ -238,8 +238,12 @@ public final class TutorialView: UIView {
         }
     }
 
+    /// TELEMETRY (v6.92): fired once per step reached (waits included).
+    public var onStep: ((Int) -> Void)?
+
     private func show() {
         guard index < steps.count else { finish(completed: true); return }
+        onStep?(index)
         // Milestone steps hold back behind free play first.
         if steps[index].wait > 0 { beginWait(steps[index]) } else { present() }
     }

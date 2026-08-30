@@ -1662,6 +1662,7 @@ public final class CampaignState {
     /// the detail sheet and the pack tray. Exhibition banks nothing, exactly
     /// as it banks no unlock progress.
     func recordBuy(_ typeId: String) {
+        TelemetryCore.shared.record("item_bought", ["item_id": typeId, "purse": String(coins)])
         DebugEventLog.shared.add("store: bought \(typeId) · purse \(coins)")
         guard !isExhibition() else { return }
         stats.bumpItemBought(typeId)
@@ -1780,6 +1781,7 @@ public final class CampaignState {
     public func placeBase(_ typeId: String, col: Int) -> Bool {
         guard !rules().noPillarsBases else { return false }   // Mr. Garden (v6.67)
         guard col >= 0, col < columnBases.count, (baseInventory[typeId] ?? 0) > 0 else { return false }
+        TelemetryCore.shared.record("base_equipped", ["base_id": typeId, "column": String(col)])
         baseInventory[typeId]! -= 1
         if baseInventory[typeId] == 0 { baseInventory[typeId] = nil }
         if !isExhibition() { stats.bump("basesPlaced") }
@@ -1900,6 +1902,21 @@ public final class CampaignState {
         // Stamp the visit's owner node (v6.52) — the store screen rerolls on a
         // mismatch, so this shelf and this visit's price twist end with it.
         storeOffer!.offerNode = node ?? nodePos
+        // TELEMETRY (v6.92): the full shelf as rolled — ids + resolved
+        // prices — and the purse on entry. One source, two sinks: the debug
+        // line below keeps its local log.
+        if let offer = storeOffer {
+            let shelf = offer.slots.enumerated().compactMap { i, s -> String? in
+                guard let s else { return nil }
+                return "\(s.kind):\(s.id):\(Int(priceOfMixed(i)))"
+            }
+            TelemetryCore.shared.record("store_visit", [
+                "shelf": shelf.joined(separator: "|"),
+                "purse": String(coins),
+                "purge_price": String(Int(removalPrice())),
+                "reroll_cost": String(Int(offer.rerollCost)),
+            ])
+        }
         DebugEventLog.shared.add("store: opened for node \(storeOffer!.offerNode.map(String.init) ?? "?")"
                                  + (storePriceModActive.map { " · price twist ACTIVE (\($0))" } ?? ""))
         // The Queen's Restock spends itself on THIS visit's ladder: the first
@@ -1983,6 +2000,10 @@ public final class CampaignState {
     public func rerollStore() -> Bool {
         guard var offer = storeOffer, Double(coins) >= offer.rerollCost else { return false }
         let wasFree = offer.rerollCost == 0
+        TelemetryCore.shared.record("restock_used", [
+            "kind": wasFree ? "free" : "paid",
+            "cost": String(Int(offer.rerollCost)),
+        ])
         coins -= Int(offer.rerollCost)
         // His treat was THIS shelf. Refresh it and you are paying again.
         freeShopPending = false
@@ -2265,6 +2286,7 @@ public final class CampaignState {
     public func buyRemoval(_ id: Int) -> Bool {
         let price = removalPrice()
         guard Double(coins) >= price, removeDeckCard(id) else { return false }
+        TelemetryCore.shared.record("purge_used", ["price": String(Int(price))])
         coins -= Int(price)
         removalsBought += 1   // the next one costs `priceStep` more
         // The slot is SPENT for this shelf. It used to be endlessly repeatable

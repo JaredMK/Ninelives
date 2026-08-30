@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.91"
-    static let note = "RUN-SCOPE LEAK FIX + CONSENT: the Queen's next-store twist (and every pending free-restock/free-reshuffle) now dies with the climb; the Shuffler lands first and ASKS (tap away to decline); Curse Harvest ignores same-landing conversions; the Peeler is cover-only with a real tear moment; converted curses remember what they were; the Coupon cuts 2 and quotes the live ladder; the Joker's purge shows the actual card; Transmute retired."
+    static let version = "v6.92"
+    static let note = "TESTFLIGHT TELEMETRY: anonymous gameplay signals via TelemetryDeck — one instrumentation stream (the engine's recT hook, finally wired), a batching core with a live opt-out (Settings → SHARE ANONYMOUS GAMEPLAY DATA, default ON in TestFlight), session/run/deal lifecycles, store + base + conditional + mystery vocabularies, and TELEMETRY.md as the schema contract."
     static let line = "build \(version) · \(note)"
 }
 

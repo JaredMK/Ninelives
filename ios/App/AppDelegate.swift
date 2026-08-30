@@ -72,6 +72,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let d = UserDefaults.standard
         let wantsLauncher = d.bool(forKey: "launcher") || d.bool(forKey: "autoDeal")
             || d.bool(forKey: "autoMap") || d.bool(forKey: "autoStore")
+        Telemetry.start()
         window.rootViewController = wantsLauncher ? LauncherViewController() : GameFlowController()
         mark("root controller built")
         window.makeKeyAndVisible()
