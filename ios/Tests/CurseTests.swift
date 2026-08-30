@@ -152,27 +152,29 @@ final class CurseTests: XCTestCase {
         XCTAssertEqual(e.run.totalGuesses, 1)
     }
 
-    func testPeelerStripsTheTouchedCardBothDirections() {
-        // Direction 1: a peeler LANDS ON a stickered card.
+    func testPeelerIsCoverOnly() {
+        // v6.91: the Peeler strips the card that LANDS ON it — and nothing
+        // else. A LANDING peeler is inert (the bidirectional clause retired
+        // with the rework; the touched-both-ways rule was v6.5x).
         let e = engine(deck: [
-            spec(1, 5, "♠", ["tell", "extraCoin"]), spec(2, 5), spec(3, 5),
+            spec(1, 5, "♠", ["tell", "quickBury"]), spec(2, 5), spec(3, 5),
             spec(4, 9, "♠", ["peeler"]), spec(5, 11, "♥", ["gainCoin"]),
         ])
         var peels: [(Int, [String])] = []
         e.on { if case .cursePeeled(_, let id, let types) = $0 { peels.append((id, types)) } }
-        e.guess(0, .higher)                        // peeler-9 lands on the stickered 5
+        e.guess(0, .higher)                        // peeler-9 lands ON the stickered 5
         let five = e.board.piles[0].cards.first!
-        XCTAssertTrue(five.stickers.isEmpty, "the touched card lost everything")
-        XCTAssertEqual(peels.first?.0, 1)
-        XCTAssertEqual(Set(peels.first?.1 ?? []), Set(["tell", "extraCoin"]))
-        // Direction 2: a card LANDS ON the peeler — the arrival is stripped.
-        e.guess(0, .higher)                        // gainCoin-11 lands on peeler-9
-        let eleven = e.board.top(0)!
-        XCTAssertTrue(eleven.stickers.isEmpty, "landing on a peeler costs your stickers")
-        XCTAssertEqual(peels.count, 2)
+        XCTAssertEqual(Set(five.stickers.map(\.type)), Set(["tell", "quickBury"]),
+                       "a LANDING peeler strips nothing now")
+        XCTAssertTrue(peels.isEmpty, "no peel event either")
+        // The cover direction still bites: a card LANDS ON the peeler.
+        e.guess(0, .higher)                        // gainCoin-11 lands ON peeler-9
+        XCTAssertTrue(e.board.top(0)!.stickers.isEmpty, "landing on a peeler costs your stickers")
+        XCTAssertEqual(peels.count, 1)
+        XCTAssertEqual(peels.first?.0, 5)
+        XCTAssertEqual(peels.first?.1 ?? [], ["gainCoin"])
         // The peeler card itself KEEPS its curse.
-        let nine = e.board.piles[0].cards[1]
-        XCTAssertEqual(nine.stickers.map(\.type), ["peeler"])
+        XCTAssertEqual(e.board.piles[0].cards[1].stickers.map(\.type), ["peeler"])
     }
 
     func testShieldDrainEmptiesTheChargeOnLanding() {

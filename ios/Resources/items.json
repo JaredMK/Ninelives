@@ -892,7 +892,7 @@
       "curseExclude": [
         "duplicate"
       ],
-      "description": "Cursed. Any card this card touches loses ALL of its stickers"
+      "description": "Cursed. Any card that lands on this card loses its stickers"
     },
     {
       "id": "drainBase",
@@ -1379,7 +1379,7 @@
       "effect": "shuffler",
       "tier": "uncommon",
       "price": 3,
-      "description": "When a ♦ lands in this column → shuffle the other piles in this column"
+      "description": "When a ♦ lands in this column → optionally shuffle the other piles in this column"
     },
     {
       "id": "excavator",
@@ -2183,11 +2183,11 @@
       "icon": "🎟️",
       "kind": "active",
       "effect": "purgeDiscount",
-      "value": 3,
+      "value": 2,
       "min": 5,
       "tier": "uncommon",
       "price": 5,
-      "description": "Reduce the cost of the Store's Purge by 3"
+      "description": "Reduce the Store's Purge cost by 2 ({current} → {new}). Minimum 5"
     },
     {
       "id": "bonusResetPeek",
@@ -2206,6 +2206,7 @@
     },
     {
       "id": "transmute",
+      "inactive": true,
       "unlock": {
         "type": "milestone",
         "stat": "bossesBeaten",

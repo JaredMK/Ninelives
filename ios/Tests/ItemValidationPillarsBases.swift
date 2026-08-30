@@ -132,8 +132,44 @@ enum IVPillarsBases {
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })]
 
-        case "shuffler", "diamondDistribution":
-            let isDist = def.effect == "diamondDistribution"
+        case "shuffler":
+            // SHUFFLER (v6.91): the card LANDS first, then the shuffle is
+            // OFFERED — decline leaves the column exactly as it landed.
+            return [
+                IV.Scenario("trigger-landsThenOffers", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9, "♦"), IV.spec(59, 2)],
+                                       cols: [3], pillars: [def.id]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.board.top(0)?.id, 50, "\(c): the ♦ LANDED before any question")
+                        XCTAssertEqual(e.run.pendingActions.map(\.kind), ["pillarShuffle"],
+                                       "\(c): the offer queued")
+                        XCTAssertEqual(e.run.pendingActions.first?.target, 0, "\(c): …carrying the column")
+                        e.answerAction(true)
+                        XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): the accept drained it")
+                        XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1],
+                                       "\(c): a shuffle moves nothing between piles")
+                    }),
+                IV.Scenario("edge-declineLeavesEverything", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9, "♦"), IV.spec(59, 2)],
+                                       cols: [3], pillars: [def.id]) },
+                    fire: { e in e.guess(0, .higher); e.answerAction(false) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): the decline drained it")
+                    }),
+                IV.Scenario("mustNotFire-nonDiamond", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9, "♣"), IV.spec(59, 2)],
+                                       cols: [3], pillars: [def.id]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, _, c in
+                        XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): only ♦ lands offer")
+                    }),
+            ]
+
+        case "diamondDistribution":
             return [
                 IV.Scenario("trigger-diamondLands", allowed: [.guesses, .deck, .board],
                     build: {
@@ -147,16 +183,11 @@ enum IVPillarsBases {
                     },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
-                        if isDist {
-                            let sizes = (0..<3).map { e.board.piles[$0].cards.count }
-                            XCTAssertEqual(sizes.reduce(0, +), f.pileCounts.reduce(0, +) + 1,
-                                           "\(c): redistribution conserves cards")
-                            XCTAssertLessThanOrEqual(sizes.max()! - sizes.min()!, 1,
-                                                     "\(c): the column is evened out")
-                        } else {
-                            XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1],
-                                           "\(c): a shuffle moves nothing between piles")
-                        }
+                        let sizes = (0..<3).map { e.board.piles[$0].cards.count }
+                        XCTAssertEqual(sizes.reduce(0, +), f.pileCounts.reduce(0, +) + 1,
+                                       "\(c): redistribution conserves cards")
+                        XCTAssertLessThanOrEqual(sizes.max()! - sizes.min()!, 1,
+                                                 "\(c): the column is evened out")
                     }),
                 IV.Scenario("edge-tiePreserved", allowed: .all,
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],

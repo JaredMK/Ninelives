@@ -206,8 +206,10 @@ public final class PhaseOverlayView: UIView {
         // its registry description in cream. Copy is NEVER hand-written.
         curseHelpContent.show(
             title: CardInfo.title(for: cell.card), titleGlow: true,
-            rows: cell.curses.map {
-                CardInfo.Row(name: $0.label, color: CRT.suitRed, desc: $0.description)
+            rows: cell.curses.map { def in
+                CardInfo.Row(name: def.label, color: CRT.suitRed,
+                             desc: def.description
+                                + CardInfo.provenance(onType: def.id, of: cell.card.stickers))
             })
         // TOP, over the panel — the same place every other screen puts
         // hold-help. Framed at show time: the overlay is in the hierarchy by
@@ -1246,7 +1248,8 @@ public final class PhaseOverlayView: UIView {
                             cap.append(CRTKit.attributed(def.label + " · ",
                                                          size: CardInfo.nameSize, color: CRT.suitRed, display: true))
                             cap.append(CRTKit.attributed(
-                                def.description.replacingOccurrences(of: "Cursed. ", with: ""),
+                                def.description.replacingOccurrences(of: "Cursed. ", with: "")
+                                    + CardInfo.provenance(onType: def.id, of: pair.card.stickers),
                                 size: CardInfo.descSize, color: CRT.cardFace))
                             addCaption(cap)
                         }
@@ -1512,16 +1515,25 @@ enum OutcomeWell {
                 box.addSubview(iv)
             }
         case .purged(let cards):
-            // The .cards strip's geometry, but every cell is the torn Purge
-            // card — the card is GONE; the tear is what remains of it.
-            let n = min(cards.count, 4)
+            // v6.91: the ACTUAL purged cards — face + full sticker fan via
+            // CardComposite (the one UIKit renderer) — beside the Purge
+            // logo, so the player sees WHAT left. (The old cells drew N
+            // identical torn placeholders and never read the payload.)
+            let shownCap = 3   // + the logo cell = the well's 4-cell row
+            let shown = Array(cards.prefix(shownCap))
             let w: CGFloat = 58
-            let rowW = CGFloat(n) * (w + 8) - 8
-            h = 100
-            for i in 0..<n {
-                let iv = pixelImage(ItemArt.removal(width: w, height: 80))
-                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i) * (w + 8), y: 10,
-                                  width: w, height: 80)
+            let cells = shown.count + 1   // the logo leads the row
+            let rowW = CGFloat(cells) * (w + 8) - 8
+            h = 104
+            let logo = pixelImage(ItemArt.removal(width: w, height: 80))
+            logo.frame = CGRect(x: (width - rowW) / 2, y: 12, width: w, height: 80)
+            box.addSubview(logo)
+            for (i, c) in shown.enumerated() {
+                let iv = pixelImage(CardComposite.image(c))
+                iv.frame = CGRect(x: (width - rowW) / 2 + CGFloat(i + 1) * (w + 8),
+                                  y: 12 - StickerChipLayout.topRaise,
+                                  width: w + StickerChipLayout.rightOverhang,
+                                  height: 80 + StickerChipLayout.topRaise)
                 box.addSubview(iv)
             }
         case .cursed(let pairs):

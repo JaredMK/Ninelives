@@ -77,12 +77,10 @@ extension GameEngine {
     /// correct). v6.52: the fatal and Same-Charge-save branches no longer
     /// call it — landing effects fire only when the card lands correctly.
     func curseTouch(index: Int, current: LiveCard, drawn: LiveCard) {
-        // PEELER, both directions: the touched card loses ALL stickers,
-        // curses included. Mutual peelers strip each other.
-        let drawnPeels = hasCurse(drawn, "peeler")
-        let currentPeels = hasCurse(current, "peeler")
-        if drawnPeels { peelAll(index: index, from: current) }
-        if currentPeels { peelAll(index: index, from: drawn) }
+        // PEELER (v6.91, cover-only): the card that LANDS ON a peeler loses
+        // its stickers, curses included. A landing peeler strips nothing —
+        // the bidirectional clause retired with the rework.
+        if hasCurse(current, "peeler") { peelAll(index: index, from: drawn) }
 
         // SHIELD DRAIN: the banked Same Charge empties (no charge, no effect).
         if hasCurse(drawn, "drainShield"), sameCharge {

@@ -139,7 +139,7 @@ extension GameEngine {
         }
         card.stickers.remove(at: at)
         if let curse = rollStickerPathCurse(for: card) {
-            card.stickers.append(StickerRecord(type: curse.id))
+            card.stickers.append(StickerRecord(type: curse.id, convertedFrom: type.id))
             run.freshCurses.append((cardId: card.id, type: curse.id))
             logLine("\(type.label) fizzled on \(cardName(card)) — \(curse.label) takes its place")
             emit(.stickerConverted(index: index, cardId: card.id, from: type.id, to: curse.id))
@@ -263,13 +263,11 @@ extension GameEngine {
             }
 
         case "shuffler" where isDiamond:
-            // A ♦ landed → shuffle every OTHER alive pile in this column.
-            var n = 0
-            for i in colAlivePiles(col) where i != index { board.shufflePile(i, rng); n += 1 }
-            if n > 0 {
-                firePillar(col, "shuffler", pillar.label, 0)
-                logLine("\(pillar.label): shuffled \(n) other pile\(n == 1 ? "" : "s") in the column")
-                recT("pillar", pillar.id, pillar.label, ["shuffled": Double(n)])
+            // SHUFFLER (v6.91): the card LANDS first, then the shuffle is
+            // OFFERED — the player can decline (or tap away). `target`
+            // carries the column for the resolve.
+            if colAlivePiles(col).contains(where: { $0 != index }) {
+                run.pendingActions.append(PendingAction(kind: "pillarShuffle", index: index, target: col))
             }
 
         case "queensEye" where v >= 11 && v <= 13 && matchesSuit(drawn, "♠"):
@@ -293,7 +291,15 @@ extension GameEngine {
             // EIGHT BALL: an 8 landing here peeks the next card.
             peekPillar(col, pillar)
 
-        case "curseBuryPeek" where drawn.stickers.contains(where: { stickerTypes.get($0.type)?.cursed == true }):
+        case "curseBuryPeek" where drawn.stickers.contains(where: { st in
+            guard stickerTypes.get(st.type)?.cursed == true else { return false }
+            // v6.91 TRIGGER PRECISION: only a card that landed ALREADY
+            // cursed fires the Harvest — a sticker that converted DURING
+            // this landing (the freshCurses ledger) is not a cursed
+            // landing, it's a cursed departure. Same dormancy rule as
+            // Leech's toll and Trapdoor's drop.
+            return !run.freshCurses.contains { $0.cardId == drawn.id && $0.type == st.type }
+        }):
             // CURSE HARVEST: a CURSED card landing here buries digCount, then
             // peeks the next card.
             let nb = buryTribute(index, pillar.int("digCount", 1), pillar.label)

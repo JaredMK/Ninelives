@@ -1158,9 +1158,23 @@ public final class GameEngine {
         guard let run, !run.pendingActions.isEmpty else { return }
         let a = run.pendingActions.removeFirst()
         fireContext = "\(a.kind) offer · pile \(a.index + 1) · \(accept ? "accepted" : "declined")"
-        logBegin((a.kind == "shuffle" ? "Shuffle" : "Donate") + (accept ? " — accepted" : " — declined"))
+        logBegin((a.kind == "shuffle" ? "Shuffle" : a.kind == "pillarShuffle" ? "Shuffler" : a.kind == "suitRipple" ? "Ripple" : "Donate") + (accept ? " — accepted" : " — declined"))
         if accept {
-            if a.kind == "suitRipple" {
+            if a.kind == "pillarShuffle" {
+                // SHUFFLER (v6.91): the accepted offer — every OTHER alive
+                // pile in the pillar's column, the old auto-fire's exact set.
+                var n = 0
+                if let col = a.target {
+                    for i in colAlivePiles(col) where i != a.index { board.shufflePile(i, rng); n += 1 }
+                    if n > 0 {
+                        let pdef = resolvePillarDef(col)
+                        firePillar(col, "shuffler", pdef?.label ?? "Shuffler", 0)
+                        recT("pillar", pdef?.id ?? "royalCourt", pdef?.label ?? "Shuffler",
+                             ["shuffled": Double(n)])
+                    }
+                }
+                logLine("\(n) pile\(n == 1 ? "" : "s") shuffled (order hidden)")
+            } else if a.kind == "suitRipple" {
                 // Ripple (v6.85): shuffle every alive pile whose top matches
                 // the carrier's suit — the carrier is still this pile's top
                 // (prompts drain before any further landing), own pile

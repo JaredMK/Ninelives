@@ -147,7 +147,8 @@ extension CampaignState {
             baseDeck[i].stickers.remove(at: at)
         }
         if let to, data.stickerTypes.get(to) != nil {
-            baseDeck[i].stickers.append(StickerRecord(type: to))
+            // v6.91: the conversion's provenance rides the durable record.
+            baseDeck[i].stickers.append(StickerRecord(type: to, convertedFrom: from))
         }
         return true
     }

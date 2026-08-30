@@ -45,13 +45,26 @@ enum CardInfo {
         return "\(r) \(c.suit)"
     }
 
+    /// v6.91 PROVENANCE: the per-instance conversion note a converted
+    /// curse carries — appended to its help text everywhere it appears.
+    static func provenance(_ rec: StickerRecord) -> String {
+        guard let from = rec.convertedFrom,
+              let label = GameData.shared.stickerTypes.get(from)?.label else { return "" }
+        return "\n(Converted from \(label))"
+    }
+    /// The first worn instance of `type` that carries a provenance note.
+    static func provenance(onType type: String, of stickers: [StickerRecord]) -> String {
+        stickers.first { $0.type == type && $0.convertedFrom != nil }
+            .map(provenance) ?? ""
+    }
+
     /// One row per sticker ON THE CARD, in worn order, copy from the registry.
     static func rows(for c: CardSpec) -> [Row] {
         c.stickers.compactMap { rec in
             guard let def = GameData.shared.stickerTypes.get(rec.type) else { return nil }
             return Row(name: def.label,
                        color: def.cursed ? CRT.suitRed : CRT.gold,
-                       desc: def.description)
+                       desc: def.description + provenance(rec))
         }
     }
 
@@ -76,7 +89,7 @@ enum CardInfo {
             }
             rows.append(Row(name: t.label + (n > 1 ? " ×\(n)" : ""),
                             color: t.cursed ? CRT.suitRed : CRT.gold,
-                            desc: desc))
+                            desc: desc + provenance(onType: t.id, of: card.stickers)))
         }
         return rows
     }

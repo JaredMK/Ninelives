@@ -28,7 +28,15 @@ extension GameEngine {
             ]
             if c.joker { d["j"] = .bool(true) }
             if c.blank { d["b"] = .bool(true) }
-            if !c.stickers.isEmpty { d["stk"] = .array(c.stickers.map { .string($0.type) }) }
+            if !c.stickers.isEmpty {
+                d["stk"] = .array(c.stickers.map { .string($0.type) })
+                // v6.91 provenance: a PARALLEL array ("" = none), written
+                // only when a record carries it — old snapshots decode
+                // unchanged, new ones round-trip the note.
+                if c.stickers.contains(where: { $0.convertedFrom != nil }) {
+                    d["stkFrom"] = .array(c.stickers.map { .string($0.convertedFrom ?? "") })
+                }
+            }
             if c.compoundHits != 0 { d["ch"] = .number(Double(c.compoundHits)) }
             if c.snowball != 0 { d["sn"] = .number(Double(c.snowball)) }
             return .object(d)
@@ -168,8 +176,12 @@ extension GameEngine {
             } else {
                 spec = CardSpec(id: Int(id), suit: suit,
                                 originalRank: Int(val), currentRank: Int(val))
-                spec.stickers = (d["stk"]?.asArray ?? []).compactMap {
-                    $0.asString.map { StickerRecord(type: $0) }
+                let froms = (d["stkFrom"]?.asArray ?? []).map { $0.asString ?? "" }
+                spec.stickers = (d["stk"]?.asArray ?? []).enumerated().compactMap { i, v in
+                    v.asString.map {
+                        StickerRecord(type: $0,
+                                      convertedFrom: i < froms.count && !froms[i].isEmpty ? froms[i] : nil)
+                    }
                 }
             }
             let live = DeckManager.toCard(spec, data: data)

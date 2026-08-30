@@ -1,6 +1,6 @@
 {
- "version": "v6.90",
- "generatedAt": "2026-08-28 18:31",
+ "version": "v6.91",
+ "generatedAt": "2026-08-30 03:03",
  "rows": [
   {
    "cls": "Stickers",
@@ -1154,7 +1154,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a ♦ lands in this column → shuffle the other piles in this column",
+   "description": "When a ♦ lands in this column → optionally shuffle the other piles in this column",
    "flags": "",
    "flagNotes": ""
   },
@@ -2366,7 +2366,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Reduce the cost of the Store's Purge by 3",
+   "description": "Reduce the Store's Purge cost by 2 ({current} → {new}). Minimum 5",
    "flags": "",
    "flagNotes": ""
   },
@@ -2394,31 +2394,6 @@
    "description": "Reset bonus coins earned this deal to zero, then peek the next card",
    "flags": "",
    "flagNotes": ""
-  },
-  {
-   "cls": "Bases",
-   "inactive": false,
-   "outcome": "Card Change",
-   "outcomeDetail": "whole rank → one suit, at purchase",
-   "outcomeAlso": [
-    "Deck Shaping"
-   ],
-   "effectKey": "transmute",
-   "id": "transmute",
-   "label": "Transmute",
-   "tier": "rare",
-   "price": 8,
-   "unlockType": "milestone",
-   "unlockStat": "bossesBeaten",
-   "unlockCount": 8,
-   "gated": true,
-   "suits": "",
-   "cursed": false,
-   "packSize": null,
-   "packKeep": null,
-   "description": "Change all {rank}s to {suit}",
-   "flags": "TEMPLATE",
-   "flagNotes": "TEMPLATE: {rank}, {suit} substituted live"
   },
   {
    "cls": "Bases",
@@ -3022,7 +2997,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. Any card this card touches loses ALL of its stickers",
+   "description": "Cursed. Any card that lands on this card loses its stickers",
    "flags": "",
    "flagNotes": ""
   },
@@ -3884,6 +3859,31 @@
    "description": "When a ♣ lands in this column → bury 1 card per 25 cards remaining in the deck",
    "flags": "",
    "flagNotes": ""
+  },
+  {
+   "cls": "Retired",
+   "inactive": true,
+   "outcome": "Card Change",
+   "outcomeDetail": "whole rank → one suit, at purchase",
+   "outcomeAlso": [
+    "Deck Shaping"
+   ],
+   "effectKey": "transmute",
+   "id": "transmute",
+   "label": "Transmute",
+   "tier": "rare",
+   "price": 8,
+   "unlockType": "milestone",
+   "unlockStat": "bossesBeaten",
+   "unlockCount": 8,
+   "gated": true,
+   "suits": "",
+   "cursed": false,
+   "packSize": null,
+   "packKeep": null,
+   "description": "Change all {rank}s to {suit}",
+   "flags": "TEMPLATE",
+   "flagNotes": "TEMPLATE: {rank}, {suit} substituted live"
   }
  ]
 }

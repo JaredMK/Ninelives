@@ -43,7 +43,7 @@ pillar,insurance,Insurance,r,4,false,DEAL,board: exactly one pile alive,deal end
 pillar,ditto,Ditto,r,5,false,DEAL,loadout: center pillar equipped,passive/always,column,mirror pillar,column,NONE,NONE,,,Mirrors the center column's pillar,
 pillar,stickerCount,Heavy Diamond,u,4,false,DEAL,NONE,passive/always,column,pile size,column,NONE,NONE,,,♦ cards in this column count as +2 toward pile size,♦ cards weigh +2 while in column
 pillar,queensEye,Queen's Eye,u,4,false,DEAL,NONE,specific rank lands,column,peek,deck,NONE,NONE,,,When a royal ♠ (J/Q/K) lands in this column → peek at the next card,royal ♠ only (rank+suit trigger)
-pillar,royalCourt,Royal Court,u,3,false,DEAL,NONE,specific suit lands,column,shuffle,column,NONE,NONE,,,When a ♦ lands in this column → shuffle the other piles in this column,
+pillar,royalCourt,Royal Court,u,3,false,DEAL,NONE,specific suit lands,column,shuffle,column,NONE,NONE,,,When a ♦ lands in this column → optionally shuffle the other piles in this column,"v6.91: offered, not forced — decline/tap-away keeps the order"
 pillar,lastRites,Last Rites,r,10,false,DEAL,NONE,pile died,column,peek,deck,NONE,NONE,,,When a pile in this column dies → peek the next card,
 pillar,wildAces,Wild Aces,r,10,false,DEAL,NONE,passive/always,column,safety/save,column,NONE,NONE,,,Aces count as high or low in this column,aces high-or-low
 pillar,diamondAnchor,Diamond Anchor,r,6,false,DEAL,NONE,deal end,column,score exclusion,column,# piles with suit,NONE,,,At deal end → exclude any pile in this column with a ♦ top card from the smallest-pile score,
@@ -99,9 +99,8 @@ base,sameTell,Same Sight,u,5,false,DEAL,NONE,manual (base fire),board,tell,board
 base,lonePeek,Lone Peek,r,10,false,DEAL,loadout: no Same-Power equipped,manual (base fire),board,peek,deck,NONE,NONE,,,Peek the next card. Only works while no Same-Power is equipped,
 base,clubOracle,Club Oracle,u,8,false,DEAL,board: ♣-topped pile in column,manual (base fire),column,tell,column,# piles with suit,NONE,,,"Put a tell marker on each ♣-topped pile in this column for the next draw. Tell marker shows if the next card is higher, lower, or same",
 base,ambushOut,Escape Hatch,r,8,false,DEAL,encounter: ambush deal only,manual (base fire),board,win deal,board,NONE,NONE,,,Only usable in an ambush from Just a Two → clear the deal instantly,
-base,purgeDiscount,Purge Coupon,u,5,false,META,NONE,,,,,NONE,NONE,store economy,manual fire (any time in deal),Reduce the cost of the Store's Purge by 3,"occupies a base slot; −3 to Purge, floor 5"
+base,purgeDiscount,Purge Coupon,u,5,false,META,NONE,,,,,NONE,NONE,store economy,manual fire (any time in deal),Reduce the Store's Purge cost by 2 ({current} → {new}). Minimum 5,"occupies a base slot; −3 to Purge, floor 5"
 base,bonusResetPeek,Bonus Reset,u,4,false,DEAL,run: bonus coins > 1,manual (base fire),board,peek,deck,# bonus coins,lose bonus coins,,,"Reset bonus coins earned this deal to zero, then peek the next card",
-base,transmute,Transmute,r,8,false,DEAL,NONE,on purchase,board,change card identity (suit),deck,# copies of rank,NONE,,,Change all {rank}s to {suit},one-shot deck shaper at buy time
 base,sacrifice,Sacrifice,u,6,false,DEAL,NONE,manual (base fire),column,purge,deck,NONE,kill pile,,,"Choose a pile → purge its top card from your deck, then kill that pile",
 base,devilsDeal,Devil's Deal,r,8,false,DEAL,NONE,manual (base fire),column,earn coins,board,# bonus coins,curse a card,,,"Double your bonus coins earned this deal, then add a curse to a top card in this column",
 base,cleanseColumn,Cleanse,u,5,false,DEAL,card: cursed top in column,manual (base fire),column,remove sticker/curse,column,# stickers/curses,NONE,,,Remove all curses from the top cards in this column,
@@ -148,3 +147,4 @@ pillar,highestEven,Highest Heart,r,8,true,DEAL,NONE,deal end,column,earn coins,c
 pillar,gambler,Gambler,u,5,true,DEAL,NONE,deal end,column,earn coins,column,NONE,NONE,,,At deal end → 50/50: +3 coins or nothing,50/50
 pillar,static,Static,r,3,true,DEAL,NONE,specific suit lands,column,peek,deck,NONE,NONE,,,When a ♠ lands in this column → 50% chance to peek at the next card,50% per ♠ landing
 pillar,sameTolSum10,Perfect Ten,u,7,true,DEAL,NONE,Same called,column,safety/save,column,NONE,NONE,,,Ranks summing to 10 survive a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power,
+base,transmute,Transmute,r,8,true,DEAL,NONE,on purchase,board,change card identity (suit),deck,# copies of rank,NONE,,,Change all {rank}s to {suit},retired v6.91

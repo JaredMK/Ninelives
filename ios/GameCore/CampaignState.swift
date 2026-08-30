@@ -312,6 +312,14 @@ public final class CampaignState {
                 out = out.replacingOccurrences(of: "{rank}", with: label)
             }
         }
+        // PURGE COUPON (v6.91): {current}/{new} show the LIVE ladder at
+        // display time — current Purge price and what one fire cuts it to.
+        if def.effect == "purgeDiscount", out.contains("{current}") {
+            let cur = Int(removalPrice())
+            let target = max(Int(def.num("min", 5)), cur - Int(def.num("value", 2)))
+            out = out.replacingOccurrences(of: "{current}", with: "◉\(cur)")
+                     .replacingOccurrences(of: "{new}", with: "◉\(target)")
+        }
         // SHOP-ROLLED items (v6.76): the climb-locked {rank}/{suit} from
         // the item's first shelf appearance.
         if let lock = shopRolls[def.id] {
@@ -896,6 +904,17 @@ public final class CampaignState {
         purgeStepBonus = 0
         purgePriceCut = 0    // the Purge Coupon's cuts die with the climb (v6.76)
         shopRolls = [:]      // shop-rolled values re-roll on the next climb (v6.76)
+        pillarRankVariants = [:]   // v6.91: shopRolls' twin, same lifetime
+        // v6.91 LEAK FIX: the pending "next store / next deal" twists lived
+        // in NEITHER teardown (reset() nor here) while the run-end UI reuses
+        // this same instance — the Queen's priceOne survived a death and
+        // discounted the NEXT climb's first shop. Every armed twist dies
+        // with the climb now; a mid-climb save still round-trips them
+        // (restore() writes these fields AFTER construction).
+        storePriceModPending = nil
+        storePriceModActive = nil
+        freeRerollPending = false
+        freeRedealPending = false
         jokerDebt = 0        // …and no debt follows you into a new climb
         freeShopPending = false
         jokerThirstPending = false

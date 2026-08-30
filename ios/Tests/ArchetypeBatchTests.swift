@@ -139,12 +139,9 @@ final class ArchetypeBatchTests: XCTestCase {
         XCTAssertNil(found["absentSuitClubBury"], "Void Tribute retired — never shelves")
         XCTAssertNotNil(found["suitMajoritySafe"], "the sweep shelved Majority Rule")
         XCTAssertNotNil(found["purgeRank"], "…Rank Purge")
-        XCTAssertNotNil(found["transmute"], "…Transmute")
-        // v6.78: Transmute's rank is COMPOSITION-DRIVEN (live most common) —
-        // only the suit rolls at the shop; Rank Shield left the shopRoll
-        // system entirely (dynamic per-deal rank).
-        XCTAssertNil(found["transmute"]?.rollRank, "Transmute rolls no rank any more")
-        XCTAssertNotNil(found["transmute"]?.rollSuit, "…just the suit")
+        // v6.91: Transmute retired — a retired shopRoll base never shelves;
+        // Majority Rule keeps the suit axis exercised above.
+        XCTAssertNil(found["transmute"], "Transmute retired — never shelves")
         XCTAssertNil(found["rankShield"], "Rank Shield no longer rolls at the shop")
     }
 

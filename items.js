@@ -338,7 +338,7 @@ const NINELIVES_ITEMS = {
     { id: "jammer",     label: "Jammer",      icon: "🔇", kind: "behavior", behavior: "jammer", tier: "common", price: 0, cursed: true, curseWeight: 5, curseExclude: ["duplicate"],
       description: "Cursed. While this is a pile's top card, the column's Pillar does not work" },
     { id: "peeler",     label: "Peeler",      icon: "🥔", kind: "behavior", behavior: "peeler", tier: "common", price: 0, cursed: true, curseWeight: 5, curseExclude: ["duplicate"],
-      description: "Cursed. Any card this card touches loses ALL of its stickers" },
+      description: "Cursed. Any card that lands on this card loses its stickers" },
     { id: "drainBase",  label: "Base Drain",  icon: "🪫", kind: "behavior", behavior: "drainBase", tier: "common", price: 0, cursed: true, curseWeight: 5, curseExclude: ["duplicate"],
       description: "Cursed. The column's Base is drained" },
     { id: "malfunction", label: "Malfunction", icon: "💥", kind: "behavior", behavior: "malfunction", chance: 0.1, tier: "common", price: 0, cursed: true, curseWeight: 5, curseExclude: ["duplicate"],
@@ -481,7 +481,7 @@ const NINELIVES_ITEMS = {
       description: "When a royal ♠ (J/Q/K) lands in this column → peek at the next card" },
     { id: "royalCourt", label: "Shuffler", icon: "👑",
       kind: "guess", effect: "shuffler", tier: "uncommon", price: 3,
-      description: "When a ♦ lands in this column → shuffle the other piles in this column" },
+      description: "When a ♦ lands in this column → optionally shuffle the other piles in this column" },
     // value = coins per buried card in the largest ♥-topped alive pile.
     { id: "excavator", inactive: true, unlock: { type: "behavior", stat: "cardsBuried", count: 60 }, label: "Excavator", icon: "⛏️",
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 3,
@@ -820,9 +820,11 @@ const NINELIVES_ITEMS = {
     // activation; min = the floor the price never drops below. A store-side
     // lever carried on a base — nothing happens in-deal.
     // TUNE: price 5 proposed (R4).
+    // v6.91: the cut is 2 (was 3) and the text shows the LIVE ladder —
+    // {current}/{new} are substituted at display time from removalPrice().
     { id: "purgeDiscount", unlock: { type: "behavior", stat: "removalsUsed", count: 3 }, label: "Purge Coupon", icon: "🎟️",
-      kind: "active", effect: "purgeDiscount", value: 3, min: 5, tier: "uncommon", price: 5,
-      description: "Reduce the cost of the Store's Purge by 3" },
+      kind: "active", effect: "purgeDiscount", value: 2, min: 5, tier: "uncommon", price: 5,
+      description: "Reduce the Store's Purge cost by 2 ({current} → {new}). Minimum 5" },
     // BONUS RESET (v6.88): trade the deal's banked bonus coins for sight.
     // Only fireable while MORE than 1 bonus coin is banked and the deck
     // still holds a card to show. Rarity/cost/unlock proposed — STOP-FLAGGED
@@ -837,7 +839,7 @@ const NINELIVES_ITEMS = {
     // the {suit} rolls at the store (shopRoll, first shelf appearance this
     // climb, shown before purchase).
     // TUNE: price 8 proposed (R4).
-    { id: "transmute", unlock: { type: "milestone", stat: "bossesBeaten", count: 8 }, label: "Transmute", icon: "⚗️",
+    { id: "transmute", inactive: true, unlock: { type: "milestone", stat: "bossesBeaten", count: 8 }, label: "Transmute", icon: "⚗️",
       kind: "active", effect: "transmute", shopRoll: "suit", tier: "rare", price: 8,
       description: "Change all {rank}s to {suit}" },
     // SACRIFICE: target: "pile" — the player picks the pile whose top card

@@ -25,6 +25,35 @@ final class PriceModifierScopeTests: XCTestCase {
         c.shopPrice(GameData.shared.stickerTypes.get(id)!.price)
     }
 
+    // MARK: - Run teardown (v6.91): pending twists die with the climb
+
+    /// The reported leak: the Queen's priceOne survived a run's END (the UI
+    /// reuses the same CampaignState and calls reset()) and discounted the
+    /// NEXT climb's first store. Both teardown entry points pinned, all
+    /// three leaking twist families.
+    func testNextStoreTwistsDieWithTheRun() {
+        for (name, teardown) in [("reset", { (c: CampaignState) in c.reset() }),
+                                 ("startNewRun", { (c: CampaignState) in c.startNewRun() })] {
+            let c = campaign()
+            c.applyMysteryEvent("priceOne", nodeId: 3)
+            c.applyMysteryEvent("freeRefresh", nodeId: 4)
+            c.applyMysteryEvent("freeRedeal", nodeId: 5)
+            teardown(c)
+            XCTAssertNil(c.storePriceModPending, "\(name): no armed price twist survives")
+            let offer = c.openStore()
+            XCTAssertNil(c.storePriceModActive, "\(name): the new climb's store has no twist")
+            XCTAssertGreaterThan(offer.rerollCost, 0, "\(name): no comped restock leaks")
+            XCTAssertFalse(c.consumeFreeRedeal(), "\(name): no free reshuffle leaks")
+        }
+        // …while a mid-climb SAVE still round-trips an armed twist (the
+        // MysteryCastOutcomeTests contract, restated here as the boundary).
+        let c = campaign()
+        c.applyMysteryEvent("priceOne", nodeId: 3)
+        let c2 = CampaignState(store: MemoryStore())
+        XCTAssertTrue(c2.restore(c.serialize()))
+        XCTAssertEqual(c2.storePriceModPending, "one", "a save is not a run end")
+    }
+
     // MARK: - The cast's price twist (per-visit)
 
     func testPriceDoubleAppliesToExactlyOneVisit() {

@@ -114,7 +114,11 @@ extension CampaignState {
             "originalRank": .number(Double(c.originalRank)),
             "currentRank": .number(Double(c.currentRank)),
             "compoundHits": .number(Double(c.compoundHits)),
-            "stickers": .array(c.stickers.map { .object(["type": .string($0.type)]) }),
+            "stickers": .array(c.stickers.map { r in
+                var o: [String: JSONValue] = ["type": .string(r.type)]
+                if let f = r.convertedFrom { o["convertedFrom"] = .string(f) }
+                return .object(o)
+            }),
             "modifications": .array(c.modifications.map {
                 .object(["op": .string($0.op), "from": $0.from, "to": $0.to])
             }),
@@ -135,8 +139,10 @@ extension CampaignState {
         c.snowball = Int(o["snowball"]?.asNumber ?? 0)
         c.joker = o["joker"]?.asBool ?? false
         c.blank = o["blank"]?.asBool ?? false
-        c.stickers = (o["stickers"]?.asArray ?? []).compactMap {
-            $0["type"]?.asString.map(StickerRecord.init(type:))
+        c.stickers = (o["stickers"]?.asArray ?? []).compactMap { rec in
+            rec["type"]?.asString.map {
+                StickerRecord(type: $0, convertedFrom: rec["convertedFrom"]?.asString)
+            }
         }
         c.modifications = (o["modifications"]?.asArray ?? []).compactMap { m in
             guard let op = m["op"]?.asString else { return nil }

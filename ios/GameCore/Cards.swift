@@ -4,7 +4,14 @@ import Foundation
 /// stack (a card may carry several of the same type).
 public struct StickerRecord: Codable, Equatable, Sendable {
     public let type: String
-    public init(type: String) { self.type = type }
+    /// v6.91 PROVENANCE: when a conditional sticker converted into this
+    /// curse, the sticker it used to be — shown in the curse's help text
+    /// ("Converted from X") and persisted with the card.
+    public let convertedFrom: String?
+    public init(type: String, convertedFrom: String? = nil) {
+        self.type = type
+        self.convertedFrom = convertedFrom
+    }
 }
 
 /// A recorded permanent edit to a card identity (Deck Inspector shows these).

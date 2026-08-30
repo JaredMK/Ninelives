@@ -610,17 +610,33 @@ public final class DealController {
             }
 
         case .cursePeeled(let index, let cardId, let types):
-            // Peeler: the campaign identity loses the SAME stickers the live
-            // card just lost, so the peel outlives the deal.
+            // Peeler / Cleanse: the campaign identity loses the SAME
+            // stickers the live card just lost, so the peel outlives the
+            // deal. v6.91: the card keeps SHOWING them until a queued beat
+            // — then the crumple sound (the strip cue, not the apply cue
+            // this handler wrongly played before), a badge pop, and the
+            // red PEELED ring, the deferred-reveal idiom.
             if isCampaign {
                 var counts: [String: Int] = [:]
                 for t in types { counts[t, default: 0] += 1 }
                 for (t, n) in counts { _ = campaign.removeStickerInstances(cardId, t, n) }
             }
-            Sound.shared.sticker()
+            if let top = engine?.board.top(index), top.id == cardId {
+                var shown = scene.badgeOverride(for: index) ?? top.stickers
+                shown.append(contentsOf: types.map { StickerRecord(type: $0) })
+                scene.setBadgeOverride(index, shown)
+            }
             animQueue.add(priority: 1) { [weak self] done in
-                self?.scene.curseIndicator(at: index, label: "PEELED")
-                done()
+                guard let self else { done(); return }
+                self.scene.run(.sequence([.wait(forDuration: 0.35), .run { [weak self] in
+                    guard let self else { return }
+                    self.scene.setBadgeOverride(index, nil)
+                    self.refreshBoard()
+                    Sound.shared.stripSticker()
+                    self.scene.badgeMorphFlash(at: index)
+                    self.scene.curseIndicator(at: index, label: "PEELED")
+                    done()
+                }]))
             }
 
         case .sabotaged(let col, let kind, let itemId):
@@ -1314,6 +1330,13 @@ public final class DealController {
     /// Ripple (v6.85): the piles the pending suitRipple offer would shuffle —
     /// every alive pile whose top matches the landing pile's top suit. The
     /// prompt highlights exactly what the engine will touch on accept.
+    /// SHUFFLER (v6.91): the piles the pending offer would shuffle — every
+    /// OTHER alive pile in the pillar's column.
+    public func shufflerTargets(landing index: Int, col: Int) -> [Int] {
+        guard let engine else { return [] }
+        return pilesInColumn(col).filter { $0 != index && engine.board.isActive($0) }
+    }
+
     public func rippleTargets(for index: Int) -> [Int] {
         guard let engine, let suit = engine.board.top(index)?.suit else { return [index] }
         return (0..<engine.board.size).filter {
@@ -1436,6 +1459,12 @@ public final class DealController {
                 if accept, a.kind == "shuffle" {
                     Sound.shared.shufflePile()   // one pile, not the whole deck
                     self.scene.shuffleWiggle(at: a.index)
+                }
+                if accept, a.kind == "pillarShuffle", let col = a.target {
+                    Sound.shared.shufflePile()
+                    for i in self.shufflerTargets(landing: a.index, col: col) {
+                        self.scene.shuffleWiggle(at: i)
+                    }
                 }
                 self.drainPrompts()
                 self.refreshAll()
@@ -2050,6 +2079,14 @@ public final class DealController {
     /// generic wording when no engine is up.
     private func liveBaseDescription(_ def: ItemDef) -> String {
         var out = def.description
+        // PURGE COUPON (v6.91): the live ladder — same substitution the
+        // store shelf shows (campaign.itemDescription's rule).
+        if def.effect == "purgeDiscount", out.contains("{current}") {
+            let cur = Int(campaign.removalPrice())
+            let target = max(Int(def.num("min", 5)), cur - Int(def.num("value", 2)))
+            out = out.replacingOccurrences(of: "{current}", with: "◉\(cur)")
+                     .replacingOccurrences(of: "{new}", with: "◉\(target)")
+        }
         if out.contains("{rank}") {
             if let r = engine?.mostCopiedRank(),
                let label = DeckManager.ranks.first(where: { $0.value == r })?.label {
@@ -2413,6 +2450,7 @@ enum CardInfoText {
         for t in GameData.shared.stickerTypes.all() {
             guard let n = counts[t.id] else { continue }
             var row = t.label + (n > 1 ? " ×\(n)" : "") + " · " + t.description
+                + CardInfo.provenance(onType: t.id, of: card.stickers)
             // The live state line, when the sticker type carries one.
             if t.behavior == "suitImmunity", let suit = t.suit {
                 row += "\nAlways safe when a \(suit) is involved"

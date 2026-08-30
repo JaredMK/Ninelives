@@ -346,13 +346,23 @@ public final class DealViewController: UIViewController {
                 // carrier's suit — highlight them all.
                 self.scene.setActionTargets(self.controller.rippleTargets(for: action.index))
                 text = "Ripple: shuffle every highlighted pile?"
+            } else if action.kind == "pillarShuffle" {
+                // Shuffler (v6.91): the card landed first — now the offer,
+                // with the piles it would shuffle highlighted.
+                self.scene.setActionTargets(
+                    self.controller.shufflerTargets(landing: action.index, col: action.target ?? 0))
+                text = "Shuffler: shuffle the highlighted piles?"
             } else {
                 self.scene.setActionTargets([action.index])
                 text = "Shuffle the highlighted pile's cards?"
             }
-            // NO outside-tap dismiss: the offer leaves only through Decline
-            // or the action button — a stray board tap used to silently
-            // decline it (v6.25).
+            // NO outside-tap dismiss for the sticker offers (v6.25: a stray
+            // board tap used to silently decline them). The SHUFFLER pillar
+            // (v6.91) is the deliberate exception — its spec says tapping
+            // away IS a decline.
+            let tapAway: (() -> Void)? = action.kind == "pillarShuffle"
+                ? { [weak self] in self?.clearTargets(); answer(false) }
+                : nil
             self.promptBar.show(text, help: "Optional. Decline keeps things as they are.", actions: [
                 .init("Decline", role: .plain) { [weak self] in
                     self?.promptBar.hide(); self?.clearTargets(); answer(false)
@@ -360,7 +370,7 @@ public final class DealViewController: UIViewController {
                 .init(action.kind == "donate" ? "Donate" : action.kind == "suitRipple" ? "Ripple" : "Shuffle", role: .cta) { [weak self] in
                     self?.promptBar.hide(); self?.clearTargets(); answer(true)
                 },
-            ])
+            ], dismiss: tapAway)
         }
         controller.onReviveOffer = { [weak self] dead, fire in
             guard let self else { fire(nil); return }
