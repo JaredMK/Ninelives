@@ -326,6 +326,7 @@
     },
     {
       "id": "heavy",
+      "inactive": true,
       "label": "Heavy",
       "icon": "🧱",
       "kind": "behavior",
@@ -1052,6 +1053,7 @@
     },
     {
       "id": "streakBank",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "perfectDeals",
@@ -1108,7 +1110,7 @@
       "tier": "rare",
       "price": 6,
       "saveChance": 0.25,
-      "description": "Each pile that dies in this column has a 25% chance to be saved, but all the buried cards return to the deck"
+      "description": "Each pile that dies in this column has a 25% chance to be saved — the top card stays and the buried cards shuffle back into the deck"
     },
     {
       "id": "greedy",
@@ -1121,10 +1123,11 @@
       "icon": "🤑",
       "kind": "scoring",
       "effect": "greedy",
-      "value": 4,
+      "value": 1,
+      "perCards": 5,
       "tier": "common",
       "price": 5,
-      "description": "At deal end → +4 coins if this is the only equipped pillar"
+      "description": "At deal end → +1 coin per 5 cards in your deck, if no other pillar is equipped"
     },
     {
       "id": "highestEven",
@@ -1335,6 +1338,7 @@
     },
     {
       "id": "stickerCount",
+      "inactive": true,
       "label": "Massive Diamond",
       "icon": "🏷️",
       "kind": "modifier",
@@ -1526,6 +1530,7 @@
     },
     {
       "id": "diamondZeroRanksSize",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "removalsUsed",
@@ -1542,6 +1547,7 @@
     },
     {
       "id": "eightStart",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "perfectDeals",
@@ -1606,6 +1612,7 @@
     },
     {
       "id": "diamondDupeSize",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "diamondsPlayed",
@@ -1772,6 +1779,7 @@
     },
     {
       "id": "pauperDiamond",
+      "inactive": true,
       "label": "Pauper's Diamond",
       "icon": "💎",
       "kind": "live",
@@ -1790,7 +1798,7 @@
       "effect": "pauperSpadeTell",
       "purseBelow": 10,
       "tier": "common",
-      "price": 2,
+      "price": 8,
       "description": "While your purse holds under 10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)"
     },
     {
@@ -1847,6 +1855,7 @@
     },
     {
       "id": "sizeOneDiamonds",
+      "inactive": true,
       "label": "Diamond Lifeline",
       "icon": "🔷",
       "kind": "live",
@@ -2183,11 +2192,11 @@
       "icon": "🎟️",
       "kind": "active",
       "effect": "purgeDiscount",
-      "value": 2,
+      "perDiamond": 1,
       "min": 5,
       "tier": "uncommon",
       "price": 5,
-      "description": "Reduce the Store's Purge cost by 2 ({current} → {new}). Minimum 5"
+      "description": "Reduce the Store's Purge cost by 1 for each ♦-topped pile in this column. Minimum 5"
     },
     {
       "id": "bonusResetPeek",
@@ -2269,6 +2278,7 @@
     },
     {
       "id": "diamondBoost",
+      "inactive": true,
       "label": "Diamond Boost",
       "icon": "💠",
       "kind": "active",
@@ -2396,6 +2406,7 @@
     },
     {
       "id": "linkHeavy",
+      "inactive": true,
       "unlock": {
         "type": "behavior",
         "stat": "perfectDeals",

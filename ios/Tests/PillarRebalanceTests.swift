@@ -6,9 +6,10 @@ import XCTest
 /// 1. the EMPTY RANKS family — ONE derived condition (ranks with zero
 ///    copies in the full deck), THREE effect keys, three DIFFERENT
 ///    observables from the SAME constructed deck;
-/// 2. the ten retired pillars are out of EVERY acquisition path (v6.87
+/// 2. the retired pillars are out of EVERY acquisition path (v6.87
 ///    also closed the hole: `inactive` used to gate stickers only — a
-///    retired pillar kept rolling onto shelves).
+///    retired pillar kept rolling onto shelves; v6.94 added the flat
+///    pile-size family — seven pillars, one base, one same-power).
 final class PillarRebalanceTests: XCTestCase {
     private let data = GameData.shared
 
@@ -55,9 +56,13 @@ final class PillarRebalanceTests: XCTestCase {
     func testInactivePillarsNeverAppearFromAnyAcquisitionPath() {
         let retired: Set<String> = ["clubTribute", "clubThin", "absentSuitClubBury",
                                     "excavator", "prime", "allHeartsCoin", "highestEven",
-                                    "gambler", "static", "sameTolSum10"]
+                                    "gambler", "static", "sameTolSum10",
+                                    // v6.94: the flat pile-size family joins them.
+                                    "streakBank", "stickerCount", "diamondZeroRanksSize",
+                                    "eightStart", "diamondDupeSize", "pauperDiamond",
+                                    "sizeOneDiamonds"]
         XCTAssertEqual(Set(data.items.pillars.filter(\.inactive).map(\.id)), retired,
-                       "the v6.87 retirement set, exactly")
+                       "the v6.87 + v6.94 retirement sets, exactly")
         // The chokepoint every class pools through now (the v6.87 fix —
         // grantableBase used to be consulted for stickers only):
         XCTAssertFalse(data.pillarTypes.grantableBase().contains { retired.contains($0.id) })
@@ -78,5 +83,34 @@ final class PillarRebalanceTests: XCTestCase {
         for id in retired {
             XCTAssertNotNil(data.pillarTypes.get(id), "'\(id)' stays registered")
         }
+    }
+
+    // MARK: - The v6.94 base + same-power retirements are out too
+
+    /// Diamond Boost (base) and Same Heavy (same-power) retired with the
+    /// pile-size family — same contract: out of every pool, still resolved.
+    func testRetiredBaseAndSamePowerNeverAppearFromAnyAcquisitionPath() {
+        XCTAssertEqual(Set(data.items.bases.filter(\.inactive).map(\.id)),
+                       ["transmute", "diamondBoost"], "the retired bases, exactly")
+        XCTAssertEqual(Set(data.items.samePowers.filter(\.inactive).map(\.id)),
+                       ["linkHeavy"], "the retired same-powers, exactly")
+        XCTAssertFalse(data.baseTypes.grantableBase().contains { $0.id == "diamondBoost" })
+        XCTAssertFalse(data.samePowerTypes.grantableBase().contains { $0.id == "linkHeavy" })
+        // Store shelves, EVERY kind, many seeds:
+        let retired: Set<String> = ["diamondBoost", "linkHeavy"]
+        for seed: UInt32 in 1...120 {
+            let rng = RNG(seed: seed)
+            var scratch: [String: ShopRoll] = [:]
+            let slots = StoreRoll.rollUnifiedSlots(rng, count: 12, data: data,
+                                                   isUnlocked: { _ in true }, genCard: nil,
+                                                   shopRolls: &scratch)
+            for s in slots.compactMap({ $0 }) {
+                XCTAssertFalse(retired.contains(s.id),
+                               "seed \(seed): retired '\(s.id)' rolled onto a shelf as \(s.kind)")
+            }
+        }
+        // …and both stay registered for old saves.
+        XCTAssertNotNil(data.baseTypes.get("diamondBoost"))
+        XCTAssertNotNil(data.samePowerTypes.get("linkHeavy"))
     }
 }

@@ -58,20 +58,43 @@ final class PeelHarvestProvenanceTests: XCTestCase {
         XCTAssertEqual(rec2?.convertedFrom, "tell", "…and it survives the campaign save")
     }
 
-    func testPurgeCouponTextNamesTheLiveLadder() {
+    func testPurgeCouponTextIsTokenFreeAndThePreviewRidesTheLadder() {
         let def = data.baseTypes.get("purgeDiscount")!
-        XCTAssertEqual(def.int("value", 0), 2, "the approved v6.91 cut")
+        // v6.93: the data text carries NO {current}/{new} tokens — the cut is
+        // a live board read (♦-topped piles in the column), so the deal UI
+        // computes the price preview at fire time. No path can leak a raw
+        // token again (the Collection / post-fire popup leaks this replaces).
+        XCTAssertFalse(def.description.contains("{"),
+                       "no template tokens in the shared text: \(def.description)")
+        XCTAssertTrue(def.description.contains("♦"), "the per-diamond rule is stated")
+        XCTAssertTrue(def.description.contains("Minimum 5"))
+        // PRICE BASIS (the {current} rule): removalPrice() is the NEXT
+        // visit's price — the ladder term for purchases already made this
+        // climb is in it, not the price last paid.
+        let cfg = data.items.store.removal
+        // The default deck (multiplier 1 — the ladder suite's setup) keeps
+        // the equality exact.
         let c = CampaignState(store: MemoryStore())
-        c.setDeck("pink"); c.setTier("regular"); c.setSeedOverride(7); c.reset()
-        let cur = Int(c.removalPrice())
-        let target = max(5, cur - 2)
-        let out = c.itemDescription(def)
-        XCTAssertFalse(out.contains("{current}"), "the tokens substitute")
-        XCTAssertTrue(out.contains("◉\(cur) → ◉\(target)"), "…with the LIVE ladder: \(out)")
-        XCTAssertTrue(out.contains("Minimum 5"))
-        // The floor shows when the ladder is already at it.
-        c.addPurgeDiscount(999)
-        let floored = c.itemDescription(def)
-        XCTAssertTrue(floored.contains("◉5 → ◉5"), "at the floor, both sides read 5: \(floored)")
+        c.setSeedOverride(7); c.reset()
+        c.addCoins(10_000)
+        let p0 = c.removalPrice()
+        XCTAssertTrue(c.buyRemoval(c.ownedIds[0]))
+        XCTAssertTrue(c.buyRemoval(c.ownedIds[0]))
+        let next = c.removalPrice()
+        XCTAssertGreaterThan(next, p0, "two purchases this climb moved the quote")
+        XCTAssertEqual(next, p0 + cfg.priceStep * 2,
+                       "…by exactly one step per purchase — the NEXT visit's price")
+        // The {new} rule: the preview is removalPrice with the fire's cut
+        // banked — the SAME ladder, so the preview can never disagree with
+        // what the register charges after the fire.
+        let cut = 2 * def.int("perDiamond", 1)
+        let preview = c.removalPrice(extraCut: cut)
+        c.addPurgeDiscount(cut)
+        XCTAssertEqual(c.removalPrice(), preview,
+                       "the preview equals the post-fire price, through the same ladder")
+        // …and the floor holds inside the preview too.
+        XCTAssertEqual(c.removalPrice(extraCut: 999),
+                       max(1, c.shopPrice(def.num("min", 5)).rounded()),
+                       "the preview never quotes below the Coupon's min")
     }
 }

@@ -222,7 +222,7 @@ final class ConditionalStickerTests: XCTestCase {
 
     func testInactiveStickersNeverAppearFromAnyAcquisitionPath() {
         let inactiveIds = Set(data.items.stickers.filter(\.inactive).map(\.id))
-        XCTAssertEqual(inactiveIds.count, 20, "the v6.85 retirement set")
+        XCTAssertEqual(inactiveIds.count, 21, "the v6.85 retirement set + v6.94 Heavy")
         // The one chokepoint every pool flows through…
         XCTAssertFalse(data.stickerTypes.grantableBase().contains { inactiveIds.contains($0.id) })
         // …and the live paths on top of it. Store shelves:

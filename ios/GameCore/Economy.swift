@@ -131,10 +131,13 @@ public struct Economy: Sendable {
     /// Coins earned (the total of `breakdown()`).
     public func computeRunPayout(_ stats: PayoutStats) -> Double { breakdown(stats).total }
 
-    /// LIVE item-driven bonus — the coins items have put on top of the flat
-    /// reward if the deal cleared right now. Equals `total − flat` at the
-    /// deal-end fold by construction. May go negative mid-deal.
+    /// LIVE bonus tracker — coins items have paid DURING the deal only
+    /// (v6.94). Deal-end awards (scoring-pillar payouts, Payout sticker
+    /// units) are deliberately EXCLUDED: they don't exist until the final
+    /// turn resolves, so they never show in the running tracker — and
+    /// Devil's Deal / Bonus Reset, which operate on this same tally, can
+    /// never double or zero money that hasn't been earned yet.
     public func liveBonus(_ stats: PayoutStats) -> Double {
-        stats.liveBonusCoins + stats.pillarBonus + Double(stats.extraCoinUnits) * extraCoinValue
+        stats.liveBonusCoins
     }
 }

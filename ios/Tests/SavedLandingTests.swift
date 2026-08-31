@@ -215,8 +215,9 @@ final class SavedLandingTests: XCTestCase {
     }
 
     func testSecondWindSaveFiresNoLandingStickers() {
-        // Auto mode (web parity): the roll hits, the pile's cards AND the
-        // killer recycle into the deck — the killer never lands on the pile.
+        // Auto mode (web parity): the roll hits — the pile's TOP STAYS, its
+        // buried cards AND the killer shuffle back into the deck (v6.93), so
+        // no card lands on the pile at all.
         var state: UInt32?
         for s: UInt32 in 1...400 {
             let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
@@ -235,10 +236,10 @@ final class SavedLandingTests: XCTestCase {
         e.rng.state = s
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0), "Second Wind saved the pile")
-        XCTAssertEqual(e.board.piles[0].cards.count, 1, "the recycle dealt one fresh top")
-        XCTAssertNotEqual(e.board.top(0)?.id, 50, "the killer recycled — it never landed")
-        XCTAssertEqual(e.run.bonusCoins, 0, "Bonus Coin does not pay on a recycled card")
-        XCTAssertTrue(e.run.tellPiles.isEmpty, "Tell does not arm on a recycled card")
+        XCTAssertEqual(e.board.top(0)?.id, 1, "the pile keeps its top — no fresh card is dealt")
+        XCTAssertEqual(e.board.piles[0].cards.count, 1, "…and its buried cards shuffled back")
+        XCTAssertEqual(e.run.bonusCoins, 0, "Bonus Coin does not pay — no card landed")
+        XCTAssertTrue(e.run.tellPiles.isEmpty, "Tell does not arm — no card landed")
     }
 
     // MARK: - Tie-safe: RESOLVES as correct, so it already fires (pin the route)

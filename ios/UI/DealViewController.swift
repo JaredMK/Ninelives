@@ -40,6 +40,20 @@ public final class DealViewController: UIViewController {
     private var holdShown = false
     /// The shared bottom prompt bar (offers, base confirms) over the SKView.
     private let promptBar = PromptBar()
+    /// `-guessReceipt 1` (InputTapUITests, v6.93): SpriteKit input is invisible
+    /// to the XCUITest accessibility tree, so a real call-button tap can only
+    /// be PROVEN by its engine effect — this label counts the engine logbook's
+    /// "Guess …" entries (drained into DebugEventLog after every action). It
+    /// exists only with the arg; play is untouched.
+    private lazy var guessReceiptLabel: UILabel = {
+        let l = UILabel()
+        l.accessibilityIdentifier = "guessReceipt"
+        l.font = CRT.Font.of(12)
+        l.textColor = CRT.cardFace
+        l.textAlignment = .right
+        l.isUserInteractionEnabled = false
+        return l
+    }()
     /// Piles armed as tap TARGETS (revive / Phoenix), with the answer callback.
     private var targetPick: (targets: [Int], kind: TargetKind, answer: (Int?) -> Void)?
 
@@ -191,6 +205,13 @@ public final class DealViewController: UIViewController {
             view.addSubview(promptBar)
             promptBar.frame = view.bounds
             promptBar.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            if UserDefaults.standard.bool(forKey: "guessReceipt") {
+                guessReceiptLabel.text = "guesses:0"
+                guessReceiptLabel.frame = CGRect(x: view.bounds.width - 128,
+                                                 y: view.safeAreaInsets.top + 2,
+                                                 width: 120, height: 20)
+                view.addSubview(guessReceiptLabel)
+            }
             scene.showsFrameHUD = UserDefaults.standard.bool(forKey: "fps")
             skView.presentScene(scene)
             if UserDefaults.standard.bool(forKey: "autoPlay") { startAutoPlay() }
@@ -423,7 +444,7 @@ public final class DealViewController: UIViewController {
             guard let self else { answer(true); return }
             self.promptBar.show(
                 "Second Wind: save the highlighted pile?",
-                help: "Save it and its \(count) card\(count == 1 ? "" : "s") (pile + killer) return to the deck, hidden, and it draws one fresh top. Let it die and the pile is gone.",
+                help: "Save it and the top card stays; the \(count) card\(count == 1 ? "" : "s") beneath it (plus the killer) shuffle back into the deck, hidden. Let it die and the pile is gone.",
                 actions: [
                     .init("Let it die", role: .plain) { [weak self] in
                         self?.promptBar.hide(); answer(false)
@@ -544,9 +565,15 @@ public final class DealViewController: UIViewController {
         let p = scenePoint(g.location(in: view))
 
         // A visible help panel collapses on the next tap — EXCEPT a tap on
-        // a pile, which falls through so tapping pile-to-pile re-targets the
-        // info instead of needing two taps (v6.88).
-        if scene.isHelpVisible, scene.pileIndex(at: p) == nil { scene.hideHelp(); return }
+        // a live control: a pile re-targets the info (v6.88), and a call
+        // button or charged Base plaque FIRES on the first tap instead of
+        // being spent dismissing the info (v6.93 — the "cancelsTouchesInView
+        // lesson": an informational layer never eats a touch aimed at a
+        // live control). Only empty felt consumes the collapse tap.
+        if scene.isHelpVisible, scene.pileIndex(at: p) == nil,
+           scene.button(at: p) == nil, scene.baseCol(at: p) == nil {
+            scene.hideHelp(); return
+        }
 
         // Target-pick mode (Sticker Harvest / revive): a tap on an armed pile
         // fires; a tap ANYWHERE ELSE answers exactly like Skip (v6.57 batch) —
@@ -586,11 +613,13 @@ public final class DealViewController: UIViewController {
         }
 
         if let b = scene.button(at: p) {
+            scene.hideHelp()  // a fired call clears the info with it (v6.93)
             fire(button: b)
             return
         }
         // A charged Base plaque fires on tap.
         if let col = scene.baseCol(at: p) {
+            scene.hideHelp()  // same: the fire tap is never spent on dismiss
             Sound.shared.plaqueFire()
             controller.basePlaqueTapped(col: col)
             return
@@ -699,6 +728,16 @@ public final class DealViewController: UIViewController {
         case "menu":      scene.onMenuTapped?()
         default: break
         }
+        updateGuessReceipt()
+    }
+
+    /// The `-guessReceipt` counter reads the DRAINED engine logbook, so it
+    /// only moves when a guess actually reached the engine — a tap eaten by
+    /// the input router (the v6.93 bug) leaves it at 0.
+    private func updateGuessReceipt() {
+        guard guessReceiptLabel.superview != nil else { return }
+        let n = DebugEventLog.shared.lines.filter { $0.contains("] Guess ") }.count
+        guessReceiptLabel.text = "guesses:\(n)"
     }
 
     // MARK: - Swipe guessing
@@ -708,10 +747,10 @@ public final class DealViewController: UIViewController {
         switch g.state {
         case .began:
             if scene.isHelpVisible {
-                // A drag that starts ON the histogram while its band help is
-                // up is a scrub, not a stuck screen: drop the help, track on.
-                if scene.histogramRank(at: p) != nil { scene.hideHelp(); holdShown = false }
-                else { return }
+                // The tap gate's swipe twin (v6.93): the first drag after
+                // viewing info drops the help and TRACKS — it is never
+                // eaten as a dismiss gesture, wherever it starts.
+                scene.hideHelp(); holdShown = false
             }
             dragPile = scene.pileIndex(at: p)
             dragArmed = nil

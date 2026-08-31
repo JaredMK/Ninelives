@@ -219,9 +219,14 @@ const NINELIVES_ITEMS = {
       description: "At deal end if this card tops its pile → exclude the pile from the smallest-pile score.\nAny card played on top of this card is cursed" },
     { id: "deathBounty", inactive: true, label: "Last Coin",  icon: "💀", kind: "behavior", behavior: "deathBounty", value: 3, tier: "common", price: 2,
       description: "+3 coins if it kills a pile", suits: ["♥"] },
+    // v6.94: the flat pile-size family is RETIRED (inactive) — Heavy, Streak
+    // Size, Massive Diamond, Empty Ranks Heavy, Crazy Eights, Diamond Echo,
+    // Pauper's Diamond, Diamond Lifeline, Diamond Boost, Same Heavy. Effects
+    // still resolve in old saves; redistribution (Ballast, Donate, Diamond
+    // Distribution) and the Anchors stay LIVE — they change board decisions.
     // value = pile size added to each matching pile on a hit (v6.85: a
     // LANDING effect now, latched via sizeBonus — no longer a passive weight).
-    { id: "heavy",      label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", value: 1, tier: "uncommon", price: 1,
+    { id: "heavy", inactive: true, label: "Heavy",       icon: "🧱", kind: "behavior", behavior: "heavy", value: 1, tier: "uncommon", price: 1,
       description: "If another pile's top card matches this card's suit → +1 pile size to every pile whose top matches, including this one.\nIf none does → this sticker becomes a curse" },
      { id: "massive", inactive: true, unlock: { type: "behavior", stat: "stickersApplied", count: 10 }, label: "Massive",       icon: "🧱", kind: "behavior", behavior: "heavy", value: 2, tier: "uncommon", price: 2,
       description: "+2 pile size",suits: ["♦"]  },
@@ -383,7 +388,7 @@ const NINELIVES_ITEMS = {
       description: "At deal end → +2 coins per pile in this column with a ♥ top card" },
     // threshold = the in-column streak step the bonus starts at (+1 size per
     // step from there on; resets on a wrong guess or any other-column guess).
-    { id: "streakBank", unlock: { type: "behavior", stat: "perfectDeals", count: 2 }, label: "Streak Size", icon: "🏦",
+    { id: "streakBank", inactive: true, unlock: { type: "behavior", stat: "perfectDeals", count: 2 }, label: "Streak Size", icon: "🏦",
       kind: "modifier", effect: "streakSize", threshold: 3, tier: "rare", price: 4,
       description: "From the 3rd consecutive correct guess in this column → +1 pile size per guess. Resets on a wrong guess or any guess in another column" },
     // threshold = the streak step burials start at; digCount = cards buried
@@ -400,10 +405,14 @@ const NINELIVES_ITEMS = {
       description: "This column starts the deal with 1 extra pile (up to 4)" },
     { id: "secondWind", label: "Second Wind", icon: "🌬️",
       kind: "guess", effect: "secondWind", tier: "rare", price: 6, saveChance: 0.25,
-      description: "Each pile that dies in this column has a 25% chance to be saved, but all the buried cards return to the deck" },
+      description: "Each pile that dies in this column has a 25% chance to be saved — the top card stays and the buried cards shuffle back into the deck" },
+    // GREEDY (v6.93 rework): the fat-deck / empty-loadout archetype piece —
+    // it scales WITH deck size while the rest of the game punishes bloat,
+    // and only pays while the board carries no other pillar. value = coins
+    // per chunk; perCards = the deck-size chunk that pays one chunk.
     { id: "greedy", unlock: { type: "milestone", stat: "dealsSurvived", count: 6 }, label: "Greedy", icon: "🤑",
-      kind: "scoring", effect: "greedy", value: 4, tier: "common", price: 5,
-      description: "At deal end → +4 coins if this is the only equipped pillar" },
+      kind: "scoring", effect: "greedy", value: 1, perCards: 5, tier: "common", price: 5,
+      description: "At deal end → +1 coin per 5 cards in your deck, if no other pillar is equipped" },
     { id: "highestEven", inactive: true, unlock: { type: "milestone", stat: "bestCampaignScore", count: 220 }, label: "Highest Heart", icon: "💗",
       kind: "scoring", effect: "highestHeart", tier: "rare", price: 8,
       description: "At deal end → earn coins equal to the highest numbered ♥ top card in this column (2–10 face value, Ace pays 1, royals pay 0)" },
@@ -469,7 +478,7 @@ const NINELIVES_ITEMS = {
       kind: "meta", effect: "ditto", tier: "rare", price: 5,
       description: "Mirrors the center column's pillar" },
     // value = extra pile size per ♦ card (top or buried) in the column.
-    { id: "stickerCount", label: "Massive Diamond", icon: "🏷️",
+    { id: "stickerCount", inactive: true, label: "Massive Diamond", icon: "🏷️",
       kind: "modifier", effect: "heavyDiamond", value: 2, tier: "uncommon", price: 4,
       description: "♦ cards in this column count as +2 toward pile size" },
     // value = coins per prime-rank (2/3/5/7) card landing correctly here.
@@ -528,14 +537,14 @@ const NINELIVES_ITEMS = {
     { id: "heartZeroRanksCoin", unlock: { type: "behavior", stat: "removalsUsed", count: 50 }, label: "Empty Ranks Coins", icon: "🉐",
       kind: "live", effect: "heartZeroRanksCoin", value: 2, tier: "uncommon", price: 8,
       description: "When a ♥ lands in this column → +2 coins per rank with zero copies in your full deck" },
-    { id: "diamondZeroRanksSize", unlock: { type: "behavior", stat: "removalsUsed", count: 60 }, label: "Empty Ranks Heavy", icon: "🈵",
+    { id: "diamondZeroRanksSize", inactive: true, unlock: { type: "behavior", stat: "removalsUsed", count: 60 }, label: "Empty Ranks Heavy", icon: "🈵",
       kind: "live", effect: "diamondZeroRanksSize", value: 1, tier: "uncommon", price: 8,
       description: "When a ♦ lands in this column → +1 pile size per rank with zero copies in your full deck" },
     // CRAZY EIGHTS: a composition condition (8s the most common rank in the
     // full deck) changes the column's STARTING pile size. The target size 8
     // is the mechanic itself — no knob.
     // TUNE: price 10 proposed (R4); deliberately huge vs normal starting size — flagged for balance.
-    { id: "eightStart", unlock: { type: "behavior", stat: "perfectDeals", count: 12 }, label: "Crazy Eights", icon: "8️⃣",
+    { id: "eightStart", inactive: true, unlock: { type: "behavior", stat: "perfectDeals", count: 12 }, label: "Crazy Eights", icon: "8️⃣",
       kind: "composition", effect: "startPileSizeEight", tier: "rare", price: 10,
       description: "If 8s are the most common rank in your full deck → this column's piles start at pile size 8" },
     // ROYAL SANCTUARY: composition-gated guess safety — the no-2s condition
@@ -560,7 +569,7 @@ const NINELIVES_ITEMS = {
     // DIAMOND ECHO: the size bonus is DERIVED — +1 per duplicate of the
     // landing card's rank in the full deck — so there is no count knob.
     // TUNE: price 6 proposed (R4).
-    { id: "diamondDupeSize", unlock: { type: "behavior", stat: "diamondsPlayed", count: 150 }, label: "Diamond Echo", icon: "👯",
+    { id: "diamondDupeSize", inactive: true, unlock: { type: "behavior", stat: "diamondsPlayed", count: 150 }, label: "Diamond Echo", icon: "👯",
       kind: "live", effect: "diamondDupeSize", tier: "uncommon", price: 6,
       description: "When a ♦ lands in this column → +1 pile size per duplicate of that card's rank in your full deck" },
 
@@ -667,13 +676,14 @@ const NINELIVES_ITEMS = {
     // value = the pile size a ♦ counts toward (board-wide) while broke,
     // replacing the normal +1.
     // TUNE: price 3 proposed (R4).
-    { id: "pauperDiamond", label: "Pauper's Diamond", icon: "💎",
+    { id: "pauperDiamond", inactive: true, label: "Pauper's Diamond", icon: "💎",
       kind: "live", effect: "pauperDiamondSize", purseBelow: 10, value: 2, tier: "common", price: 3,
       description: "While your purse holds under 10 coins → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1" },
     // No knobs — the tell (higher/lower/same) is the mechanic.
-    // TUNE: price 2 proposed (R4).
+    // v6.93: cost 8 (was the family's flat 2 — the tell is the strongest
+    // Pauper effect and priced like the weakest).
     { id: "pauperSpade", label: "Pauper's Spade", icon: "🥄",
-      kind: "live", effect: "pauperSpadeTell", purseBelow: 10, tier: "common", price: 2,
+      kind: "live", effect: "pauperSpadeTell", purseBelow: 10, tier: "common", price: 8,
       description: "While your purse holds under 10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)" },
     // digCount = cards buried per qualifying ♣ landing.
     // TUNE: price 2 proposed (R4).
@@ -707,7 +717,7 @@ const NINELIVES_ITEMS = {
     // value = the pile size a ♦ counts toward (board-wide) while the column
     // holds a size-1 pile, replacing the normal +1.
     // TUNE: price 5 proposed (R4).
-    { id: "sizeOneDiamonds", label: "Diamond Lifeline", icon: "🔷",
+    { id: "sizeOneDiamonds", inactive: true, label: "Diamond Lifeline", icon: "🔷",
       kind: "live", effect: "sizeOneDiamonds", value: 2, tier: "uncommon", price: 5,
       description: "While any pile in this column has pile size 1 → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1" },
   ],
@@ -816,15 +826,18 @@ const NINELIVES_ITEMS = {
        UNGATED except Purge Coupon; the anchors (Transmute, Chorus) gate.
        Every price is an R4 PROPOSAL, marked TUNE. */
 
-    // PURGE COUPON: value = coins knocked off the store's Purge price per
-    // activation; min = the floor the price never drops below. A store-side
-    // lever carried on a base — nothing happens in-deal.
+    // PURGE COUPON (v6.93 rework): the cut is no longer flat — on fire the
+    // store's Purge price drops by perDiamond for each ♦-TOPPED pile in this
+    // column (a live board read, so it can't fire with none showing). The
+    // cut only exists in-deal, so the live ladder preview (current → new
+    // price) is COMPUTED at fire time by the deal UI — the data text stays
+    // token-free and can never leak a raw {current}/{new} anywhere (the
+    // Collection / post-fire popup leaks this replaces). min = the floor
+    // the price never drops below. A store-side lever carried on a base.
     // TUNE: price 5 proposed (R4).
-    // v6.91: the cut is 2 (was 3) and the text shows the LIVE ladder —
-    // {current}/{new} are substituted at display time from removalPrice().
     { id: "purgeDiscount", unlock: { type: "behavior", stat: "removalsUsed", count: 3 }, label: "Purge Coupon", icon: "🎟️",
-      kind: "active", effect: "purgeDiscount", value: 2, min: 5, tier: "uncommon", price: 5,
-      description: "Reduce the Store's Purge cost by 2 ({current} → {new}). Minimum 5" },
+      kind: "active", effect: "purgeDiscount", perDiamond: 1, min: 5, tier: "uncommon", price: 5,
+      description: "Reduce the Store's Purge cost by 1 for each ♦-topped pile in this column. Minimum 5" },
     // BONUS RESET (v6.88): trade the deal's banked bonus coins for sight.
     // Only fireable while MORE than 1 bonus coin is banked and the deck
     // still holds a card to show. Rarity/cost/unlock proposed — STOP-FLAGGED
@@ -850,7 +863,9 @@ const NINELIVES_ITEMS = {
       description: "Choose a pile → purge its top card from your deck, then kill that pile" },
     // DEVIL'S DEAL: doubles run.bonusCoins (this deal's bonus tally), then
     // inflicts a curse on a top card in this column. No knobs — the trade is
-    // the mechanic.
+    // the mechanic. Stays AMBER until at least 1 bonus coin is banked
+    // (v6.93: it can't double a non-positive bonus — a 0×2 fire was a
+    // wasted charge).
     // TUNE: price 8 proposed (R4).
     { id: "devilsDeal", label: "Devil's Deal", icon: "😈",
       kind: "active", effect: "devilsDeal", tier: "rare", price: 8,
@@ -873,7 +888,7 @@ const NINELIVES_ITEMS = {
     // DIAMOND BOOST (v6.78: column-wide, no target pick) — value = the pile
     // size added to EVERY ♦-topped pile in the column.
     // TUNE: price 3 proposed (R4).
-    { id: "diamondBoost", label: "Diamond Boost", icon: "💠",
+    { id: "diamondBoost", inactive: true, label: "Diamond Boost", icon: "💠",
       kind: "active", effect: "diamondBoost", value: 3, tier: "common", price: 3,
       description: "Every pile with a ♦ top card in this column → +3 pile size" },
   ],
@@ -925,7 +940,7 @@ const NINELIVES_ITEMS = {
     { id: "linkPurge", unlock: { type: "behavior", stat: "removalsUsed", count: 14 }, label: "Long Odds", icon: "🎯",
       effect: "linkPurge", chance: 0.5, tier: "rare", price: 9,
       description: "50% chance to purge a card from the deck" },
-    { id: "linkHeavy", unlock: { type: "behavior", stat: "perfectDeals", count: 4 }, label: "Same Heavy", icon: "🧱",
+    { id: "linkHeavy", inactive: true, unlock: { type: "behavior", stat: "perfectDeals", count: 4 }, label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 1, hubValue: 3, tier: "rare", price: 9,
       description: "Add +1 pile size to every pile, and +3 to the pile you called Same on" },
 

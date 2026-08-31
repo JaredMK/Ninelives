@@ -1169,15 +1169,13 @@ public final class DealController {
             // v6.78: column-wide — every boosted ♦ pile pulses.
             for i in res.boostedPiles ?? [] { scene.goodPulse(at: i) }
         case "purgeDiscount":
-            // A store-side lever fired from a board plaque — nothing on the
-            // board changes, so say out loud what it did (the write-back
-            // below applies it to the campaign's Purge pricing).
-            if let cut = res.purgePriceCut, let floor = res.purgePriceFloor {
+            // v6.93: the post-fire OK popup is gone — the pre-fire confirm
+            // already quoted the cut (liveBaseDescription's ladder preview),
+            // so the fire just pulses the column and banks the discount (the
+            // write-back below applies it to the campaign's Purge pricing).
+            if let cut = res.purgePriceCut, cut > 0, let p = firstPile(inColumn: res.col) {
                 Sound.shared.coinBonus()
-                let desc = currentBaseId(res.col)
-                    .flatMap { GameData.shared.baseTypes.get($0) }?.description
-                onBaseNotice?("Purge Coupon: the store's Purge costs ◉ \(cut) less for the rest of the climb (never below ◉ \(floor)).",
-                              desc ?? "A store-side lever — nothing changes on this board.")
+                scene.floatCue("PURGE −◉\(cut)", at: p, color: CRT.phosphor)
             }
         default:
             break
@@ -1534,6 +1532,12 @@ public final class DealController {
                 // The killer already flew and settled when the offer arrived —
                 // a decline's replayed `.resolved` must not fly it twice.
                 if !accept { self.skipResolvedFlightFor = pending.index }
+                if accept {
+                    // v6.93: the killer never landed — it flies back to the
+                    // deck with the buried cards; the pile keeps its old top.
+                    self.scene.flyToDeck(face: CardArt.Face(pending.killingCard),
+                                         from: pending.index, delay: 0) {}
+                }
                 self.engine.answerSecondWind(accept)
                 self.drainPrompts()
                 self.refreshAll()
@@ -1601,6 +1605,7 @@ public final class DealController {
         animQueue.add(priority: 0) { [weak self] done in
             guard let self else { done(); return }
             self.scene.flyDraw(face: CardArt.Face(drawn), to: index,
+                               stickers: drawn.stickers, counters: drawn,
                                duration: staged ? 1.5 : nil) {
                 Sound.shared.place()
                 self.scene.pileLandPop(index)
@@ -1763,7 +1768,7 @@ public final class DealController {
         guard engine.baseCanActivate(col) else {
             onBaseNotice?(engine.baseUnavailableReason(col)
                             ?? "\(def.label) can't do anything right now.",
-                          liveBaseDescription(def))
+                          liveBaseDescription(def, col: col))
             return
         }
 
@@ -1798,7 +1803,7 @@ public final class DealController {
                 prompt = "\(def.label): tap a pile in this column."
             }
             guard !targets.isEmpty, let handler = onBaseTarget else {
-                onBaseNotice?("\(def.label) has nothing to target.", liveBaseDescription(def))
+                onBaseNotice?("\(def.label) has nothing to target.", liveBaseDescription(def, col: col))
                 return
             }
             promptActive = true
@@ -1817,7 +1822,7 @@ public final class DealController {
             return
         }
         promptActive = true
-        var confirmDesc = liveBaseDescription(def)
+        var confirmDesc = liveBaseDescription(def, col: col)
         if def.effect == "emptyPurse" {
             // v6.74: the yield AND the cost, brutally clear — the exact peek
             // count and the exact number about to vanish, both computed live.
@@ -1997,7 +2002,7 @@ public final class DealController {
     /// plaque IS on its column) and no "tap the plaque" coaching line.
     public func helpText(forBase col: Int) -> (String, String)? {
         guard let id = currentBaseId(col), let def = GameData.shared.baseTypes.get(id) else { return nil }
-        var body = liveBaseDescription(def)
+        var body = liveBaseDescription(def, col: col)
         var title = def.label
         if engine != nil {
             let spent = engine.run.basesUsed?[safe: col] ?? false
@@ -2090,15 +2095,18 @@ public final class DealController {
     /// {rank} names the deck's current most-copied rank everywhere the deal
     /// shows the text (confirm, amber notice, hold-help). Falls back to the
     /// generic wording when no engine is up.
-    private func liveBaseDescription(_ def: ItemDef) -> String {
+    private func liveBaseDescription(_ def: ItemDef, col: Int? = nil) -> String {
         var out = def.description
-        // PURGE COUPON (v6.91): the live ladder — same substitution the
-        // store shelf shows (campaign.itemDescription's rule).
-        if def.effect == "purgeDiscount", out.contains("{current}") {
+        // PURGE COUPON (v6.93): the data text is token-free (a ♦-count needs
+        // a live column), so the ladder preview is appended HERE — both
+        // numbers read through removalPrice()'s own ladder: current = the
+        // NEXT store visit's price (purchases already made this climb
+        // included), new = the same read with this fire's cut banked. The
+        // cut itself is the badge's live counter, so preview ≡ fire.
+        if def.effect == "purgeDiscount", let cut = engine?.baseLiveCounter(col) {
             let cur = Int(campaign.removalPrice())
-            let target = max(Int(def.num("min", 5)), cur - Int(def.num("value", 2)))
-            out = out.replacingOccurrences(of: "{current}", with: "◉\(cur)")
-                     .replacingOccurrences(of: "{new}", with: "◉\(target)")
+            let new = Int(campaign.removalPrice(extraCut: cut))
+            out += "\nRight now: the store's Purge ◉\(cur) → ◉\(new)."
         }
         if out.contains("{rank}") {
             if let r = engine?.mostCopiedRank(),
@@ -2287,8 +2295,9 @@ public final class DealController {
                             suitTotals: dealSuitTotals,
                             rankTotals: dealRankTotals,
                             showJoker: !isZen)   // Zen never holds a ★
-        let peeking = engine.run.revealNextActive || engine.run.kamikazeRevealLeft > 0
-        scene.syncDeckPeek(peeking ? engine.deck.peek(1).first.map(CardArt.Face.init) : nil)
+        // v6.94: the engine's peek read carries the REAL card — the peek chip
+        // shows its stickers/curses, not just the face.
+        scene.syncDeckPeek(engine.revealedNextCard())
         // Zen hides #dealStatus — no reward line at all.
         if !isZen {
             scene.syncReward(base: plan?.flatReward ?? dealBaseDebug(), bonus: liveBonus(),
@@ -2338,10 +2347,11 @@ public final class DealController {
     }
 
     private func liveBonus() -> Double {
+        // v6.94: the tracker counts DURING-deal bonus coins only. Deal-end
+        // awards (scoring pillars, Payout sticker units) land at the scoring
+        // pass — they must not show here before the final turn resolves.
         var s = PayoutStats()
         s.liveBonusCoins = engine.run.bonusCoins
-        s.pillarBonus = engine.pillarPayout().bonus
-        s.extraCoinUnits = engine.board.extraCoinUnits()
         return economy.liveBonus(s)
     }
 

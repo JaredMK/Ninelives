@@ -1010,12 +1010,19 @@ extension GameEngine {
                 }
 
             case "greedy":
-                // +value if it's the SOLE Pillar on the board (a second
-                // Pillar anywhere — even another Greedy — voids it). No
-                // survival condition.
+                // v6.93: the fat-deck / empty-loadout piece — +value per
+                // `perCards` cards in the FULL OWNED deck (the composition
+                // hook's read), but ONLY while it's the sole Pillar on the
+                // board (a second Pillar anywhere — even another Greedy —
+                // voids it). No survival condition.
                 if pillarsOnBoard == 1 {
-                    bonus += t.value
-                    lines.append(PayoutLine(label: t.label, detail: "only Pillar on the board", amount: t.value, col: col))
+                    let per = max(1, t.int("perCards", 5))
+                    let cards = fullDeckCards().count
+                    let amt = Double(cards / per) * t.value
+                    if amt > 0 {
+                        bonus += amt
+                        lines.append(PayoutLine(label: t.label, detail: "\(cards) cards · only Pillar on the board", amount: amt, col: col))
+                    }
                 }
 
             case "highestHeart":
@@ -1138,7 +1145,7 @@ extension GameEngine {
               !deck.isEmpty, let killing = deck.draw() else { return }
         run.pendingSecondWind = PendingSecondWind(
             index: idx, col: run.pileColumns?[idx] ?? 0, guess: .higher,
-            killingCard: killing, recycleCount: board.pileSize(idx) + 1)
+            killingCard: killing, recycleCount: board.pileSize(idx))
     }
 
     /// Stage the parked Link Shuffler confirm on the first alive pile (the hub).

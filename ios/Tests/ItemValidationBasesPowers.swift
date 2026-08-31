@@ -813,6 +813,23 @@ enum IVBases {
                         XCTAssertEqual(curses.count, 1, "\(c): one curse on an in-column top")
                         assertSpent(e, c)
                     }),
+                IV.Scenario("trigger-doublesOnlyTheDuringDealTally", allowed: .all,
+                    // v6.94: with a scoring pillar (Guardian) equipped, Devil's
+                    // Deal doubles ONLY the during-deal tally — the pillar's
+                    // deal-end award hasn't been earned yet and is untouched.
+                    build: {
+                        let e = baseEngine(def, pillars: ["columnGuardian", nil])
+                        e.run.bonusCoins = 5
+                        return e
+                    },
+                    fire: { e in _ = e.baseActivate(col: 0) },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.bonusCoins, 10, "\(c): only the during-deal tally doubled")
+                        let gv = data.pillarTypes.get("columnGuardian")?.num("value", 4) ?? 4
+                        XCTAssertEqual(e.pillarPayout().bonus, gv,
+                                       "\(c): Guardian's deal-end award stays undoubled")
+                        assertSpent(e, c)
+                    }),
                 IV.Scenario("edge-uncursablePickRepicksSeeded", allowed: .all,
                     build: {
                         let e = baseEngine(def, tops: [IV.spec(1, 0, joker: true), IV.spec(2, 8, "♥"),
@@ -845,6 +862,16 @@ enum IVBases {
                                 data.stickerTypes.get($0.type)?.cursed == true } ?? [] }
                         XCTAssertEqual(curses.count, 0, "\(c): no curse could land")
                         assertSpent(e, c)
+                    }),
+                IV.Scenario("mustNotFire-noBonus", allowed: [],
+                    // v6.93: it can't double a non-positive bonus — amber at
+                    // ◉0 banked, and the refused fire keeps the charge.
+                    build: { baseEngine(def) },   // bonusCoins starts at 0
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "nothing to double") },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.baseCanActivate(0), "\(c): amber at ◉0 banked")
+                        XCTAssertNotNil(e.baseUnavailableReason(0), "\(c): the amber tap says why")
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): the refused fire keeps the charge")
                     }),
             ]
 

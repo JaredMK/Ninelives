@@ -150,13 +150,13 @@ final class ItemFireLogTests: XCTestCase {
         XCTAssertEqual(b.total, s.flat + paid, "no other source in play — the total is flat + the one fire")
     }
 
-    /// …and the one place the display legitimately EXCEEDS the live tally: a
-    /// scoring Pillar's end-of-deal payout projects into the reward line's
-    /// bonus term all deal long (the web's documented liveBonus contract —
-    /// index.html Economy.liveBonus: "the coins items have put on top of the
-    /// flat reward if the deal cleared right now"). That projection, not a
-    /// tally desync, is how a "+2" fire can sit beside a "+7" reward line.
-    func testRewardLineBonusTermIncludesThePillarProjectionByDesign() {
+    /// …and v6.94 REVERSES the one place the display used to exceed the live
+    /// tally: a scoring Pillar's end-of-deal payout no longer projects into
+    /// the reward line's bonus term. Deal-end awards (Guardian, Envy,
+    /// Insurance, Payout sticker units) don't exist until the final turn
+    /// resolves — the tracker shows only the during-deal tally, so Devil's
+    /// Deal / Bonus Reset can never double or zero money not yet earned.
+    func testRewardLineBonusTermExcludesThePillarProjection() {
         guard let guardian = data.pillarTypes.all().first(where: { $0.effect == "columnAllAlive" })
         else { return XCTFail("no all-alive scoring pillar in the data") }
         let e = engine(pillars: [guardian.id, nil, nil])
@@ -167,9 +167,9 @@ final class ItemFireLogTests: XCTestCase {
         live.pillarBonus = e.pillarPayout().bonus
         live.extraCoinUnits = e.board.extraCoinUnits()
         XCTAssertEqual(e.pillarPayout().bonus, guardian.value,
-                       "the whole column is alive — the pillar projects its full value")
-        XCTAssertEqual(economy.liveBonus(live), tally + guardian.value,
-                       "the reward line's bonus term = tally + the pillar's projected payout")
+                       "the whole column is alive — the pillar will pay its full value AT DEAL END")
+        XCTAssertEqual(economy.liveBonus(live), tally,
+                       "the tracker's bonus term is the during-deal tally only — no deal-end projection")
     }
 
     // MARK: - 3. Tell arms a hint, never a peek (Task 3)

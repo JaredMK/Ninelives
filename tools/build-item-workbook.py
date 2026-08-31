@@ -12,9 +12,13 @@ uses — one taxonomy, two renderings, no chance of the two disagreeing.
 
 Sheets
   Summary       counts by class and by outcome, as live formulas over All Items
-  All Items     one row per item, AutoFilter + frozen header — the working sheet
+                (ACTIVE items only — retired items don't count here)
+  All Items     one row per ACTIVE item, AutoFilter + frozen header — the
+                working sheet
   By Outcome    the same rows sorted outcome-first, with a blank band between
                 groups, for reading rather than filtering
+  Inactive      the RETIRED items (`inactive: true`) — out of every pool, but
+                still registered so old saves keep resolving them
   Legend        what each column means and how to group/filter
 """
 
@@ -35,6 +39,10 @@ if not EXPORT.exists():
 
 data = json.loads(EXPORT.read_text())
 rows, version = data["rows"], data["version"]
+# RETIRED (inactive: true) items leave the main tabs and the Summary — they
+# get their own sheet, the HTML page's "Retired" section's twin.
+active = [r for r in rows if not r["inactive"]]
+retired = [r for r in rows if r["inactive"]]
 
 # ── House look ──────────────────────────────────────────────────────────────
 FONT = "Arial"
@@ -133,17 +141,19 @@ s.title = "Summary"
 s["A1"] = f"NINELIVES — item pool ({version})"
 s["A1"].font = TITLE_FONT
 s["A2"] = ("Generated from items.js by tools/build-item-list.mjs + tools/build-item-workbook.py. "
-           "Every count below is a live COUNTIF over the 'All Items' sheet, so edits there re-total.")
+           "Every count below is a live COUNTIF over the 'All Items' sheet, so edits there re-total. "
+           f"Counts cover ACTIVE items only — {len(retired)} retired items live on the 'Inactive' sheet.")
 s["A2"].font = NOTE_FONT
 
 classes = []
-for row in rows:
+for row in active:
     if row["cls"] not in classes:
         classes.append(row["cls"])
-outcomes = sorted({r["outcome"] for r in rows},
+cls_order = {name: i for i, name in enumerate(classes)}
+outcomes = sorted({r["outcome"] for r in active},
                   key=lambda n: (n.startswith("Curse"), n))
 
-n_rows = len(rows)
+n_rows = len(active)
 CLS_COL = "$A$2:$A$%d" % (n_rows + 1)      # on 'All Items'
 OUT_COL = "$B$2:$B$%d" % (n_rows + 1)
 TIER_COL = "$G$2:$G$%d" % (n_rows + 1)
@@ -221,35 +231,54 @@ s.cell(row=note_r, column=1,
               "The 'Also pays' column on 'All Items' carries the secondary ones."))
 s.cell(row=note_r, column=1).font = NOTE_FONT
 
-# ── Sheet 2: All Items ──────────────────────────────────────────────────────
+# ── Sheet 2: All Items (ACTIVE only) ────────────────────────────────────────
 ws = wb.create_sheet("All Items")
-flat = sorted(rows, key=lambda x: (classes.index(x["cls"]),
-                                   {"common": 0, "uncommon": 1, "rare": 2}.get(x["tier"], 9),
-                                   x["label"]))
+flat = sorted(active, key=lambda x: (cls_order[x["cls"]],
+                                     {"common": 0, "uncommon": 1, "rare": 2}.get(x["tier"], 9),
+                                     x["label"]))
 last = write_table(ws, flat)
 ws.freeze_panes = "E2"
 ws.auto_filter.ref = f"A1:{get_column_letter(len(COLUMNS))}{last}"
 
-# ── Sheet 3: By Outcome ─────────────────────────────────────────────────────
+# ── Sheet 3: By Outcome (ACTIVE only) ───────────────────────────────────────
 ws2 = wb.create_sheet("By Outcome")
-by_outcome = sorted(rows, key=lambda x: (outcomes.index(x["outcome"]),
-                                         classes.index(x["cls"]),
-                                         x["label"]))
+by_outcome = sorted(active, key=lambda x: (outcomes.index(x["outcome"]),
+                                           cls_order[x["cls"]],
+                                           x["label"]))
 last2 = write_table(ws2, by_outcome, group_bands=True)
 ws2.freeze_panes = "A2"
 
-# ── Sheet 4: Legend ─────────────────────────────────────────────────────────
+# ── Sheet 4: Inactive (the RETIRED items) ───────────────────────────────────
+wsi = wb.create_sheet("Inactive")
+wsi["A1"] = ("RETIRED items (`inactive: true`) — out of EVERY acquisition pool, but still registered: "
+             "an old save's copy keeps resolving and firing, and the Collection shows them greyed. "
+             "None of these count on the Summary.")
+wsi["A1"].font = NOTE_FONT
+wsi.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(COLUMNS))
+wsi.row_dimensions[1].height = 24
+flat_inactive = sorted(retired, key=lambda x: (cls_order.get(x["cls"], 99),
+                                               {"common": 0, "uncommon": 1, "rare": 2}.get(x["tier"], 9),
+                                               x["label"]))
+lasti = write_table(wsi, flat_inactive, start_row=2)
+wsi.freeze_panes = "E3"
+wsi.auto_filter.ref = f"A2:{get_column_letter(len(COLUMNS))}{lasti}"
+
+# ── Sheet 5: Legend ─────────────────────────────────────────────────────────
 lg = wb.create_sheet("Legend")
 lg["A1"] = "How to read and group this workbook"
 lg["A1"].font = TITLE_FONT
 legend = [
-    ("Sheet: All Items", "One row per item. The header row has AutoFilter — click any header arrow to filter. "
-                         "To group by outcome, filter or sort on the 'Outcome' column; to group by what a class "
-                         "offers, filter 'Class' too."),
-    ("Sheet: By Outcome", "The same rows pre-sorted into outcome groups with a heading and a count per group — "
-                          "for reading straight through rather than filtering."),
-    ("Sheet: Summary", "Counts by class and by outcome. Every number is a live COUNTIF/COUNTIFS over 'All Items', "
-                       "so it re-totals if rows are filtered out and re-added, or edited."),
+    ("Sheet: All Items", "One row per ACTIVE item. The header row has AutoFilter — click any header arrow to "
+                         "filter. To group by outcome, filter or sort on the 'Outcome' column; to group by what a "
+                         "class offers, filter 'Class' too. Retired items are not here — see the Inactive sheet."),
+    ("Sheet: By Outcome", "The same ACTIVE rows pre-sorted into outcome groups with a heading and a count per "
+                          "group — for reading straight through rather than filtering."),
+    ("Sheet: Inactive", "The RETIRED items (`inactive: true`): out of every acquisition pool, but still registered "
+                        "so old saves keep resolving and firing them, and the Collection shows them greyed. "
+                        "They count nowhere on the Summary."),
+    ("Sheet: Summary", "Counts by class and by outcome, ACTIVE items only. Every number is a live "
+                       "COUNTIF/COUNTIFS over 'All Items', so it re-totals if rows are filtered out and "
+                       "re-added, or edited."),
     ("", ""),
     ("Outcome", "What the item actually pays you in — its headline payoff. Derived from the item's stable effect "
                 "id (never its name or prose), from one taxonomy shared with item-list.html."),
@@ -281,6 +310,7 @@ lg.column_dimensions["A"].width = 28
 lg.column_dimensions["B"].width = 105
 
 wb.save(OUT)
-print(f"item-list.xlsx written — {len(rows)} items, {len(outcomes)} outcome groups ({version})")
+print(f"item-list.xlsx written — {len(active)} active + {len(retired)} retired items, "
+      f"{len(outcomes)} outcome groups ({version})")
 for name in outcomes:
-    print(f"  {sum(1 for r in rows if r['outcome'] == name):3}  {name}")
+    print(f"  {sum(1 for r in active if r['outcome'] == name):3}  {name}")

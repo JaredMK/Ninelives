@@ -710,24 +710,34 @@ enum IVPillarsBases {
                     expect: { e, _, c in XCTAssertNil(payoutLine(e), "\(c)") }),
             ]
         case "greedy":
-            // v6.65: sole-Pillar-only — the column-survival clause is gone, so
-            // a dead pile no longer voids it; a second Pillar still does.
+            // v6.93: +value per `perCards` cards in the full owned deck, but
+            // ONLY as the sole Pillar — the column-survival clause is gone,
+            // so a dead pile no longer voids it; a second Pillar still does.
+            let per = max(1, def.int("perCards", 5))
+            let expected: (GameEngine) -> Double = { e in
+                Double(e.fullDeckCards().count / per) * v
+            }
             return [
                 IV.Scenario("trigger-solePillar", allowed: [],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
-                                       deckOrder: [IV.spec(50, 9)],
+                                       deckOrder: [IV.spec(50, 9), IV.spec(51, 3), IV.spec(52, 7),
+                                                   IV.spec(53, 4), IV.spec(54, 8)],
                                        pillars: [def.id, nil, nil]) },
                     fire: { _ in },
                     expect: { e, _, c in
-                        XCTAssertEqual(payoutLine(e)?.amount, v, "\(c): +\(v) at the payout")
+                        XCTAssertGreaterThan(expected(e), 0, "\(c): an 8-card deck pays")
+                        XCTAssertEqual(payoutLine(e)?.amount, expected(e),
+                                       "\(c): +\(v) per \(per) cards at the payout")
                     }),
                 IV.Scenario("trigger-deadPileStillPays", allowed: [],
                     build: { IV.engine(tops: [nil, IV.spec(2, 6), IV.spec(3, 6)],
-                                       deckOrder: [IV.spec(50, 9)],
+                                       deckOrder: [IV.spec(50, 9), IV.spec(51, 3), IV.spec(52, 7),
+                                                   IV.spec(53, 4), IV.spec(54, 8)],
                                        cols: [2, 1], pillars: [def.id, nil]) },
                     fire: { _ in },
                     expect: { e, _, c in
-                        XCTAssertEqual(payoutLine(e)?.amount, v, "\(c): a death no longer voids it")
+                        XCTAssertEqual(payoutLine(e)?.amount, expected(e),
+                                       "\(c): a death no longer voids it")
                     }),
                 IV.Scenario("mustNotFire-secondPillarVoids", allowed: [],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],

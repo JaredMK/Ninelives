@@ -23,7 +23,13 @@ public final class DeckPanel: SKNode {
     private var size: CGSize = .zero
     /// The peek chip: the revealed upcoming draw (Scout / peek Pillars).
     private let peekLayer = SKNode()
-    private var peekShown: CardArt.Face?
+    /// v6.94: the peek payload is face + STICKERS (curses included) — the
+    /// equality key too, so a same-face/different-stickers redraw repaints.
+    private struct PeekCard: Equatable {
+        let face: CardArt.Face
+        let stickers: [StickerRecord]
+    }
+    private var peekShown: PeekCard?
     /// The drag-scrub odds readout (the web's `.ds-scrub`): an overlay line
     /// over the histogram while a finger scrubs the bars.
     private let scrubLayer = SKNode()
@@ -57,20 +63,22 @@ public final class DeckPanel: SKNode {
 
     /// Show/clear the revealed NEXT draw beside the deck — the web's deck-reveal
     /// strip. A peek that appears slides in with a small pop.
-    public func syncPeek(_ face: CardArt.Face?) {
-        guard face != peekShown else { return }
-        peekShown = face
+    /// v6.94: takes the REAL card so its sticker/curse chips ride along.
+    public func syncPeek(_ card: LiveCard?) {
+        let shown = card.map { PeekCard(face: CardArt.Face($0), stickers: $0.stickers) }
+        guard shown != peekShown else { return }
+        peekShown = shown
         peekLayer.removeAllChildren()
-        guard let face else { return }
+        guard let card, let shown else { return }
         // v6.52: the peeked card sits DIRECTLY OVER the character (no "NEXT"
         // tag — the placement says it) and reads bigger, with a phosphor
         // halo behind it on top of the alpha-breathe: the old pulse alone
         // didn't pull the eye off the board.
-        let card = CardNode(face: face, scale: .half)
-        card.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        card.setScale(0.92)
-        card.position = CGPoint(x: character.position.x + 16, y: character.position.y - 12)
-        card.zPosition = 4
+        let cardNode = CardNode(face: shown.face, scale: .half)
+        cardNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        cardNode.setScale(0.92)
+        cardNode.position = CGPoint(x: character.position.x + 16, y: character.position.y - 12)
+        cardNode.zPosition = 4
         let halo = SKShapeNode(rectOf: CGSize(width: 54, height: 72), cornerRadius: 4)
         halo.fillColor = CRT.phosphor
         halo.strokeColor = .clear
@@ -79,15 +87,26 @@ public final class DeckPanel: SKNode {
         halo.zPosition = -0.5
         halo.run(.repeatForever(.sequence([.fadeAlpha(to: 0.10, duration: 0.55),
                                            .fadeAlpha(to: 0.28, duration: 0.55)])))
-        card.addChild(halo)
-        peekLayer.addChild(card)
-        card.alpha = 0
-        card.run(.group([.fadeIn(withDuration: 0.15),
+        cardNode.addChild(halo)
+        // v6.94: the peeked card's sticker/curse chips — the shared chip path
+        // (the pile fan's own), laid out from the card box's top-left corner
+        // (the node anchors at its centre and carries the shadow bleed).
+        if !shown.stickers.isEmpty {
+            let chips = SKNode()
+            chips.position = CGPoint(x: -cardNode.size.width / 2, y: cardNode.size.height / 2)
+            chips.zPosition = 1
+            StickerChipLayout.addBadges(records: shown.stickers, counters: card,
+                                        cardWidth: CardArt.Scale.half.size.width, to: chips)
+            cardNode.addChild(chips)
+        }
+        peekLayer.addChild(cardNode)
+        cardNode.alpha = 0
+        cardNode.run(.group([.fadeIn(withDuration: 0.15),
                          .sequence([.scale(to: 1.0, duration: 0.1), .scale(to: 0.92, duration: 0.1)])]))
         // The peeked card GLOWS (a slow alpha-breathe — the eye catches the
         // motion) and the character does a quick two-hop to point you at it
         // (router batch). Both transform/alpha-only.
-        card.run(.repeatForever(.sequence([
+        cardNode.run(.repeatForever(.sequence([
             .fadeAlpha(to: 0.72, duration: 0.55),
             .fadeAlpha(to: 1.0, duration: 0.55),
         ])), withKey: "peekGlow")

@@ -337,16 +337,35 @@ final class ItemValidationTests: IVCase {
             }
         case "purgeDiscount":
             return {
-                // PURGE COUPON: the engine activation REPORTS the cut + floor;
+                // PURGE COUPON (v6.93): the engine activation REPORTS the cut
+                // (perDiamond × ♦-TOPPED alive piles in the column) + floor;
                 // applying it to the campaign cuts the store Purge price,
                 // never below the floor, for the rest of the climb.
-                let e = IVBases.baseEngine(def)
+                let per = def.int("perDiamond", 1), floor = def.int("min", 5)
+                let e = IVBases.baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♦"),
+                                                       IV.spec(3, 6, "♦")])
                 let res = e.baseActivate(col: 0)
-                XCTAssertEqual(res?.purgePriceCut, def.int("value", 3), "\(def.id): the cut is the data's value")
-                XCTAssertEqual(res?.purgePriceFloor, def.int("min", 5), "\(def.id): the floor is the data's min")
+                // col 0 holds piles 1-2 (cols [2,1]) — pile 3's ♦ is another
+                // column's and must NOT count.
+                XCTAssertEqual(res?.purgePriceCut, 2 * per,
+                               "\(def.id): the cut is per ♦-topped pile IN THIS COLUMN")
+                XCTAssertEqual(res?.purgePriceFloor, floor, "\(def.id): the floor is the data's min")
                 XCTAssertEqual(e.run.basesUsed?[0], true, "\(def.id): the charge is spent")
                 XCTAssertNil(e.baseActivate(col: 0), "\(def.id): …and stays spent")
-                let cut = def.int("value", 3), floor = def.int("min", 5)
+                // The gate: no ♦-topped pile in the column → amber, and the
+                // fire refuses (a 0-cut activation would waste the charge).
+                let g = IVBases.baseEngine(def)   // default tops: ♠/♥/♣ — no ♦
+                XCTAssertFalse(g.baseCanActivate(0), "\(def.id): no ♦ top, no fire")
+                XCTAssertNotNil(g.baseUnavailableReason(0), "\(def.id): the amber tap says why")
+                XCTAssertNil(g.baseActivate(col: 0), "\(def.id): the refused fire keeps the charge")
+                XCTAssertEqual(g.run.basesUsed?[0], false, "\(def.id)")
+                // The live badge previews the exact cut.
+                let badge = IVBases.baseEngine(def, tops: [IV.spec(1, 5, "♦"), IV.spec(2, 8, "♦"),
+                                                           IV.spec(3, 6, "♦")])
+                XCTAssertEqual(badge.baseLiveCounter(0), 2 * per,
+                               "\(def.id): the badge is the fire's own math")
+                // Applying the reported cut: −cut, floored at the Coupon's min.
+                let cut = 2 * per
                 let c = self.campaign(); _ = c.addCoins(1000)
                 let base0 = c.removalPrice()
                 c.addPurgeDiscount(cut)

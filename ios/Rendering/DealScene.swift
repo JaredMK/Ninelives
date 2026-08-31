@@ -708,7 +708,8 @@ public final class DealScene: SKScene {
     }
 
     /// The revealed NEXT draw (Scout / peek Pillars), or nil to clear.
-    public func syncDeckPeek(_ face: CardArt.Face?) { deckPanel.syncPeek(face) }
+    /// v6.94: the REAL card — its sticker/curse chips ride the peek card.
+    public func syncDeckPeek(_ card: LiveCard?) { deckPanel.syncPeek(card) }
 
     public func syncReward(base: Double, bonus: Double, alive: Int, minAlive: Int) {
         rewardLine.sync(base: base, bonus: bonus, alive: alive, minAlive: minAlive, width: size.width)
@@ -751,16 +752,18 @@ public final class DealScene: SKScene {
     private func setSameBlockChip(_ on: Bool) {
         if !on { sameBlockChip?.removeFromParent(); sameBlockChip = nil; return }
         guard sameBlockChip == nil else { return }
-        // A small suit-red ✕ plate pinned to the Same button's corner.
-        let chip = PixelTexture.label("✕", size: 16, color: CRT.suitRed)
+        // A suit-red ✕ plate centered exactly on the Same button.
+        let chip = PixelTexture.label("✕", size: 20, color: CRT.suitRed)
         let plate = SKSpriteNode(texture: PixelTexture.panel(
-            size: CGSize(width: chip.size.width + 8, height: chip.size.height + 4),
+            size: CGSize(width: chip.size.width + 10, height: chip.size.height + 6),
             face: CRT.feltDeep, border: CRT.suitRed, shadowOffset: 2))
         chip.position = .zero
         plate.addChild(chip)
-        // A child of the button itself (its origin is its TOP-LEFT): pinned
-        // just over the top-right corner, riding every relayout for free.
-        plate.position = CGPoint(x: sameButton.frameSize.width - 6, y: 4)
+        // A child of the button itself (its origin is its TOP-LEFT, so the
+        // button spans y ∈ [-height, 0]): the local center rides every
+        // relayout for free.
+        plate.position = CGPoint(x: sameButton.frameSize.width / 2,
+                                 y: -sameButton.frameSize.height / 2)
         plate.zPosition = Layer.float
         sameButton.addChild(plate)
         sameBlockChip = plate
@@ -1674,10 +1677,24 @@ public final class DealScene: SKScene {
     /// the whole way — the pile's existing top stays under it until landing.
     /// `duration` overrides the draw-flight speed (the STAGED Second Wind
     /// evidence slows it so a screenshot can land mid-draw).
-    public func flyDraw(face: CardArt.Face, to pile: Int, duration: TimeInterval? = nil,
+    /// v6.94: `stickers`/`counters` dress the flying card with its chip fan
+    /// (the Second Wind killer shows what it carries) — the shared chip path.
+    public func flyDraw(face: CardArt.Face, to pile: Int, stickers: [StickerRecord] = [],
+                        counters: LiveCard? = nil, duration: TimeInterval? = nil,
                         onArrive: @escaping () -> Void) {
         guard !reduceMotion, let to = pileCenters[pile] else { onArrive(); return }
         let clone = BoardFX.faceUpCard(face, scale: cardScale)
+        if !stickers.isEmpty, let cardNode = clone as? CardNode {
+            let chips = SKNode()
+            // The clone anchors at its centre; the fan lays out from the card
+            // box's top-left corner (the texture's top-left — shadow bleeds
+            // down-right).
+            chips.position = CGPoint(x: -cardNode.size.width / 2, y: cardNode.size.height / 2)
+            chips.zPosition = 1
+            StickerChipLayout.addBadges(records: stickers, counters: counters,
+                                        cardWidth: cardScale.size.width, to: chips)
+            cardNode.addChild(chips)
+        }
         floatLayer.addChild(clone)
         BoardFX.fly(clone, from: deckSourcePoint(), to: to,
                     duration: duration ?? Double(BoardFX.drawFlightMS) / 1000, onArrive: onArrive)

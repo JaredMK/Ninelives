@@ -795,8 +795,6 @@ public final class CardPickerViewController: UIViewController {
         selectedId = id
         highlight(id)
         let name = cardName(card)
-        let stickerWarn = card.stickers.isEmpty ? "" :
-            " It carries \(card.stickers.count) sticker\(card.stickers.count > 1 ? "s" : ""), destroyed forever."
         switch mode {
         case .applySticker(let t), .buySticker(_, let t):
             let label = GameData.shared.stickerTypes.get(t)?.label ?? t
@@ -814,9 +812,10 @@ public final class CardPickerViewController: UIViewController {
                 .init(applyLabel, role: .cta) { [weak self] in self?.confirm() },
             ]) { [weak self] in self?.cancelChoice() }
         case .removal(let price):
-            var text = "Permanently PURGE \(name) from your deck?"
+            // v6.94: ONE unified purge confirm for every entry point (store,
+            // map pickup, item-granted) — no sticker-warning follow-on.
+            var text = "Permanently purge from your deck?"
             if price > 0 { text += " (◉ \(price))" }
-            text += stickerWarn
             prompt.show(text, actions: [
                 .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
                 .init("Purge", role: .danger) { [weak self] in self?.confirm() },
@@ -841,7 +840,7 @@ public final class CardPickerViewController: UIViewController {
             guard trayIndex < tray.count else { return }
             let tc = tray[trayIndex]
             if tc.blank {
-                prompt.show("Permanently PURGE \(name) from your deck?\(stickerWarn)", actions: [
+                prompt.show("Permanently purge from your deck?", actions: [
                     .init("Back", role: .plain) { [weak self] in self?.cancelChoice() },
                     .init("Purge", role: .danger) { [weak self] in self?.confirm() },
                 ]) { [weak self] in self?.cancelChoice() }

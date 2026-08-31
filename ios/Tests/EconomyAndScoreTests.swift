@@ -96,13 +96,15 @@ final class EconomyAndScoreTests: XCTestCase {
         XCTAssertEqual(b.product, 0)
     }
 
-    func testLiveBonusEqualsTotalMinusFlat() {
+    func testLiveBonusIsTheDuringDealTallyOnly() {
+        // v6.94: the in-deal tracker shows ONLY bonus coins earned during the
+        // deal. Deal-end awards (pillarBonus, extraCoinUnits) are excluded so
+        // they can't be doubled or zeroed before they exist.
         var s = PayoutStats()
         s.won = true; s.flat = 12; s.extraCoinUnits = 2; s.pillarBonus = 5; s.eventBonus = 3
         s.liveBonusCoins = s.eventBonus
-        let b = eco.breakdown(s)
-        XCTAssertEqual(eco.liveBonus(s), b.total - b.flat,
-                       "the above-board 'base + bonus' line and the summary can never disagree")
+        XCTAssertEqual(eco.liveBonus(s), 3,
+                       "the tracker is the during-deal tally — deal-end awards land at the scoring pass")
     }
 
     func testExtraCoinValueComesFromItemsJs() {

@@ -37,16 +37,16 @@ public struct PendingAction: Sendable, Equatable {
 }
 
 /// A Second Wind save roll that HIT, parked for the player's call (iOS
-/// consent mode): save the pile (its cards + the killer recycle into the deck)
-/// or let it die. The killing card is HELD here — out of deck and piles —
-/// until `answerSecondWind` settles it.
+/// consent mode): save the pile (its top STAYS; the buried cards + the
+/// killer shuffle back into the deck) or let it die. The killing card is
+/// HELD here — out of deck and piles — until `answerSecondWind` settles it.
 public struct PendingSecondWind {
     public var index: Int
     public var col: Int
     public var guess: Guess
     public var killingCard: LiveCard
-    /// Cards the save would recycle into the deck (the pile + the killer) —
-    /// the X the prompt states.
+    /// Cards the save would shuffle back into the deck (the pile's buried
+    /// cards + the killer — the top stays) — the X the prompt states.
     public var recycleCount: Int
 }
 
@@ -139,7 +139,13 @@ public final class RunState {
     /// `answerPowerShuffle` — the value is the hub pile the Same was called on.
     public var pendingPowerShuffle: Int?
 
-    /// Live bonus-coin tally + its itemization.
+    /// Live DURING-DEAL bonus-coin tally + its itemization (v6.94). Only
+    /// coins earned mid-deal land here (sticker payouts, live pillar coins,
+    /// base effects, tribute costs). Deal-END awards never touch it — scoring
+    /// pillars pay via `pillarPayout()` and Payout stickers via
+    /// `board.extraCoinUnits()` at the scoring pass — so Devil's Deal and
+    /// Bonus Reset (which double/zero THIS tally) can't touch money that
+    /// hasn't been earned yet, and the in-deal tracker reads it directly.
     public var bonusCoins: Double = 0
     public var bonusEvents = OrderedTally()
 

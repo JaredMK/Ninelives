@@ -104,6 +104,13 @@ The game targets phones. Four invariants, all currently enforced — keep them:
   tiles, pillars, bases, stickers, HUD chips, map nodes, cards) shows its help
   on press-and-hold. New UI elements need a hold-help path; copy comes from
   the registry description, never hand-written duplicates.
+- **Informational layers never eat a control's touch (iOS, v6.93).** The
+  "cancelsTouchesInView lesson" applies to the SCENE tap router too: with
+  the card-info help panel up, a tap on empty felt collapses it — but a tap
+  on a pile, a call button, or a charged Base plaque FIRES on the first tap
+  (the gate exempts live controls; the fire clears the panel), and the first
+  swipe after info tracks instead of dying as a dismiss. Any new collapse-
+  on-next-tap surface must exempt actionable targets the same way.
 - **Bottom prompt bar for all confirmations.** Confirmations (buy, sell,
   remove, destructive choices) go through the shared bottom prompt bar
   (`showActionBar` on `#actionPrompt`) — never browser `confirm()`/`alert()`,
@@ -292,6 +299,13 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
 - The piles×smallest PRODUCT is the **SCORE**, never coins. `runScore` folds
   it per clear; `scoreBanked` stamps at the ♠ boss. Item-driven bonuses
   (Payout stickers, pillar payouts, `run.bonusCoins`) pay coins on top.
+- **The bonus tally is DURING-DEAL only (v6.94).** `run.bonusCoins` holds
+  just the coins items pay mid-deal; deal-END awards (scoring pillars via
+  `pillarPayout()`, Payout sticker units via `board.extraCoinUnits()`)
+  land at the scoring pass and never enter the tally. The in-deal reward
+  tracker's bonus term reads the tally alone (`Economy.liveBonus`), so
+  Devil's Deal and Bonus Reset can only double/zero money already earned.
+  Never feed a projected deal-end award into the live tracker.
 - Score bests are EXHIBITION-GATED, like `runCleared`.
 - The deal-cleared summary keeps Score in its OWN plaque — the coin list must
   never re-grow a score line (pinned in `score.test.mjs`).
@@ -452,7 +466,7 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   restore paths drop unknown item ids from inventories, column slots and
   the equipped Same-Power (registry-driven — a future retirement rides the
   same path). Never re-use a retired id.
-- **Conditional stickers (v6.85) — the shared contract.** Twenty stickers
+- **Conditional stickers (v6.85) — the shared contract.** Twenty-one stickers
   are RETIRED via `inactive: true` (data-driven: `grantableBase()` filters
   them like cursed, so EVERY acquisition pool inherits the exclusion; old
   saves keep resolving and firing them; the Collection shows them greyed
@@ -460,8 +474,13 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   registry — pillars/bases/packs/same-powers pool through
   `grantableBase()` too (shelf classes, Rocko's pre-equip, the Old Joker's
   swap/blind-swap/thirst pools, the mystery same-power reveal) — and
-  retired ten pillars. The surviving suit stickers (Quick
-  Bury, Bonus Coin, Donate, Heavy, Ripple/`diamondSnob`, Tell,
+  retired ten pillars. v6.94 retired the FLAT PILE-SIZE family: the Heavy
+  sticker, seven pillars (Streak Size, Massive Diamond, Empty Ranks Heavy,
+  Crazy Eights, Diamond Echo, Pauper's Diamond, Diamond Lifeline), the
+  Diamond Boost base and the Same Heavy same-power — redistribution
+  (Ballast, Donate, Diamond Distribution) and the Anchors stay LIVE. The
+  surviving suit stickers (Quick
+  Bury, Bonus Coin, Donate, Ripple/`diamondSnob`, Tell,
   Guard/`suitImmunity`) are suit-AGNOSTIC conditionals resolved through
   `conditionalSuitMatches` at the CARRIER's landing: nil = EXEMPT (no other
   alive pile — neither fires nor converts), empty = the bet failed →
@@ -512,7 +531,14 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   Rank Flood — same contract as Rank Setter).
 - **Pricing**: Flat Purge's `value` OVERRIDES the Removal ladder in
   `removalPrice()` (flat, no multiplier/coupon); Purge Coupon cuts are
-  climb-permanent, floored at the coupon's `min`. On the House: first
+  climb-permanent, floored at the coupon's `min`. v6.93: the Coupon's cut is
+  no longer flat — it's `perDiamond` per ♦-TOPPED alive pile in the base's
+  column, read at fire time (so it can't fire with none showing), and the
+  live current → new price preview rides `removalPrice(extraCut:)` — the
+  same ladder the register charges, never naive subtraction. The data text
+  is TOKEN-FREE ({current}/{new} leaked raw on the Collection and the old
+  post-fire popup; both gone — the deal UI appends the computed preview).
+  On the House: first
   restock per store (`storeOffer.freeReroll`) and first reshuffle per deal
   (derived from persisted `reshuffleIndex === 0` — no new checkpoint key);
   both freebies still consume their ladder rung.
@@ -545,6 +571,10 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   (the drawn killer + recycle count) as the guess's only terminal event and
   defers `evaluateEnd` to `answerSecondWind` — the draw visibly precedes the
   prompt, and the held-out killer can otherwise fake an empty-deck win.
+  v6.93: the save is the PHOENIX shape — the pile's TOP card STAYS, only the
+  buried cards + the never-landed killer shuffle back into the deck (no
+  fresh top is dealt); `recycleCount` counts the cards returning (buried +
+  killer), not the staying top.
 - **Saved landings fire landing stickers** (v6.57): a wrong guess saved by the
   Same-Charge backstop still LANDS the card (it becomes the new top), so its
   beneficial landing stickers fire (`fireSavedLandingStickers`). Curses and

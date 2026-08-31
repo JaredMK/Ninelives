@@ -80,6 +80,56 @@ public enum StickerChipLayout {
              leanDegrees(idx))
         }
     }
+
+    /// v6.94: the chip fan builder, shared by every surface that shows a
+    /// card's stickers — the pile top, the deck peek card, the Second Wind
+    /// fly card. Adds one chip per sticker type (plus ×N counters) into `row`,
+    /// whose origin is the card's TOP-LEFT corner (SpriteKit y-up). Curses
+    /// come free: `ItemArt.sticker` gives them the curse plate + red rim.
+    /// `counters` supplies the live ×N values (Snowball/Compound); nil shows
+    /// plain stack counts only.
+    public static func addBadges(records: [StickerRecord], counters: LiveCard?,
+                                 cardWidth: CGFloat, to row: SKNode) {
+        guard !records.isEmpty else { return }
+        var counts: [String: Int] = [:]
+        for s in records { counts[s.type, default: 0] += 1 }
+        // CANONICAL STICKER CHIP LAYOUT (v6.72) — see frames(count:cardWidth:).
+        // 20 → 26 (router batch) → 30 (v6.52) → card-scaled (v6.72): the chips
+        // are the card's whole story mid-deal — full cards now carry 38pt
+        // chips; half cards take the canonical 21 with a TIGHTENED fan so all
+        // `maxStickersPerCard` chips stay on the face (the fixed 30pt/0.62
+        // step used to run the 4th chip clean off a 48pt-wide card).
+        let shown = GameData.shared.stickerTypes.all().filter { counts[$0.id, default: 0] > 0 }
+        let capped = Array(shown.prefix(GameData.shared.items.maxStickersPerCard))
+        let placed = frames(count: capped.count, cardWidth: cardWidth)
+        for (idx, def) in capped.enumerated() {
+            let n = counts[def.id] ?? 0
+            let (rect, deg) = placed[idx]
+            let chip = rect.width
+            let img = ItemArt.sticker(def, size: chip)
+            let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
+            node.size = CGSize(width: chip, height: chip)
+            node.anchorPoint = CGPoint(x: 0, y: 1)
+            // SpriteKit y-up: the UIKit-orientation frame's -topRaise flips.
+            node.position = CGPoint(x: rect.minX, y: -rect.minY)
+            node.zRotation = -deg * .pi / 180
+            node.zPosition = -CGFloat(idx)   // first sticker outermost/on top
+            row.addChild(node)
+            // The counter: live value for Snowball/Compound, ×stack otherwise.
+            let shownCount: Int? = def.id == "snowball" ? counters?.snowball
+                : def.id == "compound" ? counters.map { max(0, $0.compoundHits - 1) }
+                : (n > 1 ? n : nil)
+            if let shownCount {
+                let c = PixelTexture.label("×\(shownCount)", size: 14,
+                                           color: def.cursed ? CRT.suitRed : CRT.gold)
+                c.anchorPoint = CGPoint(x: 1, y: 1)
+                c.position = CGPoint(x: node.position.x + chip + 1,
+                                     y: node.position.y - chip + 4)
+                c.zPosition = -CGFloat(idx) + 0.5
+                row.addChild(c)
+            }
+        }
+    }
 }
 
 /// One pile — a life. Renders the top card, the stacked-depth hint beneath it,
@@ -574,45 +624,8 @@ public final class PileNode: SKNode {
         guard let top else { return }
         let records = badgeOverride ?? top.stickers
         guard !records.isEmpty else { return }
-        var counts: [String: Int] = [:]
-        for s in records { counts[s.type, default: 0] += 1 }
-        // CANONICAL STICKER CHIP LAYOUT (v6.72) — see StickerChipLayout above.
-        // 20 → 26 (router batch) → 30 (v6.52) → card-scaled (v6.72): the chips
-        // are the card's whole story mid-deal — full cards now carry 38pt
-        // chips; half cards take the canonical 21 with a TIGHTENED fan so all
-        // `maxStickersPerCard` chips stay on the face (the fixed 30pt/0.62
-        // step used to run the 4th chip clean off a 48pt-wide card).
-        let box = cardScale.size
-        let shown = GameData.shared.stickerTypes.all().filter { counts[$0.id, default: 0] > 0 }
-        let capped = Array(shown.prefix(GameData.shared.items.maxStickersPerCard))
-        let placed = StickerChipLayout.frames(count: capped.count, cardWidth: box.width)
-        for (idx, def) in capped.enumerated() {
-            let n = counts[def.id] ?? 0
-            let (rect, deg) = placed[idx]
-            let chip = rect.width
-            let img = ItemArt.sticker(def, size: chip)
-            let node = SKSpriteNode(texture: PixelTexture.texture(from: img))
-            node.size = CGSize(width: chip, height: chip)
-            node.anchorPoint = CGPoint(x: 0, y: 1)
-            // SpriteKit y-up: the UIKit-orientation frame's -topRaise flips.
-            node.position = CGPoint(x: rect.minX, y: -rect.minY)
-            node.zRotation = -deg * .pi / 180
-            node.zPosition = -CGFloat(idx)   // first sticker outermost/on top
-            badgeRow.addChild(node)
-            // The counter: live value for Snowball/Compound, ×stack otherwise.
-            let shownCount: Int? = def.id == "snowball" ? top.snowball
-                : def.id == "compound" ? max(0, top.compoundHits - 1)
-                : (n > 1 ? n : nil)
-            if let shownCount {
-                let c = PixelTexture.label("×\(shownCount)", size: 14,
-                                           color: def.cursed ? CRT.suitRed : CRT.gold)
-                c.anchorPoint = CGPoint(x: 1, y: 1)
-                c.position = CGPoint(x: node.position.x + chip + 1,
-                                     y: node.position.y - chip + 4)
-                c.zPosition = -CGFloat(idx) + 0.5
-                badgeRow.addChild(c)
-            }
-        }
+        StickerChipLayout.addBadges(records: records, counters: top,
+                                    cardWidth: cardScale.size.width, to: badgeRow)
         // Rebuilt chips on a dead pile pick the grey straight back up.
         if isDead { dimBadges(0.55, animated: false) }
     }

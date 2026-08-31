@@ -913,10 +913,12 @@ public final class GameEngine {
                     if !saved { secondWindMissCol = col }
                     return saved }() {
             // Second Wind: EVERY pile death in this column rolls `saveChance`
-            // to revive (no once-per-run gate). On a save its cards AND the
-            // killing card are reshuffled back into the deck (no reveal) and
-            // one fresh card is dealt as the new top. The used-flag stays
-            // recorded for the trace/debug surface only — nothing gates on it.
+            // to revive (no once-per-run gate). On a save the pile's TOP CARD
+            // STAYS in place (v6.93 — the Phoenix shape): only the buried
+            // cards shuffle back into the deck, and the killing card — which
+            // never landed — returns with them. No fresh top is dealt. The
+            // used-flag stays recorded for the trace/debug surface only —
+            // nothing gates on it.
             if run.secondWindNeedsConsent {
                 // Consent mode (iOS, v6.55): the roll HIT, but the save is now
                 // the player's call — park the exact state (the killing card is
@@ -925,8 +927,8 @@ public final class GameEngine {
                 // fire/decline lines land on the answer's own entry.
                 run.pendingSecondWind = PendingSecondWind(
                     index: index, col: col, guess: g,
-                    killingCard: drawn, recycleCount: board.pileSize(index) + 1)
-                logLine("Second Wind: the save roll hit — parked for the player (saving recycles \(board.pileSize(index) + 1) cards into the deck)")
+                    killingCard: drawn, recycleCount: board.pileSize(index))
+                logLine("Second Wind: the save roll hit — parked for the player (saving shuffles \(board.pileSize(index)) cards back into the deck)")
                 // v6.56 SEQUENCING: the draw visibly PRECEDES the save prompt.
                 // The killer came off the deck above; this offer event is the
                 // UI's cue to show that drawn card and the dying moment FIRST,
@@ -934,7 +936,7 @@ public final class GameEngine {
                 // undecided until `answerSecondWind` (which emits them).
                 emit(.secondWindOffer(index: index, col: col, guess: g,
                                       current: current, drawn: drawn,
-                                      recycleCount: board.pileSize(index) + 1))
+                                      recycleCount: board.pileSize(index)))
             } else {
                 applySecondWindSave(index: index, col: col, pillar: pillar, g: g,
                                     current: current, killingCard: drawn)
@@ -1000,17 +1002,18 @@ public final class GameEngine {
         }
     }
 
-    /// Second Wind: recycle a dying pile's cards (and the killing card) back into
-    /// the draw deck at random positions — no reveal, stickers/identity intact —
-    /// then deal one fresh card as the pile's only top. The pile stays alive.
+    /// Second Wind (v6.93 — the Phoenix shape): the pile's TOP CARD STAYS in
+    /// place; only the cards beneath it shuffle back into the draw deck at
+    /// random positions (no reveal, stickers/identity intact), and the
+    /// killing card — which never landed — returns with them. The pile stays
+    /// alive with the same top; no fresh card is dealt.
     func reviveSecondWind(_ index: Int, _ killingCard: LiveCard) {
-        let removed = board.drain(index)             // empties the pile, keeps it alive
-        for c in removed { deck.returnCard(c) }      // random positions, never shown
-        deck.returnCard(killingCard)                 // the card that would've killed it
-        board.push(index, deck.draw())               // one new top (pile size = 1)
-        // Scout: a freshly-dealt revive top is "placed" too.
-        if let fresh = board.top(index), fresh.revealNext { run.revealNextActive = true }
-        logLine("Second Wind: pile revived (1 fresh card); \(removed.count + 1) cards recycled into the deck (hidden)")
+        var removed = board.drain(index)             // [bottom … top]; empties, stays alive
+        let top = removed.popLast()                  // the top card STAYS
+        for c in removed { deck.returnCard(c) }      // the buried cards → deck (hidden)
+        deck.returnCard(killingCard)                 // the killer never landed — back it goes
+        if let top { board.push(index, top) }
+        logLine("Second Wind: pile saved, top card stays; \(removed.count + 1) cards shuffled back into the deck (hidden)")
     }
 
     /// The Second Wind save itself — shared by the auto path (default, web
@@ -1239,11 +1242,11 @@ public final class GameEngine {
     }
 
     /// Resolve a consent-mode Second Wind (v6.55): the roll had ALREADY hit
-    /// when the choice was parked — `save` applies it (the pile's cards and
-    /// the held killing card recycle into the deck, one fresh top is dealt),
-    /// `!save` lets the pile die the death the roll interrupted. The pile is
-    /// untouched while parked, so its top is still the guess's `current`.
-    /// A no-op with nothing pending.
+    /// when the choice was parked — `save` applies it (v6.93: the pile's top
+    /// card STAYS; its buried cards and the held killing card shuffle back
+    /// into the deck — no fresh top is dealt), `!save` lets the pile die the
+    /// death the roll interrupted. The pile is untouched while parked, so
+    /// its top is still the guess's `current`. A no-op with nothing pending.
     public func answerSecondWind(_ save: Bool) {
         guard let run, let pending = run.pendingSecondWind else { return }
         run.pendingSecondWind = nil
@@ -1254,7 +1257,7 @@ public final class GameEngine {
             applySecondWindSave(index: pending.index, col: pending.col, pillar: pillar,
                                 g: pending.guess, current: current, killingCard: pending.killingCard)
         } else if !save, board.isActive(pending.index), let current = board.top(pending.index) {
-            logLine("the player let the pile die (\(pending.recycleCount) cards stay out of the deck)")
+            logLine("the player let the pile die (\(pending.recycleCount + 1) cards stay out of the deck)")
             applyPileDeath(index: pending.index, g: pending.guess, current: current,
                            drawn: pending.killingCard, col: pending.col)
         }
@@ -1262,8 +1265,9 @@ public final class GameEngine {
         // the held card stays out of play rather than resurrecting a dead pile.)
         currentEntry = nil
         fireContext = nil
-        // The recycle DRAWS a card (the win check) and a declined save kills
-        // the pile (the loss check) — end-of-deal evaluation belongs here now.
+        // The save returns the held killer to the deck (the win check) and a
+        // declined save kills the pile (the loss check) — end-of-deal
+        // evaluation belongs here now.
         evaluateEnd()
     }
 

@@ -227,8 +227,8 @@ final class GuessRuleTests: XCTestCase {
             e.guess(0, .lower)                                // 5 → 9 is wrong
             if e.board.isActive(0) {
                 saves += 1
-                XCTAssertEqual(e.board.piles[0].cards.count, 1,
-                               "a saved pile is dealt ONE fresh top; the rest went back to the deck")
+                XCTAssertEqual(e.board.piles[0].cards.map(\.value), [5],
+                               "a saved pile keeps its TOP (v6.93) — the buried cards shuffle back to the deck")
             } else {
                 deaths += 1
             }

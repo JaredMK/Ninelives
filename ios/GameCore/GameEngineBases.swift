@@ -73,8 +73,9 @@ extension GameEngine {
         // Power Surge: needs a Same-Power equipped AND an alive pile to fire on.
         case "activateSamePower":  return run.samePower != nil && !alive.isEmpty
         // ── v6.76 archetype batch ─────────────────────────────────────────
-        // PURGE COUPON: a store-side lever — always fireable, nothing in-deal.
-        case "purgeDiscount":     return true
+        // PURGE COUPON (v6.93): the cut is per ♦-topped pile in the column —
+        // with none showing there is nothing to cut, so it stays amber.
+        case "purgeDiscount":     return alive.contains { matchesSuit(board.top($0), "♦") }
         // BONUS RESET (v6.88): the trade needs a banked bonus WORTH trading
         // (strictly more than 1 coin) and a deck card to show. A Spoiler
         // wiping the tally mid-deal legitimately flips this back to amber.
@@ -82,10 +83,12 @@ extension GameEngine {
         // TRANSMUTE fires at PURCHASE, never in a deal (stays amber forever).
         case "transmute":         return false
         case "sacrifice":         return !alive.isEmpty
-        // DEVIL'S DEAL: needs an alive pile to point at — an un-CURSABLE pick
-        // re-picks seeded at fire time, so the gate is just an alive pile
-        // (the web's `alive.length > 0`).
-        case "devilsDeal":        return !alive.isEmpty
+        // DEVIL'S DEAL: it can't double a non-positive bonus (v6.93) — amber
+        // until at least 1 bonus coin is banked this deal, plus an alive
+        // pile to point at (an un-CURSABLE pick re-picks seeded at fire
+        // time, so the gate is just an alive pile — the web's
+        // `alive.length > 0`).
+        case "devilsDeal":        return run.bonusCoins > 0 && !alive.isEmpty
         case "cleanseColumn":     return alive.contains {
             board.top($0)?.stickers.contains(where: { stickerTypes.get($0.type)?.cursed == true }) ?? false
         }
@@ -141,6 +144,9 @@ extension GameEngine {
         case "devilsDeal":
             // Coins the doubling would GAIN — the current banked bonus.
             return Int(run.bonusCoins)
+        case "purgeDiscount":
+            // The cut it would bank: perDiamond × ♦-topped alive piles.
+            return topCount("♦") * base.int("perDiamond", 1)
         case "emptyPurse":
             // Peeks the spend would buy: 1 + purse/10 (campaign-wired only —
             // no purse provider, no number).
@@ -245,8 +251,13 @@ extension GameEngine {
         // ── v6.76 archetype batch ─────────────────────────────────────────
         case "transmute":
             return "Fires at purchase — never during a deal."
-        case "sacrifice", "chorus", "devilsDeal":
+        case "sacrifice", "chorus":
             return "No alive pile in this column."
+        case "devilsDeal":
+            if alive.isEmpty { return "No alive pile in this column." }
+            return "No bonus coins banked this deal."
+        case "purgeDiscount":
+            return "Needs a ♦ on top of a pile in this column."
         case "cleanseColumn":
             return "No curses on this column's top cards."
         case "diamondBoost":
@@ -580,12 +591,16 @@ extension GameEngine {
         // ── v6.76 archetype batch ─────────────────────────────────────────
 
         case "purgeDiscount":
-            // PURGE COUPON: a store-side lever carried on a base. The engine
-            // only REPORTS the activation (coins/pricing are campaign state) —
-            // the flow applies it via `CampaignState.addPurgeDiscount`.
-            res.purgePriceCut = base.int("value", 3)
+            // PURGE COUPON (v6.93): the cut is perDiamond for each ♦-TOPPED
+            // pile in this column — a live board read (the availability gate
+            // already guarantees at least one). The engine only REPORTS the
+            // activation (coins/pricing are campaign state) — the flow
+            // applies it via `CampaignState.addPurgeDiscount`.
+            let per = base.int("perDiamond", 1)
+            let n = colAlivePiles(col).filter { matchesSuit(board.top($0), "♦") }.count
+            res.purgePriceCut = n * per
             res.purgePriceFloor = base.int("min", 5)
-            logLine("\(base.label): the store's Purge costs \(res.purgePriceCut!) less (never below \(res.purgePriceFloor!)) for the rest of the climb")
+            logLine("\(base.label): \(n) ♦-topped pile\(n == 1 ? "" : "s") → the store's Purge costs \(res.purgePriceCut!) less (never below \(res.purgePriceFloor!)) for the rest of the climb")
 
         case "bonusResetPeek":
             // BONUS RESET (v6.88): the banked bonus goes to zero — through

@@ -285,6 +285,19 @@ final class ItemBehaviorTests: XCTestCase {
         e.guess(0, .higher)
         XCTAssertTrue(e.run.revealNextActive)
         XCTAssertNotNil(e.revealedNextCard())
+        // v6.94: the peek payload IS the real card — stickers (curses
+        // included) ride along so the deck peek chip can show them.
+        let stickered = DeckManager.toCard(
+            CardSpec(id: 77, suit: "♣", originalRank: 5, currentRank: 5,
+                     stickers: [StickerRecord(type: "gainCoin"),
+                                StickerRecord(type: "drainShield")]), data: data)
+        e.debug.setNextCardObj(stickered)
+        let peeked = e.revealedNextCard()
+        XCTAssertEqual(peeked?.id, 77, "the peek reads the REAL next draw")
+        XCTAssertEqual(peeked?.stickers, stickered.stickers,
+                       "the peek must carry the card's stickers — curses included")
+        XCTAssertEqual(data.stickerTypes.get("drainShield")?.cursed, true,
+                       "drainShield is a curse — pinned so the assertion above covers curses")
         // Drawing consumes the reveal.
         e.board.piles[1].cards = [DeckManager.cardForValue(2)]
         e.debug.setNextCard(3)
@@ -451,12 +464,18 @@ final class ItemBehaviorTests: XCTestCase {
         XCTAssertEqual(e.pillarPayout().bonus, 0, "one death voids it")
     }
 
-    func testGreedyNeedsToBeTheSolePillarOnTheBoard() {
+    func testGreedyScalesWithDeckSizeOnlyAsTheSolePillar() {
         guard let g = data.items.pillars.first(where: { $0.effect == "greedy" }),
               let other = data.items.pillars.first(where: { $0.effect != "greedy" && $0.kind == "scoring" })
         else { XCTFail("need a greedy + another scoring pillar"); return }
+        // v6.93: +value per `perCards` cards in the FULL OWNED deck — the
+        // fat-deck / empty-loadout piece.
+        let per = max(1, g.int("perCards", 5))
         let solo = engine(pillars: [g.id, nil, nil])
-        XCTAssertEqual(solo.pillarPayout().lines.filter { $0.label == g.label }.count, 1)
+        let expected = Double(solo.fullDeckCards().count / per) * g.value
+        XCTAssertGreaterThan(expected, 0, "a 52-card deck pays under the per-\(per) rule")
+        XCTAssertEqual(solo.pillarPayout().lines.filter { $0.label == g.label }.first?.amount,
+                       expected, "+\(g.value) per \(per) cards in the deck")
         // v6.65: the column-survival clause is gone — a dead pile doesn't void it.
         solo.board.kill(0)
         XCTAssertEqual(solo.pillarPayout().lines.filter { $0.label == g.label }.count, 1,

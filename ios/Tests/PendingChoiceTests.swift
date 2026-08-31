@@ -39,7 +39,7 @@ final class PendingChoiceTests: XCTestCase {
     // MARK: - Second Wind choice (task 9)
 
     /// The roll hits → the save PARKS: pile untouched, the killer held out of
-    /// the deck, the recycle count stated for the prompt (pile 3 + killer 1).
+    /// the deck, the recycle count stated for the prompt (2 buried + killer).
     func testSecondWindConsentParksTheSave() {
         guard let seed = savingSeed(consent: true) else {
             return XCTFail("no saving seed in 1...2000 — the 25% roll is broken")
@@ -52,7 +52,7 @@ final class PendingChoiceTests: XCTestCase {
         XCTAssertNotNil(p, "the hit save waits for the player")
         XCTAssertEqual(p?.index, 0)
         XCTAssertEqual(p?.col, 0)
-        XCTAssertEqual(p?.recycleCount, 4, "3 pile cards + the killing card")
+        XCTAssertEqual(p?.recycleCount, 3, "2 buried pile cards + the killing card — the top STAYS")
         XCTAssertEqual(p?.killingCard.value, 9, "the held killer is the drawn card")
         XCTAssertTrue(e.board.isActive(0), "nothing decided yet — the pile lives")
         XCTAssertEqual(e.board.piles[0].cards.map(\.value), [3, 4, 5], "…untouched")
@@ -61,10 +61,12 @@ final class PendingChoiceTests: XCTestCase {
     }
 
     /// Accept: the parked save applies exactly like the auto path — the pile
-    /// is dealt one fresh top, everything else recycled into the deck.
+    /// keeps its TOP card (v6.93); the buried cards and the killer shuffle
+    /// back into the deck.
     func testSecondWindChoiceAcceptSaves() {
         guard let seed = savingSeed(consent: true) else { return XCTFail("no saving seed") }
         let e = windEngine(consent: true)
+        let deckBefore = e.deck.remaining()
         var events: [String] = []
         e.on { ev in
             if case .secondWind = ev { events.append("secondWind") }
@@ -76,7 +78,10 @@ final class PendingChoiceTests: XCTestCase {
         e.answerSecondWind(true)
         XCTAssertNil(e.run.pendingSecondWind)
         XCTAssertTrue(e.board.isActive(0), "saved")
-        XCTAssertEqual(e.board.piles[0].cards.count, 1, "one fresh top after the recycle")
+        XCTAssertEqual(e.board.piles[0].cards.map(\.value), [5],
+                       "the top card STAYS — no fresh top is dealt")
+        XCTAssertEqual(e.deck.remaining(), deckBefore + 2,
+                       "2 buried + the killer came back; the draw was the only card out")
         XCTAssertEqual(e.run.secondWindUsed?[0], true)
         XCTAssertEqual(events, ["secondWind"], "the save cue fires on the answer")
         XCTAssertEqual(e.status, "playing")
@@ -112,7 +117,8 @@ final class PendingChoiceTests: XCTestCase {
         e.guess(0, .lower)
         XCTAssertNil(e.run.pendingSecondWind, "auto mode never parks")
         XCTAssertTrue(e.board.isActive(0))
-        XCTAssertEqual(e.board.piles[0].cards.count, 1, "the auto-save shape")
+        XCTAssertEqual(e.board.piles[0].cards.map(\.value), [5],
+                       "the auto-save shape: the top STAYS, the buried shuffled back")
     }
 
     /// A kill mid-choice resumes INTO the prompt: the pending (and its held
@@ -128,14 +134,14 @@ final class PendingChoiceTests: XCTestCase {
         let b = windEngine(consent: true)   // same plan/seed — the boot path
         XCTAssertTrue(b.restoreSnapshot(blob), "a mid-choice blob must restore")
         XCTAssertEqual(b.run.pendingSecondWind?.index, 0)
-        XCTAssertEqual(b.run.pendingSecondWind?.recycleCount, 4)
+        XCTAssertEqual(b.run.pendingSecondWind?.recycleCount, 3)
         XCTAssertEqual(b.run.pendingSecondWind?.killingCard.id,
                        a.run.pendingSecondWind?.killingCard.id,
                        "the held killer survives the round-trip (it lives ONLY in the pending)")
         // …and both answers work off the restored state.
         b.answerSecondWind(true)
         XCTAssertTrue(b.board.isActive(0))
-        XCTAssertEqual(b.board.piles[0].cards.count, 1)
+        XCTAssertEqual(b.board.piles[0].cards.map(\.value), [5], "the top card stayed")
     }
 
     // MARK: - Link Shuffler confirm (task 10)
@@ -264,7 +270,7 @@ final class PendingChoiceTests: XCTestCase {
                        "the offer is the guess's ONLY terminal event — the fate events wait for the answer")
         XCTAssertEqual(offer?.index, 0); XCTAssertEqual(offer?.col, 0)
         XCTAssertEqual(offer?.drawnId, e.run.pendingSecondWind?.killingCard.id)
-        XCTAssertEqual(offer?.recycle, 4)
+        XCTAssertEqual(offer?.recycle, 3)
         XCTAssertEqual(e.status, "playing", "the deal must not end mid-choice")
         // …and the answer's events follow, in the documented order.
         e.answerSecondWind(true)
@@ -273,8 +279,8 @@ final class PendingChoiceTests: XCTestCase {
 
     /// The killer is held OUT of the deck while parked; when it was the LAST
     /// card the deck reads empty, and the deal still must not call the win
-    /// until the player answers. Accept recycles (the deal goes on); decline
-    /// lands the killer and only THEN re-evaluates.
+    /// until the player answers. Accept returns the killer to the deck (the
+    /// deal goes on); decline lands the killer and only THEN re-evaluates.
     func testSecondWindParkDefersEndOfDeal() {
         func lastCardEngine() -> GameEngine {
             let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
@@ -292,7 +298,7 @@ final class PendingChoiceTests: XCTestCase {
         }
         guard let s = state else { return XCTFail("no saving state in 1...2000") }
 
-        // Accept: no premature win while parked; the recycle refills the deck.
+        // Accept: no premature win while parked; the killer returns to the deck.
         let a = lastCardEngine()
         var ended = false
         a.on { if case .won = $0 { ended = true }; if case .lost = $0 { ended = true } }
@@ -303,8 +309,8 @@ final class PendingChoiceTests: XCTestCase {
         XCTAssertEqual(a.status, "playing")
         a.answerSecondWind(true)
         XCTAssertTrue(a.board.isActive(0), "saved")
-        XCTAssertEqual(a.deck.remaining(), 1, "2 recycled − 1 fresh top")
-        XCTAssertEqual(a.status, "playing", "the deal continues after the recycle")
+        XCTAssertEqual(a.deck.remaining(), 1, "the killer shuffled back; no fresh top is drawn")
+        XCTAssertEqual(a.status, "playing", "the deal continues after the save")
 
         // Decline: the killer lands, the pile dies, and end-of-deal evaluates
         // NOW (deck empty with survivors → the deal clears).

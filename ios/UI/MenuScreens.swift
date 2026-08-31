@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.92"
-    static let note = "TESTFLIGHT TELEMETRY: anonymous gameplay signals via TelemetryDeck — one instrumentation stream (the engine's recT hook, finally wired), a batching core with a live opt-out (Settings → SHARE ANONYMOUS GAMEPLAY DATA, default ON in TestFlight), session/run/deal lifecycles, store + base + conditional + mystery vocabularies, and TELEMETRY.md as the schema contract."
+    static let version = "v6.94"
+    static let note = "PILE-SIZE RETIREMENT + BONUS SPLIT: the flat pile-size family (Heavy, Streak Size, Massive Diamond, Empty Ranks Heavy, Crazy Eights, Diamond Echo, Pauper's Diamond, Diamond Lifeline, Diamond Boost, Same Heavy) is retired — redistribution and Anchors stay; the bonus tracker now counts DURING-deal coins only, so deal-end awards (Guardian, Envy, Insurance, Payout) can't be doubled by Devil's Deal or zeroed by Bonus Reset before they exist; peeked cards show their stickers and curses; every purge confirm reads \"Permanently purge from your deck?\""
     static let line = "build \(version) · \(note)"
 }
 
@@ -491,7 +491,12 @@ final class MainMenuViewController: MenuScreenBase {
         addButton("ZEN", role: .plain) { [weak self] in
             self?.flow.showZenSelect()
         }
-        addButton("COLLECTION") { [weak self] in self?.flow.showCollection() }
+        // COLLECTION rides the same gate as CLIMB (v6.93): a first-time
+        // player sees neither until the campaign opens — both appear
+        // together, never one without the other.
+        if campaignOpen {
+            addButton("COLLECTION") { [weak self] in self?.flow.showCollection() }
+        }
         // Debug has no menu row: the 🐞 button in the bottom-right corner is
         // the single entry point once 7 footer taps unlock access.
         addGap(20)

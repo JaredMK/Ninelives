@@ -312,14 +312,10 @@ public final class CampaignState {
                 out = out.replacingOccurrences(of: "{rank}", with: label)
             }
         }
-        // PURGE COUPON (v6.91): {current}/{new} show the LIVE ladder at
-        // display time — current Purge price and what one fire cuts it to.
-        if def.effect == "purgeDiscount", out.contains("{current}") {
-            let cur = Int(removalPrice())
-            let target = max(Int(def.num("min", 5)), cur - Int(def.num("value", 2)))
-            out = out.replacingOccurrences(of: "{current}", with: "◉\(cur)")
-                     .replacingOccurrences(of: "{new}", with: "◉\(target)")
-        }
+        // PURGE COUPON (v6.93): the data text is token-free — the cut is a
+        // live board read (♦-topped piles in the column), so the current →
+        // new price preview is computed by the DEAL UI at fire time through
+        // removalPrice(extraCut:), never baked into the shared description.
         // SHOP-ROLLED items (v6.76): the climb-locked {rank}/{suit} from
         // the item's first shelf appearance.
         if let lock = shopRolls[def.id] {
@@ -1459,8 +1455,13 @@ public final class CampaignState {
         return data.packTypes.get(packId).map { storeModPrice(shopPrice($0.price)) } ?? .infinity
     }
     /// The removal slot climbs: base + `priceStep` per removal already bought
-    /// this climb. The deck price multiplier applies on top, as for every item.
-    public func removalPrice() -> Double {
+    /// this climb — so this zero-arg read IS the NEXT purchase's price, not
+    /// the last one paid. The deck price multiplier applies on top, as for
+    /// every item. `extraCut` previews the price after banking a further
+    /// Purge Coupon cut (the Coupon's live {current} → {new} math — both
+    /// numbers come through THIS ladder so the preview can never disagree
+    /// with the register).
+    public func removalPrice(extraCut: Int = 0) -> Double {
         let cfg = data.items.store.removal
         // BULK RATE: each equipped copy flattens the ladder's step by its
         // value (never below 0). Derived live from the loadout + counters,
@@ -1474,9 +1475,10 @@ public final class CampaignState {
         // ladder, floored at the Coupon def's `min` while any cut is banked
         // (the floor is derived, never persisted — the web's formula). The
         // Old Joker's bargain then rides on top, as before.
+        let totalCut = purgePriceCut + max(0, extraCut)
         let couponMin = data.baseTypes.get("purgeDiscount")?.num("min", 0) ?? 0
-        let floor = purgePriceCut > 0 ? couponMin : 0
-        let cut = max(floor, raw - Double(purgePriceCut))
+        let floor = totalCut > 0 ? couponMin : 0
+        let cut = max(floor, raw - Double(totalCut))
         return max(1, (shopPrice(cut) - Double(purgeDiscount)).rounded())
     }
 
