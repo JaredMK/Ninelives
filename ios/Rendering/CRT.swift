@@ -17,13 +17,16 @@ public enum CRT {
     public static let cardFace = UIColor(hex: 0xece4cf)
     /// suit red — ♥ ♦, danger, death
     public static let suitRed  = UIColor(hex: 0xc22f45)
-    /// suit blue — ♦ in COLORFUL CARDS mode (v6.96). The proven rockoBlue,
-    /// moved here from DeckPanel: the one sanctioned blue in the palette.
-    public static let suitBlue = UIColor(hex: 0x3f7fd9)
-    /// suit green — ♣ in COLORFUL CARDS mode (v6.96). A deep green in
-    /// feltMid-lightened territory: legible on both felt and the cream card
-    /// face, and clearly distinct from phosphor (which stays glow-only).
-    public static let suitGreen = UIColor(hex: 0x3d9e5f)
+    /// suit blue — ♦ in COLORFUL CARDS mode (v6.96; deepened v6.97). The
+    /// proven rockoBlue family, moved here from DeckPanel: the one
+    /// sanctioned blue in the palette. Deep enough to read as BLUE on the
+    /// cream card face, light enough to hold on the felt at mini scale.
+    public static let suitBlue = UIColor(hex: 0x2f60b8)
+    /// suit green — ♣ in COLORFUL CARDS mode (v6.96; deepened v6.97). A
+    /// deep green in feltMid-lightened territory: legible on both felt and
+    /// the cream card face, and clearly distinct from phosphor (which stays
+    /// glow-only).
+    public static let suitGreen = UIColor(hex: 0x2c7d49)
     /// ink — outlines, ♠ ♣, text on light
     public static let ink      = UIColor(hex: 0x10100e)
     /// coin gold — coins, prices, secondary accents

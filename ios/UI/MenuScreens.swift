@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.96"
-    static let note = "COLORFUL CARDS + HELP SWEEP: a Settings toggle paints ♦ blue and ♣ green on every suit surface (cards, glyphs, histogram, phase tracks, pickers, store, map loot); Pauper's Heart arms a tell on the triggering ♥ pile instead of peeking; Same Charge is now SAME SHIELD with tap-and-hold help; an empty Same-Power slot shows when none is equipped; hold-help dropped from the deck tracker, deck stack, MENU, stage, SCORE, COINS and the call buttons; FAN help is \"See the cards under each pile\"; pillar/base help titles drop the column number."
+    static let version = "v6.97"
+    static let note = "ITEM TEXT HOUSE STYLE: every description rewritten to the condition → effect voice (conditional stickers: \"If another pile shows this suit/rank → … / Otherwise → this becomes a curse\"); Twin Spark is a RANK conditional that converts on a miss; Eight Ball arms a tell on the 8's pile instead of peeking; the map/store top bar gains the Same-Power slot (empty placeholder included); one ◉ coin glyph everywhere; darker Colorful Cards shades; deck-view card titles align rank+suit."
     static let line = "build \(version) · \(note)"
 }
 

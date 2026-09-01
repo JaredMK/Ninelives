@@ -64,6 +64,29 @@ and NEVER hardcodes a value that lives there:
 - If a genuinely NEW tunable appears, put it in the data file with a comment
   naming what it does; do not bury it in `index.html`.
 
+### ITEM TEXT HOUSE STYLE (v6.97 — non-negotiable, every item description)
+
+Every `description` in items.js ships in ONE voice. Any new item and any
+text edit follows these rules — no more sweeps:
+
+- Lead with the condition or timing, then "→", then the effect. No filler
+  words; drop articles where the meaning survives ("+1 rank (stops at Ace)",
+  not "Adds +1 to the card's rank").
+- CONDITIONAL stickers use exactly two rows:
+  `"If another pile shows this {suit|rank} → {effect}\nOtherwise → this
+  becomes a curse"`. The failure row is ALWAYS "Otherwise → this becomes a
+  curse" — never "sticker becomes cursed" or any other variant.
+- Deal-end effects: "At deal end [if condition] → {effect}".
+- Column-scoped triggers: "When a {X} lands in this column → {effect}".
+- Gates state the condition plainly: "If purse <10 coins →", "If in column
+  with no Base →", "If only equipped pillar →".
+- Say "full deck" when the condition reads the whole deck, to distinguish
+  from board state.
+- Meta (store-side, non-deal) items end with "(no effect during deal)".
+- Class names are capitalized: Pillar, Base, Same Shield, Same-Power.
+- Curses lead with "Cursed. " then the same terse shape.
+- No trailing periods on single-clause descriptions.
+
 ## Convention 2: performance invariants
 
 The game targets phones. Four invariants, all currently enforced — keep them:
@@ -302,7 +325,18 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
 - **iOS: "Same Charge" is now "Same Shield" player-facing (v6.96)** — the
   code keeps `sameCharge` (the run/climb rule's twin); its chip answers TAP
   as well as hold, and an empty Same-Power slot (help: "None equipped")
-  shows beside it when no power is equipped.
+  shows beside it when no power is equipped. v6.97: the map/store top shell
+  (`TopShellView`) mirrors the deal's top bar — Same-Power slot and
+  empty-slot placeholder included; both Same chips answer tap with the
+  band-takeover help there.
+- **iOS coin glyph is ONE mark (v6.97):** the ◉ text glyph everywhere —
+  toolbars, the deal HUD, the shop, reward rows, compare views. The
+  `pxi-coin` pixel art is retired (never reintroduce a second coin mark).
+- **iOS card titles carry NO space before the suit (v6.97):**
+  `CardInfo.title` is "7♥", and `PixelGlyph.substituteSuits` centres the
+  inline suit mark on the RUN's own font cap band (read the `.font`
+  attribute at the suit char — display-face runs measured against the body
+  face park the mark low).
 
 ### Economy & score
 
@@ -521,8 +555,10 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   conversions belong to the landing CARRIER. RECHARGE SHIELD and
   TAP POWER went LIVE in v6.90 on the same rank axis (fire on a match,
   convert per instance on a miss, exempt on the last pile; a fed Tap Power
-  with no equipped power is a quiet no-op and persists). Only TWIN SPARK
-  remains held back untouched (fires on a match, never converts).
+  with no equipped power is a quiet no-op and persists). TWIN SPARK was the
+  last holdout — it joined the same rank-axis template in v6.97 (peek on a
+  match, converts on a miss). The template now holds for EVERY conditional
+  sticker.
 - **Odds Assist (iOS, v6.78): ALL-BEST + legality.**
   `assistRecommendations()` returns EVERY (pile, call) pair tying the max
   survival probability — no tie-break ladder — and respects guess()'s

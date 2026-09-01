@@ -172,7 +172,7 @@ public enum PlacementLog {
     /// Rank-keyed equipped effects: the item's behavior depends on card RANKS,
     /// so a rank sticker's home (or a card's rank) interacts with it.
     private static let rankEffects: Set<String> = [
-        "rankShield", "startPileSizeEight", "eightPeek", "royalSafeNoTwos",
+        "rankShield", "startPileSizeEight", "eightTell", "royalSafeNoTwos",
         "rankBury", "rankCoin", "prime", "wildAces", "purgeRank", "chorus",
         "rankFlood", "setValue", "clubZeroRanksBury", "diamondDupeSize",
         "highestHeart", "queensEye", "heartZeroRanksCoin", "diamondZeroRanksSize",

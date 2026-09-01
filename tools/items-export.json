@@ -1,6 +1,6 @@
 {
- "version": "v6.96",
- "generatedAt": "2026-09-01 01:58",
+ "version": "v6.97",
+ "generatedAt": "2026-09-01 04:39",
  "rows": [
   {
    "cls": "Stickers",
@@ -21,7 +21,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "+1 card rank (stops at Ace)",
+   "description": "+1 rank (stops at Ace)",
    "flags": "",
    "flagNotes": ""
   },
@@ -44,7 +44,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "-1 card rank (stops at 2)",
+   "description": "-1 rank (stops at 2)",
    "flags": "",
    "flagNotes": ""
   },
@@ -67,7 +67,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "+2 card rank (stops at Ace)",
+   "description": "+2 rank (stops at Ace)",
    "flags": "",
    "flagNotes": ""
   },
@@ -90,7 +90,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "-2 card rank (stops at 2)",
+   "description": "-2 rank (stops at 2)",
    "flags": "",
    "flagNotes": ""
   },
@@ -113,7 +113,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Change to random rank",
+   "description": "Randomize rank",
    "flags": "",
    "flagNotes": ""
   },
@@ -136,7 +136,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Change to random suit",
+   "description": "Randomize suit",
    "flags": "",
    "flagNotes": ""
   },
@@ -159,7 +159,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Change suit to ♠",
+   "description": "Change to ♠",
    "flags": "",
    "flagNotes": ""
   },
@@ -182,7 +182,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Change suit to ♥",
+   "description": "Change to ♥",
    "flags": "",
    "flagNotes": ""
   },
@@ -205,7 +205,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Change suit to ♦",
+   "description": "Change to ♦",
    "flags": "",
    "flagNotes": ""
   },
@@ -228,7 +228,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Change suit to ♣",
+   "description": "Change to ♣",
    "flags": "",
    "flagNotes": ""
   },
@@ -251,7 +251,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this rank → Safe\nOtherwise → Sticker becomes cursed",
+   "description": "If another pile shows this rank → safe\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -274,7 +274,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this suit → this card is safe when it lands.\nOtherwise → this sticker becomes a curse",
+   "description": "If another pile shows this suit → safe\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -282,10 +282,8 @@
    "cls": "Stickers",
    "inactive": false,
    "outcome": "Coin Gain",
-   "outcomeDetail": "deal-end payout; curses its cover",
-   "outcomeAlso": [
-    "Curse Payoff"
-   ],
+   "outcomeDetail": "deal-end payout",
+   "outcomeAlso": [],
    "effectKey": "extraCoin",
    "id": "extraCoin",
    "label": "Payout",
@@ -299,7 +297,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end if this card tops its pile → earn coins equal to pile size",
+   "description": "At deal end if top card → earn coins equal to pile size",
    "flags": "",
    "flagNotes": ""
   },
@@ -322,7 +320,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this suit → +1 coin per pile whose top card matches.\nOtherwise → this sticker becomes a curse",
+   "description": "If another pile shows this suit → +1 coin per pile with matching suit\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -330,10 +328,8 @@
    "cls": "Stickers",
    "inactive": false,
    "outcome": "Pile Size & Score",
-   "outcomeDetail": "score shelter; curses its cover",
-   "outcomeAlso": [
-    "Curse Payoff"
-   ],
+   "outcomeDetail": "score shelter",
+   "outcomeAlso": [],
    "effectKey": "anchor",
    "id": "anchor",
    "label": "Anchor",
@@ -347,7 +343,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end if this card tops its pile → exclude the pile from the smallest-pile score",
+   "description": "At deal end if top card → exclude from smallest-pile size",
    "flags": "",
    "flagNotes": ""
   },
@@ -370,7 +366,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this suit → make all pile sizes equal.\nOtherwise → this sticker becomes a curse",
+   "description": "If another pile shows this suit → make all pile sizes equal size\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -393,7 +389,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this suit → bury 1 card under this pile.\nOtherwise → this sticker becomes a curse",
+   "description": "If another pile shows this suit → bury 1 card under this pile\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -401,7 +397,7 @@
    "cls": "Stickers",
    "inactive": false,
    "outcome": "Peek",
-   "outcomeDetail": "if a rank twin is up",
+   "outcomeDetail": "conditional: rank-twin bet",
    "outcomeAlso": [],
    "effectKey": "twinSpark",
    "id": "twinSpark",
@@ -416,7 +412,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Peek at the next card if another pile shows this rank",
+   "description": "If another pile shows this rank → peek next card\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -439,7 +435,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If this column has no Pillar → peek at the next card.\nIf it has one → this sticker becomes a curse",
+   "description": "If in column with no Pillar → peek next card\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -462,7 +458,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If this column has no Base → peek at the next card.\nIf it has one → this sticker becomes a curse",
+   "description": "If in column with no Base → peek next card\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -485,7 +481,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this suit → optionally shuffle those piles.\nOtherwise → this sticker becomes a curse",
+   "description": "If another pile shows this suit → optionally shuffle those piles\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -508,7 +504,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this suit → this card shows a tell (higher, lower, or same) for the next draw.\nOtherwise → this sticker becomes a curse",
+   "description": "If another pile shows this suit → this card shows a tell (higher/lower/same)\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -531,7 +527,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this rank → Charge Same Shield\nOtherwise → Sticker becomes cursed",
+   "description": "If another pile shows this rank → charge Same Shield\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -554,7 +550,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile shows this rank → Fire Same Power\nOtherwise → Sticker becomes cursed",
+   "description": "If another pile shows this rank → fire Same Power\nOtherwise → this becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -623,7 +619,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end → +3 coins if no pile in this column survived",
+   "description": "At deal end if no pile in this column survived → +3 coins",
    "flags": "",
    "flagNotes": ""
   },
@@ -646,7 +642,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end → +4 coins if every pile in this column survived",
+   "description": "At deal end if every pile in this column survived → +4 coins",
    "flags": "",
    "flagNotes": ""
   },
@@ -669,7 +665,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end → +2 coins per pile in this column with a ♥ top card",
+   "description": "At deal end → +2 coins per pile in this column with a ♥",
    "flags": "",
    "flagNotes": ""
   },
@@ -692,7 +688,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "From the 4th consecutive correct guess in this column → bury 1 card per guess. Resets on a wrong guess or any guess in another column",
+   "description": "From the 4th consecutive correct guess in this column → bury 1 card per guess — resets on a wrong guess or a guess in another column",
    "flags": "",
    "flagNotes": ""
   },
@@ -715,7 +711,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "This column starts the deal with 1 extra pile (up to 4)",
+   "description": "This column starts each deal with 1 extra pile (max 4)",
    "flags": "",
    "flagNotes": ""
   },
@@ -738,7 +734,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Each pile that dies in this column has a 25% chance to be saved — the top card stays and the buried cards shuffle back into the deck",
+   "description": "When a pile in this column dies → 25% chance to save it: the top card stays, the buried cards shuffle back into the deck",
    "flags": "",
    "flagNotes": ""
   },
@@ -763,7 +759,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end → +1 coin per 5 cards in your deck, if no other pillar is equipped",
+   "description": "At deal end if only equipped pillar → +1 coin per 5 cards in your full deck",
    "flags": "",
    "flagNotes": ""
   },
@@ -832,7 +828,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "The store's Purge price climbs by 1 instead of 2. No effect during deal",
+   "description": "The store's Purge price climbs by 1 instead of 2 (no effect during deal)",
    "flags": "",
    "flagNotes": ""
   },
@@ -855,7 +851,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "One random item in every store costs 0 coins. No effect during deal",
+   "description": "One random item in every store costs 0 (no effect during deal)",
    "flags": "",
    "flagNotes": ""
   },
@@ -878,7 +874,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Rare items appear in the store twice as often. No effect during deal",
+   "description": "Rare items appear in the store twice as often (no effect during deal)",
    "flags": "",
    "flagNotes": ""
   },
@@ -901,7 +897,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "30% chance to turn away a Just a Two mystery. 100% chance if there are no 2s in your deck. No effect during deal",
+   "description": "30% chance to turn away a Just a Two mystery — 100% if your full deck has no 2s (no effect during deal)",
    "flags": "",
    "flagNotes": ""
   },
@@ -924,7 +920,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "+30% chance to find a Beheaded Queen at a mystery stop. 100% chance if Queens are the most common rank in your deck (ties don't count). No effect during deal",
+   "description": "+30% chance to find a Beheaded Queen at a mystery stop — 100% if Queens are the most common rank in your full deck, ties don't count (no effect during deal)",
    "flags": "",
    "flagNotes": ""
   },
@@ -970,7 +966,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a {rank} lands correctly in this column → bury 1 deck card under that pile",
+   "description": "When a {rank} lands correctly in this column → bury 1 card under that pile",
    "flags": "TEMPLATE",
    "flagNotes": "TEMPLATE: {rank} substituted live"
   },
@@ -1016,7 +1012,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end → +8 coins if only one pile is alive",
+   "description": "At deal end if only one pile is alive → +8 coins",
    "flags": "",
    "flagNotes": ""
   },
@@ -1039,7 +1035,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Mirrors the center column's pillar",
+   "description": "Mirror the center column's Pillar",
    "flags": "",
    "flagNotes": ""
   },
@@ -1062,7 +1058,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a royal ♠ (J/Q/K) lands in this column → peek at the next card",
+   "description": "When a royal ♠ (J/Q/K) lands in this column → peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -1085,7 +1081,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a ♦ lands in this column → optionally shuffle the other piles in this column",
+   "description": "When a ♦ lands in this column → optionally shuffle this column's other piles",
    "flags": "",
    "flagNotes": ""
   },
@@ -1108,7 +1104,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a pile in this column dies → peek the next card",
+   "description": "When a pile in this column dies → peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -1154,7 +1150,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end → exclude any pile in this column with a ♦ top card from the smallest-pile score",
+   "description": "At deal end → exclude each ♦-topped pile in this column from the smallest-pile score",
    "flags": "",
    "flagNotes": ""
   },
@@ -1177,7 +1173,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a ♦ lands in this column → make all piles in this column equal size",
+   "description": "When a ♦ lands in this column → make this column's piles equal size",
    "flags": "",
    "flagNotes": ""
   },
@@ -1250,7 +1246,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If your full deck contains no 2s → royals (J/Q/K) are always safe in this column",
+   "description": "If your full deck has no 2s → royals (J/Q/K) are always safe in this column",
    "flags": "",
    "flagNotes": ""
   },
@@ -1296,7 +1292,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Stickers that would convert into curses in this column don't — they stay as stickers",
+   "description": "Stickers in this column never convert into curses",
    "flags": "",
    "flagNotes": ""
   },
@@ -1321,7 +1317,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Permanently purge whichever card kills the final pile in this column",
+   "description": "When the last pile in this column dies → permanently purge the card that killed it",
    "flags": "",
    "flagNotes": ""
   },
@@ -1346,7 +1342,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Same calls are safe on cards ±1 in value in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power",
+   "description": "Same calls are safe on cards ±1 in value in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)",
    "flags": "",
    "flagNotes": ""
   },
@@ -1371,7 +1367,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "A royal landing on a royal survives a Same call in this column. A survived Same counts as a full correct Same — charges the Same Shield and fires your Same-Power",
+   "description": "A royal landing on a royal survives a Same call in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)",
    "flags": "",
    "flagNotes": ""
   },
@@ -1419,7 +1415,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Most common card in deck ({rank}) is always safe in this column",
+   "description": "The most common rank in your full deck ({rank}) is always safe in this column",
    "flags": "TEMPLATE",
    "flagNotes": "TEMPLATE: {rank} substituted live"
   },
@@ -1442,7 +1438,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "The suit your deck holds the fewest of is safe when it lands in this column",
+   "description": "The suit your full deck holds the fewest of is safe when it lands in this column",
    "flags": "",
    "flagNotes": ""
   },
@@ -1465,7 +1461,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "On purchase → the store's Purge price is halved (minimum 5). No effect during deal",
+   "description": "On purchase → halve the store's Purge price (minimum 5, no effect during deal)",
    "flags": "",
    "flagNotes": ""
   },
@@ -1488,17 +1484,17 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "The first restock in each store and the first reshuffle of each deal are free",
+   "description": "First restock of each store and first reshuffle of each deal are free",
    "flags": "",
    "flagNotes": ""
   },
   {
    "cls": "Pillars",
    "inactive": false,
-   "outcome": "Peek",
+   "outcome": "Tell",
    "outcomeDetail": "on an 8",
    "outcomeAlso": [],
-   "effectKey": "eightPeek",
+   "effectKey": "eightTell",
    "id": "eightPeek",
    "label": "Eight Ball",
    "tier": "common",
@@ -1511,7 +1507,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When an 8 lands in this column → peek at the next card",
+   "description": "When an 8 lands in this column → tell on that card",
    "flags": "",
    "flagNotes": ""
   },
@@ -1536,7 +1532,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "While your purse holds under 10 coins → when a ♥ lands in this column, that pile gets a tell",
+   "description": "If purse <10 coins → when a ♥ lands in this column, that card gets a tell",
    "flags": "",
    "flagNotes": ""
   },
@@ -1561,7 +1557,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "While your purse holds under 10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)",
+   "description": "If purse <10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)",
    "flags": "",
    "flagNotes": ""
   },
@@ -1586,7 +1582,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "While your purse holds under 10 coins → when a ♣ lands in this column, bury 1 card under that pile",
+   "description": "If purse <10 coins → when a ♣ lands in this column bury 1",
    "flags": "",
    "flagNotes": ""
   },
@@ -1612,7 +1608,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a cursed card lands in this column → bury 1 card under that pile, then peek at the next card",
+   "description": "When a cursed card lands in this column → bury 1 card under that pile, then peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -1637,7 +1633,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "On purchase → purge every {rank} from your deck. No effect during deal",
+   "description": "On purchase → purge every {rank} from your deck (no effect during deal)",
    "flags": "TEMPLATE",
    "flagNotes": "TEMPLATE: {rank} substituted live"
   },
@@ -1662,7 +1658,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Kill a random ♠-topped pile in this column, → peek the next 2 cards",
+   "description": "Kill a random ♠-topped pile in this column → peek the next 2 cards",
    "flags": "",
    "flagNotes": ""
   },
@@ -1685,7 +1681,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Peek the next card. Requires every pile in this column has a ♠ on top",
+   "description": "If every pile in this column has a ♠ top card → peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -1731,7 +1727,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Revive a random dead pile in this column. Buried cards return to the deck",
+   "description": "Revive a random dead pile in this column — buried cards return to the deck",
    "flags": "",
    "flagNotes": ""
   },
@@ -1777,7 +1773,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Make ALL piles on the board equal size",
+   "description": "Make every pile on the board equal size",
    "flags": "",
    "flagNotes": ""
   },
@@ -1800,7 +1796,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Permanently set every top card's rank in this column to the bottom pile's rank",
+   "description": "Permanently set this column's top cards to the bottom pile's rank",
    "flags": "",
    "flagNotes": ""
   },
@@ -1823,7 +1819,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Permanently set every top card's suit in this column to the bottom pile's suit",
+   "description": "Permanently set this column's top cards to the bottom pile's suit",
    "flags": "",
    "flagNotes": ""
   },
@@ -1871,7 +1867,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Recharge your other two bases",
+   "description": "Recharge your other two Bases",
    "flags": "",
    "flagNotes": ""
   },
@@ -1919,7 +1915,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Destroy this column's pillar permanently, then peek the next 3 cards",
+   "description": "Permanently destroy this column's Pillar → peek the next 3 cards",
    "flags": "",
    "flagNotes": ""
   },
@@ -1944,7 +1940,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Destroy every ♥-topped pile in this column. +4 coins per pile destroyed",
+   "description": "Destroy every ♥-topped pile in this column → +4 coins per pile",
    "flags": "",
    "flagNotes": ""
   },
@@ -2013,7 +2009,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Activate your Same-Power",
+   "description": "Fire your Same-Power",
    "flags": "",
    "flagNotes": ""
   },
@@ -2038,7 +2034,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "In a non-boss deal, bury the whole deck under a pile in this column and win instantly. Any Base nearby is destroyed",
+   "description": "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys any nearby Base)",
    "flags": "",
    "flagNotes": ""
   },
@@ -2061,7 +2057,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Spend ALL your coins → peek 1 card, +1 more per 10 coins spent",
+   "description": "Spend all your coins → peek 1 card, +1 more per 10 coins spent",
    "flags": "",
    "flagNotes": ""
   },
@@ -2084,7 +2080,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If the next card is the SAME rank as a top card anywhere on the board, the = mark appears on that card",
+   "description": "If the next card matches a top card's rank anywhere on the board → that card shows the = mark",
    "flags": "",
    "flagNotes": ""
   },
@@ -2107,7 +2103,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Peek the next card. Only works while no Same-Power is equipped",
+   "description": "If no Same-Power is equipped → peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -2130,7 +2126,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Put a tell marker on each ♣-topped pile in this column for the next draw. Tell marker shows if the next card is higher, lower, or same",
+   "description": "Tell each ♣-topped pile in this column for the next draw (higher/lower/same)",
    "flags": "",
    "flagNotes": ""
   },
@@ -2153,7 +2149,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Only usable in an ambush from Just a Two → clear the deal instantly",
+   "description": "If in a Just a Two ambush → clear the deal instantly",
    "flags": "",
    "flagNotes": ""
   },
@@ -2176,7 +2172,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Reduce the Store's Purge cost by 1 for each ♦-topped pile in this column. Minimum 5",
+   "description": "−1 to the store's Purge price per ♦-topped pile in this column (minimum 5)",
    "flags": "",
    "flagNotes": ""
   },
@@ -2201,7 +2197,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Reset bonus coins earned this deal to zero, then peek the next card",
+   "description": "Reset bonus coins earned this deal to 0 → peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -2251,7 +2247,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Double your bonus coins earned this deal, then add a curse to a top card in this column",
+   "description": "Double bonus coins earned this deal → add a curse to a top card in this column",
    "flags": "",
    "flagNotes": ""
   },
@@ -2274,7 +2270,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Remove all curses from the top cards in this column",
+   "description": "Remove all curses from this column's top cards",
    "flags": "",
    "flagNotes": ""
   },
@@ -2320,7 +2316,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Bury 1 card under every pile with a {suit} top card",
+   "description": "Bury 1 card under every {suit}-topped pile",
    "flags": "TEMPLATE",
    "flagNotes": "TEMPLATE: {suit} substituted live"
   },
@@ -2366,7 +2362,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Gain 1 coin for each alive pile",
+   "description": "+1 coin per alive pile",
    "flags": "",
    "flagNotes": ""
   },
@@ -2414,7 +2410,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When you call a correct Same → clear all curses from every top card on the board",
+   "description": "Clear all curses from every top card on the board",
    "flags": "",
    "flagNotes": ""
   },
@@ -2437,7 +2433,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Peek the next card",
+   "description": "Peek next card",
    "flags": "",
    "flagNotes": ""
   },
@@ -2460,7 +2456,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Every alive pile shows a tell (higher/lower/same) for the next draw",
+   "description": "Every alive pile gets a tell for the next draw (higher/lower/same)",
    "flags": "",
    "flagNotes": ""
   },
@@ -2529,7 +2525,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "A correct Same sets the top card of every alive pile to this card's rank. A Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces",
+   "description": "Set the top card of every alive pile to this card's rank — a Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces",
    "flags": "",
    "flagNotes": ""
   },
@@ -2575,7 +2571,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. This card counts −1 toward pile size",
+   "description": "Cursed. Counts −1 toward pile size",
    "flags": "",
    "flagNotes": ""
   },
@@ -2598,7 +2594,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. While this is a pile's top card, Same cannot be called there",
+   "description": "Cursed. While top card → Same cannot be called on this pile",
    "flags": "",
    "flagNotes": ""
   },
@@ -2621,7 +2617,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. When it lands, the card at the BOTTOM of the pile returns to the deck",
+   "description": "Cursed. On landing → the pile's bottom card returns to the deck",
    "flags": "",
    "flagNotes": ""
   },
@@ -2692,7 +2688,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. While this card is a pile's top card, that pile size is 1",
+   "description": "Cursed. While top card → this pile's size is 1",
    "flags": "",
    "flagNotes": ""
   },
@@ -2715,7 +2711,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. While this is a pile's top card, your next guess must be played there",
+   "description": "Cursed. While top card → your next guess must be played here",
    "flags": "",
    "flagNotes": ""
   },
@@ -2738,7 +2734,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. While this is a pile's top card, the column's Pillar does not work",
+   "description": "Cursed. While top card → the column's Pillar does not work",
    "flags": "",
    "flagNotes": ""
   },
@@ -2761,7 +2757,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. Any card that lands on this card loses its stickers",
+   "description": "Cursed. A card landing on this card loses its stickers",
    "flags": "",
    "flagNotes": ""
   },
@@ -2809,7 +2805,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. 10% chance this card kills the pile anyway, even if the guess is correct",
+   "description": "Cursed. 10% chance to kill the pile even on a correct guess",
    "flags": "",
    "flagNotes": ""
   },
@@ -2834,7 +2830,7 @@
    "cursed": true,
    "packSize": null,
    "packKeep": null,
-   "description": "Cursed. 10% chance the column's Base or Pillar is destroyed",
+   "description": "Cursed. 10% chance to destroy the column's Base or Pillar",
    "flags": "",
    "flagNotes": ""
   },
@@ -2857,7 +2853,7 @@
    "cursed": false,
    "packSize": 5,
    "packKeep": 2,
-   "description": "Reveals 5 random cards. Keep 2 to swap into your deck",
+   "description": "Reveal 5 random cards — keep 2 to swap into your deck",
    "flags": "",
    "flagNotes": ""
   },
@@ -2880,7 +2876,7 @@
    "cursed": false,
    "packSize": 3,
    "packKeep": 1,
-   "description": "Reveals 3 random cards. Keep 1 to swap into your deck",
+   "description": "Reveal 3 random cards — keep 1 to swap into your deck",
    "flags": "",
    "flagNotes": ""
   },
@@ -2903,7 +2899,7 @@
    "cursed": false,
    "packSize": 3,
    "packKeep": 1,
-   "description": "Reveals 3 random stickers. Keep 1",
+   "description": "Reveal 3 random stickers — keep 1",
    "flags": "",
    "flagNotes": ""
   },
@@ -2926,7 +2922,7 @@
    "cursed": false,
    "packSize": 5,
    "packKeep": 2,
-   "description": "Reveals 5 random stickers. Keep 2",
+   "description": "Reveal 5 random stickers — keep 2",
    "flags": "",
    "flagNotes": ""
   },

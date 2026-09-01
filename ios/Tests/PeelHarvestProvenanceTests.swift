@@ -67,7 +67,8 @@ final class PeelHarvestProvenanceTests: XCTestCase {
         XCTAssertFalse(def.description.contains("{"),
                        "no template tokens in the shared text: \(def.description)")
         XCTAssertTrue(def.description.contains("♦"), "the per-diamond rule is stated")
-        XCTAssertTrue(def.description.contains("Minimum 5"))
+        XCTAssertTrue(def.description.contains("minimum \(def.int("min", 5))"),
+                      "the floor is stated: \(def.description)")
         // PRICE BASIS (the {current} rule): removalPrice() is the NEXT
         // visit's price — the ladder term for purchases already made this
         // climb is in it, not the price last paid.

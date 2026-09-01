@@ -518,6 +518,9 @@ enum IVStickers {
             ]
 
         case "twinSpark":
+            // CONDITIONAL (v6.97 — the last held-back sticker joins the
+            // template): the rank bet — pile 2's 6 feeds the drawn 6; a
+            // board with no twin CONVERTS the sticker.
             return landingFamily(def, drawnRank: 6,
                 boardTops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 3)],
                 allowed: [.deck],
@@ -525,11 +528,15 @@ enum IVStickers {
                     XCTAssertTrue(e.run.revealNextActive, "\(c): a rank twin on pile 2 → peek")
                 },
                 expectNoFire: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
-                + [IV.Scenario("mustNotFire-noTwin", allowed: [.guesses, .deck, .board],
+                + [IV.Scenario("mustNotFire-noTwinConverts", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 11), IV.spec(3, 3)],
                                        deckOrder: [IV.spec(50, 6, "♠", ["twinSpark"]), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
-                    expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })]
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.run.revealNextActive, "\(c): the missed bet peeks nothing")
+                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                       "\(c): …and CONVERTS it (v6.97) — the twin bet missed")
+                    })]
 
         case "revealNext":
             return landingFamily(def, allowed: [.deck],

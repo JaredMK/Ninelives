@@ -37,12 +37,15 @@ enum CardInfo {
     static let nameSize = CRT.Font.label      // 16 — sticker name, body face + bold
     static let descSize = CRT.Font.label      // 16 — description, cream
 
-    /// The canonical card title: "7 ♥" / "★ Joker" / "∅ Purge".
+    /// The canonical card title: "7♥" / "★ Joker" / "∅ Purge". No space
+    /// before the suit (v6.97): every title surface renders the DISPLAY
+    /// face, whose full-em space parked the pixel suit a cell too far right;
+    /// the mark's own advance is the gap.
     static func title(for c: CardSpec) -> String {
         if c.joker { return "★ Joker" }
         if c.blank { return "∅ Purge" }
         let r = DeckManager.ranks.first { $0.value == c.currentRank }?.label ?? "\(c.currentRank)"
-        return "\(r) \(c.suit)"
+        return "\(r)\(c.suit)"
     }
 
     /// v6.91 PROVENANCE: the per-instance conversion note a converted

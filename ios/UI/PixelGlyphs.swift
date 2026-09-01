@@ -169,25 +169,28 @@ enum PixelGlyph {
     }
 
     /// PIXEL SUITS IN TEXT (v6.66): swap every suit character in `s` for an
-    /// inline pixel mark (NSTextAttachment), centred against the font's cap
-    /// band. Folds the emoji-presentation variants (♠️ = ♠ + U+FE0F) to the
-    /// same mark. The one substitution point every text surface shares —
-    /// CRTKit labels and PixelTexture-baked sprites alike.
+    /// inline pixel mark (NSTextAttachment), centred against the RUN's own
+    /// cap band (v6.97: read the font AT the suit — a display-face title
+    /// used to be measured against the body face, which parked the mark a
+    /// half-step low). Folds the emoji-presentation variants (♠️ = ♠ +
+    /// U+FE0F) to the same mark. The one substitution point every text
+    /// surface shares — CRTKit labels and PixelTexture-baked sprites alike.
     static func substituteSuits(_ s: NSAttributedString, size: CGFloat,
                                 color: UIColor) -> NSAttributedString {
         guard s.string.contains(where: { suits[String($0)] != nil }) else { return s }
         let out = NSMutableAttributedString(attributedString: s)
-        let font = CRT.Font.of(size)
         var i = (out.string as NSString).length - 1
         while i >= 0 {
             let ns = out.string as NSString
             let ch = ns.substring(with: NSRange(location: i, length: 1))
+            let runFont = (out.attribute(.font, at: i, effectiveRange: nil) as? UIFont)
+                ?? CRT.Font.of(size)
             if let img = suitImage(ch, size: size, color: color) {
                 var range = NSRange(location: i, length: 1)
                 if i + 1 < ns.length, ns.character(at: i + 1) == 0xFE0F { range.length = 2 }
                 let att = NSTextAttachment()
                 att.image = img
-                att.bounds = CGRect(x: 0, y: (font.capHeight - img.size.height) / 2,
+                att.bounds = CGRect(x: 0, y: (runFont.capHeight - img.size.height) / 2,
                                     width: img.size.width, height: img.size.height)
                 out.replaceCharacters(in: range, with: NSAttributedString(attachment: att))
             }

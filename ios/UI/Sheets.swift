@@ -603,7 +603,6 @@ final class SettingsSheetView: SheetView {
     /// toggle itself is `CRT.setColorfulCards` (persist + cache flush); the
     /// flow owns the screen re-sync via onColorfulCardsChanged.
     private let colorfulButton = PixelButtonView("", role: .plain, fontSize: 16)
-    private let colorfulHint = CRTKit.label("", size: 14, color: CRT.muted)
     /// ODDS ASSIST (v6.71): visible even while LOCKED — the locked row is a
     /// goal, not a secret. Unlocks on the first Straight (Legendary) win with
     /// any deck; the state derives from DeckUnlocks, so it persists like
@@ -618,7 +617,7 @@ final class SettingsSheetView: SheetView {
     init(campaign: CampaignState) {
         self.campaign = campaign
         super.init(title: "Settings")
-        setBodyHeight(410)
+        setBodyHeight(384)
         soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
         soundButton.onTap = { [weak self] in
             Sound.shared.enabled.toggle()
@@ -630,7 +629,6 @@ final class SettingsSheetView: SheetView {
             self?.onColorfulCardsChanged?()
         }
         refreshColorfulRow()
-        colorfulHint.textAlignment = .center
         assistButton.onTap = { [weak self] in
             guard let self, self.campaign.deckUnlocks.wonAnyStraight() else { return }
             let on = self.campaign.saveStore.pref("oddsAssist") == "1"
@@ -653,7 +651,6 @@ final class SettingsSheetView: SheetView {
         foot.alpha = 0.6
         body.addSubview(soundButton)
         body.addSubview(colorfulButton)
-        body.addSubview(colorfulHint)
         body.addSubview(assistButton)
         body.addSubview(assistHint)
         body.addSubview(shareButton)
@@ -664,9 +661,6 @@ final class SettingsSheetView: SheetView {
 
     private func refreshColorfulRow() {
         colorfulButton.setTitle("COLORFUL CARDS: \(CRT.colorfulCards ? "ON" : "OFF")")
-        colorfulHint.attributedText = CRTKit.attributed(
-            "Diamonds blue, clubs green — hearts stay red, spades stay black.",
-            size: 14, color: CRT.muted)
     }
 
     private func refreshShareRow() {
@@ -700,13 +694,12 @@ final class SettingsSheetView: SheetView {
         guard w > 0 else { return }
         soundButton.frame = CGRect(x: 14, y: 8, width: w, height: 48)
         colorfulButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
-        colorfulHint.frame = CGRect(x: 14, y: 118, width: w, height: 16)
-        assistButton.frame = CGRect(x: 14, y: 144, width: w, height: 48)
-        assistHint.frame = CGRect(x: 14, y: 196, width: w, height: 16)
-        shareButton.frame = CGRect(x: 14, y: 222, width: w, height: 48)
-        shareHint.frame = CGRect(x: 14, y: 274, width: w, height: 16)
-        resetButton.frame = CGRect(x: 14, y: 302, width: w, height: 48)
-        foot.frame = CGRect(x: 14, y: 362, width: w, height: 34)
+        assistButton.frame = CGRect(x: 14, y: 118, width: w, height: 48)
+        assistHint.frame = CGRect(x: 14, y: 170, width: w, height: 16)
+        shareButton.frame = CGRect(x: 14, y: 196, width: w, height: 48)
+        shareHint.frame = CGRect(x: 14, y: 248, width: w, height: 16)
+        resetButton.frame = CGRect(x: 14, y: 276, width: w, height: 48)
+        foot.frame = CGRect(x: 14, y: 336, width: w, height: 34)
     }
 }
 

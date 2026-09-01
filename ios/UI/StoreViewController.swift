@@ -210,12 +210,10 @@ public final class StoreViewController: UIViewController {
         shell.sync(campaign: campaign)
         let bal = NSMutableAttributedString(
             string: "\(campaign.getCoins()) ", attributes: [.font: CRT.Font.of(26), .foregroundColor: CRT.gold])
-        // The coin mark is GOLD like every other coin readout in the game —
-        // only the "to spend" tail stays muted (it was all grey before).
+        // The coin mark is GOLD like every other coin readout in the game,
+        // at the number's own size (v6.97 — the "to spend" tail is gone).
         bal.append(NSAttributedString(
-            string: "◉", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.gold]))
-        bal.append(NSAttributedString(
-            string: " to spend", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))
+            string: "◉", attributes: [.font: CRT.Font.of(26), .foregroundColor: CRT.gold]))
         balanceLabel.attributedText = campaign.isGiftShelf
             ? CRTKit.attributed("everything here is free", size: 16, color: CRT.muted)
             : bal
@@ -1077,7 +1075,7 @@ public final class StoreViewController: UIViewController {
         }
         if let d = data.items.bases.first {
             rows.append((ItemArt.base(d, width: 44, height: 30),
-                         "Base: Sits on a column. Tap to use."))
+                         "Base: Sits under a column. Tap to fire"))
         }
         if let d = data.items.samePowers.first {
             rows.append((ItemArt.samePower(d, width: 40, height: 40),

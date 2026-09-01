@@ -265,18 +265,12 @@ public final class PhaseOverlayView: UIView {
         return NSAttributedString(string: text, attributes: attrs)
     }
 
-    /// A coin glyph + value pair (the web's COIN_SVG inline in a value).
+    /// A coin glyph + value pair. ONE glyph game-wide (v6.97): the ◉ text
+    /// mark — the pxi-coin art is retired.
     static func coinAttr(_ value: String, size: CGFloat, color: UIColor,
                          display: Bool = false, glow: Bool = false) -> NSAttributedString {
         let out = NSMutableAttributedString()
-        if let coin = ArtBundle.image("pxi-coin") {
-            let att = NSTextAttachment()
-            att.image = coin
-            let h = size * 0.95
-            att.bounds = CGRect(x: 0, y: -2, width: h, height: h)
-            out.append(NSAttributedString(attachment: att))
-            out.append(NSAttributedString(string: " "))
-        }
+        out.append(CRTKit.attributed("◉ ", size: size, color: color, display: display, glow: glow))
         out.append(CRTKit.attributed(value, size: size, color: color, display: display, glow: glow))
         return out
     }
@@ -1567,13 +1561,9 @@ enum OutcomeWell {
         case .coins(let amount, let positive):
             let coins = UILabel()
             let text = NSMutableAttributedString()
-            if let coin = ArtBundle.image("pxi-coin") {
-                let att = NSTextAttachment()
-                att.image = coin
-                att.bounds = CGRect(x: 0, y: -3, width: 28, height: 28)
-                text.append(NSAttributedString(attachment: att))
-                text.append(NSAttributedString(string: " "))
-            }
+            text.append(NSAttributedString(string: "◉ ",
+                                           attributes: [.font: CRT.Font.of(34),
+                                                        .foregroundColor: CRT.gold]))
             text.append(NSAttributedString(string: "\(positive ? "+" : "−")\(amount)",
                                            attributes: [.font: CRT.Font.of(34),
                                                         .foregroundColor: CRT.gold]))

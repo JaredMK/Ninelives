@@ -151,11 +151,11 @@ const OUTCOMES = {
   curseBuryPeek: ["Bury", ["Peek", "Curse Payoff"], "on a cursed landing"],
 
   // Peek — see the next card.
-  revealNext: ["Peek", [], "on landing"], twinSpark: ["Peek", [], "if a rank twin is up"],
+  revealNext: ["Peek", [], "on landing"], twinSpark: ["Peek", [], "conditional: rank-twin bet"],
   pillarScout: ["Peek", [], "needs a pillar-free column"], baseScout: ["Peek", [], "needs a base-free column"],
   suitSnob: ["Peek", [], "on ♠ contact"], queensEye: ["Peek", [], "on a royal ♠"],
   static: ["Peek", [], "50% on a ♠"], lastRites: ["Peek", [], "on a pile death"],
-  eightPeek: ["Peek", [], "on an 8"], spadePeek: ["Peek", [], "needs an all-♠ column"],
+  eightTell: ["Tell", [], "on an 8"], spadePeek: ["Peek", [], "needs an all-♠ column"],
   lonePeek: ["Peek", [], "needs an empty Same-Power slot"],
   emptyPurse: ["Peek", [], "spends the whole purse"],
   kamikaze: ["Peek", ["Pile Destruction"], "kills a ♠ pile first"],
@@ -168,7 +168,7 @@ const OUTCOMES = {
   sameTell: ["Tell", [], "board-wide same-rank mark"], linkTell: ["Tell", [], "every alive pile, next draw"],
 
   // Coin Gain.
-  extraCoin: ["Coin Gain", ["Curse Payoff"], "deal-end payout; curses its cover"], gainCoin: ["Coin Gain", [], "conditional: per matching-top pile"],
+  extraCoin: ["Coin Gain", [], "deal-end payout"], gainCoin: ["Coin Gain", [], "conditional: per matching-top pile"],
   deathBounty: ["Coin Gain", [], "on a kill"], collector: ["Coin Gain", [], "per other sticker"],
   compound: ["Coin Gain", [], "streak-grown"], looseChange: ["Coin Gain", [], "random"],
   deepPockets: ["Coin Gain", [], "per deck card left"], heartSnob: ["Coin Gain", [], "on ♥ contact"],
@@ -184,7 +184,7 @@ const OUTCOMES = {
   devilsDeal: ["Coin Gain", ["Curse Payoff"], "doubles bonus, adds a curse"],
 
   // Pile Size & Score.
-  heavy: ["Pile Size & Score", [], "conditional: +size to matching piles"], anchor: ["Pile Size & Score", ["Curse Payoff"], "score shelter; curses its cover"],
+  heavy: ["Pile Size & Score", [], "conditional: +size to matching piles"], anchor: ["Pile Size & Score", [], "score shelter"],
   heavyDiamond: ["Pile Size & Score", [], "♦ count more"], diamondAnchor: ["Pile Size & Score", [], "♦ tops excluded"],
   streakSize: ["Pile Size & Score", [], "streak-grown"], columnPiles: ["Pile Size & Score", [], "an extra pile"],
   diamondDupeSize: ["Pile Size & Score", [], "per rank duplicate"],

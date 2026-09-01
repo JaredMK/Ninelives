@@ -227,12 +227,8 @@ enum OldJokerCopy {
             itemSide(OldJoker.Holding(kind: kind, id: id), tag: tag)
         }
         func coinSide(_ amount: Int) -> OldJokerView.CompareSide {
-            if let coin = ArtBundle.image("pxi-coin") {
-                return .init(tag: "GET", art: coin,
-                             name: "+\(amount) coins", desc: "")
-            }
-            return .init(tag: "GET", glyph: "◉",
-                         name: "+\(amount) coins", desc: "")
+            .init(tag: "GET", glyph: "◉",
+                  name: "+\(amount) coins", desc: "")
         }
         switch offer {
         case .swap(let taken, let given):

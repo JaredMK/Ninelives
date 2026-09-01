@@ -287,8 +287,8 @@ final class StoreDetailView: UIView {
             let desc: String
             if card?.joker == true {
                 desc = isEquippedView
-                    ? "A Joker. Always safe on any guess."
-                    : "A Joker. Always safe on any guess. Buy it to swap it into your deck, replacing a card of your choice."
+                    ? "Safe on any guess"
+                    : "Safe on any guess — buy it to swap it into your deck, replacing a card you choose"
             } else if isEquippedView {
                 desc = (card?.stickers.isEmpty ?? true) ? "No stickers on this card." : ""
             } else {

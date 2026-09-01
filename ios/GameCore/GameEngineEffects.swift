@@ -269,9 +269,14 @@ extension GameEngine {
 
         // ── v6.76 archetype batch ─────────────────────────────────────────
 
-        case "eightPeek" where v == 8:
-            // EIGHT BALL: an 8 landing here peeks the next card.
-            peekPillar(col, pillar)
+        case "eightTell" where v == 8:
+            // EIGHT BALL (v6.97): an 8 landing here arms a TELL on the
+            // landing pile (the next draw's direction chip — Pauper's
+            // Heart's shape). The peek retired with the `eightPeek` key.
+            run.tellPiles.insert(index)
+            firePillar(col, "eightTell", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["tells": 1])
+            logLine("\(pillar.label): a tell arms on pile \(index + 1)")
 
         case "curseBuryPeek" where drawn.stickers.contains(where: { st in
             guard stickerTypes.get(st.type)?.cursed == true else { return false }
@@ -762,18 +767,20 @@ extension GameEngine {
             recT("sticker", "snowball", "Snowball Bury", ["buried": Double(sbBuried)])
         }
 
-        // --- Twin Spark: peek if ANOTHER alive pile's top shares this rank. ---
-        if n("twinSpark") > 0 {
-            let matchRank = drawn.value
-            var twin = false
-            for i in 0..<board.size {
-                if i == index || !board.isActive(i) { continue }
-                if let top = board.top(i), top.value == matchRank { twin = true; break }
-            }
-            if twin {
-                run.revealNextActive = true
-                firePillar(col, "twinSpark", "Twin Spark", 0)
-                recT("sticker", "twinSpark", "Twin Spark", ["peeks": 1])
+        // --- Twin Spark (CONDITIONAL, v6.97): the last held-back sticker
+        // joins the shared template on the RANK axis — peek on a rank twin
+        // among the OTHER alive tops, convert on a miss (per instance),
+        // exempt with no other alive pile.
+        let ts = n("twinSpark")
+        if ts > 0, let tdef = stickerTypes.get("twinSpark") {
+            if let tm = conditionalRankMatches(index, drawn) {
+                if tm.isEmpty {
+                    for _ in 0..<ts { convertStickerToCurse(index, drawn, tdef) }
+                } else {
+                    run.revealNextActive = true
+                    firePillar(col, "twinSpark", "Twin Spark", 0)
+                    recT("sticker", "twinSpark", "Twin Spark", ["peeks": 1])
+                }
             }
         }
 

@@ -656,7 +656,7 @@ enum IVPillarsBases {
         case "clubZeroRanksBury":        return zeroRanksScenarios(def)
         case "startPileSizeEight":       return eightStartScenarios(def)
         case "diamondDupeSize":          return diamondDupeScenarios(def)
-        case "eightPeek":                return eightPeekScenarios(def)
+        case "eightTell":                return eightTellScenarios(def)
         case "pauperHeartTell":          return pauperHeartTellScenarios(def)
         case "stickerCurseWard":         return curseWardScenarios(def)
         case "finalPilePurge":           return finalCutScenarios(def)
@@ -1385,27 +1385,31 @@ enum IVPillarsBases {
         return [trigger, edge, mustNot]
     }
 
-    /// EIGHT BALL: an 8 landing here peeks the next card.
-    static func eightPeekScenarios(_ def: ItemDef) -> [IV.Scenario] {
+    /// EIGHT BALL (v6.97): an 8 landing here arms a TELL on the landing
+    /// pile — never a peek (the peek retired with the old `eightPeek`
+    /// effect key; the frame check enforces it, `.peeks` NOT allowed).
+    static func eightTellScenarios(_ def: ItemDef) -> [IV.Scenario] {
         let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
-        let trigger = IV.Scenario("trigger-eightPeeks", allowed: [.guesses, .deck, .board],
+        let trigger = IV.Scenario("trigger-eightTells", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil]) },
             fire: { $0.guess(0, .higher) },
             expect: { e, _, c in
-                XCTAssertTrue(e.run.revealNextActive, "\(c): the next card is revealed")
-                XCTAssertEqual(e.revealedNextCard()?.id, 51, "\(c): and it is the REAL next draw")
+                XCTAssertTrue(e.run.tellPiles.contains(0),
+                              "\(c): the tell arms on the 8's OWN pile")
+                XCTAssertNotNil(e.pileHint(0), "\(c): the tell reads the next draw's direction")
+                XCTAssertFalse(e.run.revealNextActive, "\(c): a tell, never a peek (v6.97)")
             })
         let edge = IV.Scenario("edge-otherColumn", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [nil, def.id, nil]) },
             fire: { $0.guess(0, .higher) },
-            expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c): column-scoped") })
+            expect: { e, _, c in XCTAssertTrue(e.run.tellPiles.isEmpty, "\(c): column-scoped") })
         let mustNot = IV.Scenario("mustNotFire-nonEight", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil]) },
             fire: { $0.guess(0, .higher) },
-            expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
+            expect: { e, _, c in XCTAssertTrue(e.run.tellPiles.isEmpty, "\(c)") })
         return [trigger, edge, mustNot]
     }
 

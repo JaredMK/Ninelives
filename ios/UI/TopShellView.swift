@@ -19,6 +19,11 @@ public final class TopShellView: UIView {
     private let menuButton = PixelButtonView("≡", role: .plain, fontSize: 16)
     private let trackView = UIImageView()
     private let sameView = UIImageView()
+    /// The Same-Power slot (v6.97): the deal HUD's chip, mirrored here — the
+    /// equipped power's mark, or the empty-slot dashed gold box. Tap answers
+    /// the Same Shield / Same Power help through the band takeover, the same
+    /// idiom the deal's chips use.
+    private let samePowerView = UIImageView()
     private let scoreLabel = UILabel()
     private let coinLabel = UILabel()
     private let bandArt = UIImageView()
@@ -41,7 +46,13 @@ public final class TopShellView: UIView {
         sameView.image = MapArt.menuLogo(width: 24)
         sameView.contentMode = .scaleAspectFit
         sameView.alpha = 0.4
+        sameView.isUserInteractionEnabled = true
+        sameView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(sameShieldTapped)))
         hudBar.addSubview(sameView)
+        samePowerView.contentMode = .scaleAspectFit
+        samePowerView.isUserInteractionEnabled = true
+        samePowerView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(samePowerTapped)))
+        hudBar.addSubview(samePowerView)
         scoreLabel.numberOfLines = 1
         // The one phosphor element in the stat bar gets THE glow.
         scoreLabel.layer.shadowColor = CRT.phosphor.cgColor
@@ -68,6 +79,31 @@ public final class TopShellView: UIView {
     required init?(coder: NSCoder) { fatalError("not supported") }
 
     @objc private func bandTapped() { onDeckTap?() }
+
+    /// The Same chips answer TAP (the deal bar's v6.96 idiom): help takes
+    /// over the band, so nothing on screen moves.
+    @objc private func sameShieldTapped() {
+        showHelp(title: "Same Shield",
+                 body: "Charges by a correct same call. Auto-saves a pile")
+    }
+
+    @objc private func samePowerTapped() {
+        if let pid = lastCampaign?.getSamePower(),
+           let def = GameData.shared.samePowerTypes.get(pid) {
+            showHelp(title: def.label, body: lastCampaign?.itemDescription(def) ?? def.description)
+        } else {
+            showHelp(title: "Same Power", body: "None equipped")
+        }
+    }
+
+    /// The v6.96 empty-slot placeholder: a small dashed gold box, the same
+    /// idiom the deal HUD and the pillar/base rows use.
+    private static let emptyPowerSlot: UIImage = PixelTexture.image(size: CGSize(width: 18, height: 18)) { cg in
+        cg.setStrokeColor(CRT.gold.withAlphaComponent(0.35).cgColor)
+        cg.setLineWidth(1)
+        cg.setLineDash(phase: 0, lengths: [4, 4])
+        cg.stroke(CGRect(x: 0.5, y: 0.5, width: 17, height: 17))
+    }
 
     // MARK: - Hold-for-help band takeover
 
@@ -125,8 +161,9 @@ public final class TopShellView: UIView {
         // fit side by side on a 390pt phone.
         trackView.frame = CGRect(x: 44, y: 0, width: 92, height: TopShellView.hudH)
         sameView.frame = CGRect(x: 142, y: 8, width: 24, height: 24)
+        samePowerView.frame = CGRect(x: 170, y: 9, width: 22, height: 22)
         coinLabel.frame = CGRect(x: hw - 74, y: 8, width: 64, height: 24)
-        scoreLabel.frame = CGRect(x: 172, y: 8, width: max(60, hw - 74 - 8 - 172), height: 24)
+        scoreLabel.frame = CGRect(x: 198, y: 8, width: max(48, hw - 74 - 8 - 198), height: 24)
         bandArt.frame = band.bounds
         bandHelp.frame = band.bounds
         // The title got bigger, so it needs the height to match — 18pt in an
@@ -142,6 +179,14 @@ public final class TopShellView: UIView {
         trackView.image = TopShellView.trackerImage(campaign: campaign)
         // The banked Same shield, live everywhere the shell is up.
         sameView.alpha = campaign.getSameCharge() ? 1 : 0.4
+        // The Same-Power slot beside it (v6.97): the equipped power's mark,
+        // or the empty-slot placeholder when nothing is equipped.
+        if let pid = campaign.getSamePower(),
+           let def = GameData.shared.samePowerTypes.get(pid) {
+            samePowerView.image = ItemArt.samePower(def, width: 22, height: 22)
+        } else {
+            samePowerView.image = TopShellView.emptyPowerSlot
+        }
         // ONE continuous score (v6.47): the chip keeps its ENDLESS label as a
         // phase marker after the bank, but the number never resets or splits.
         let banked = campaign.runWonBanked
@@ -164,13 +209,8 @@ public final class TopShellView: UIView {
         }
         scoreLabel.attributedText = score
         let coins = NSMutableAttributedString()
-        if let coin = ArtBundle.image("pxi-coin") {
-            let att = NSTextAttachment()
-            att.image = coin
-            att.bounds = CGRect(x: 0, y: -2, width: 15, height: 15)
-            coins.append(NSAttributedString(attachment: att))
-            coins.append(NSAttributedString(string: " "))
-        }
+        coins.append(NSAttributedString(
+            string: "◉ ", attributes: [.font: CRT.Font.of(20), .foregroundColor: CRT.gold]))
         coins.append(NSAttributedString(
             string: "\(campaign.coins)", attributes: [.font: CRT.Font.of(20), .foregroundColor: CRT.gold]))
         coinLabel.attributedText = coins

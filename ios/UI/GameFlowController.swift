@@ -2348,10 +2348,7 @@ extension GameFlowController: MapScreenDelegate {
                          desc: def.map { campaign.itemDescription($0) } ?? "")
         }
         func coinGotSide(_ amount: Int) -> OldJokerView.CompareSide {
-            if let coin = ArtBundle.image("pxi-coin") {
-                return .init(tag: "GOT", art: coin, name: "+\(amount) coins", desc: "")
-            }
-            return .init(tag: "GOT", glyph: "◉", name: "+\(amount) coins", desc: "")
+            .init(tag: "GOT", glyph: "◉", name: "+\(amount) coins", desc: "")
         }
         if r.key == "blindSwap" || r.key == "swap", let lost = r.lost, let gained = r.gained {
             compares = [.init(old: itemSide(lost.kind, lost.id, tag: "GAVE"),

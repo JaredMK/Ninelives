@@ -2375,15 +2375,10 @@ final class DealTopBar: SKNode {
         // chip may only use what is left over.
         let coinNum = PixelTexture.label("\(coins)", size: 20, color: CRT.gold)
         var coinW = coinNum.size.width
-        var coinIcon: SKSpriteNode?
-        if let img = ArtBundle.image("pxi-coin") {
-            let t = PixelTexture.texture(from: img)
-            let sp = SKSpriteNode(texture: t)
-            let ch: CGFloat = 15
-            sp.size = CGSize(width: ch * t.size().width / max(1, t.size().height), height: ch)
-            coinIcon = sp
-            coinW += sp.size.width + 4
-        }
+        // ONE coin glyph game-wide (v6.97): the ◉ text mark the shop and
+        // every other readout uses — the pxi-coin art is retired.
+        let coinIcon: SKSpriteNode? = PixelTexture.label("◉", size: 20, color: CRT.gold)
+        coinW += (coinIcon?.size.width ?? 0) + 4
 
         // SCORE: the one phosphor element in the bar (glow baked), muted label.
         let lab = PixelTexture.label("SCORE ", size: 14, color: CRT.muted)
