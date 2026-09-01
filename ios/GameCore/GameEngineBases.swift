@@ -243,7 +243,7 @@ extension GameEngine {
         case "reviveBase":
             return "No dead pile in this column to revive."
         case "rechargeSameShield":
-            return "The Same Charge is already banked."
+            return "The Same Shield is already banked."   // v6.96 rename
         case "activateSamePower":
             if run.samePower == nil { return "No Same-Power equipped." }
         case "lonePeek":
@@ -326,7 +326,7 @@ extension GameEngine {
         case "rechargeSameShield":
             sameCharge = true
             res.sameCharge = true
-            logLine("banked a Same Charge")
+            logLine("banked a Same Shield")   // v6.96 rename
 
         case "activateSamePower":
             // Fire the equipped Same-Power on a RANDOM alive pile in this column.

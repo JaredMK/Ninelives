@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v6.94"
-    static let note = "PILE-SIZE RETIREMENT + BONUS SPLIT: the flat pile-size family (Heavy, Streak Size, Massive Diamond, Empty Ranks Heavy, Crazy Eights, Diamond Echo, Pauper's Diamond, Diamond Lifeline, Diamond Boost, Same Heavy) is retired — redistribution and Anchors stay; the bonus tracker now counts DURING-deal coins only, so deal-end awards (Guardian, Envy, Insurance, Payout) can't be doubled by Devil's Deal or zeroed by Bonus Reset before they exist; peeked cards show their stickers and curses; every purge confirm reads \"Permanently purge from your deck?\""
+    static let version = "v6.96"
+    static let note = "COLORFUL CARDS + HELP SWEEP: a Settings toggle paints ♦ blue and ♣ green on every suit surface (cards, glyphs, histogram, phase tracks, pickers, store, map loot); Pauper's Heart arms a tell on the triggering ♥ pile instead of peeking; Same Charge is now SAME SHIELD with tap-and-hold help; an empty Same-Power slot shows when none is equipped; hold-help dropped from the deck tracker, deck stack, MENU, stage, SCORE, COINS and the call buttons; FAN help is \"See the cards under each pile\"; pillar/base help titles drop the column number."
     static let line = "build \(version) · \(note)"
 }
 

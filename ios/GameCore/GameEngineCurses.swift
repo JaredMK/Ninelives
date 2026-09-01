@@ -85,7 +85,7 @@ extension GameEngine {
         // SHIELD DRAIN: the banked Same Charge empties (no charge, no effect).
         if hasCurse(drawn, "drainShield"), sameCharge {
             sameCharge = false
-            logLine("Shield Drain: the Same Charge empties")
+            logLine("Shield Drain: the Same Shield empties")   // v6.96 rename
             emit(.curseFired(index: index, curse: "drainShield", label: "Shield Drain",
                              detail: "SHIELD DRAINED"))
             recT("sticker", "drainShield", "Shield Drain", ["fires": 1])

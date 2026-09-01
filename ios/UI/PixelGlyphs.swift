@@ -159,11 +159,12 @@ enum PixelGlyph {
 
     /// A suit mark sized to sit INSIDE text rendered at `size` — integer
     /// pixel scale (grid stays square), no baked shadow (an inline glyph
-    /// casts none). Red suits always paint suit-red; black suits take the
-    /// surrounding run's ink. Nil for a non-suit string.
+    /// casts none). Self-tinting suits paint their own colour (v6.96: the
+    /// Colorful Cards scheme included — ♦ blue / ♣ green when ON); the rest
+    /// take the surrounding run's ink. Nil for a non-suit string.
     static func suitImage(_ symbol: String, size: CGFloat, color: UIColor) -> UIImage? {
         guard let rows = suits[symbol] else { return nil }
-        let tint = (symbol == "♥" || symbol == "♦") ? CRT.suitRed : color
+        let tint = CRT.forcedSuitColor(symbol) ?? color
         return image(rows, color: tint, scale: max(1, (size / 12).rounded()), shadow: false)
     }
 

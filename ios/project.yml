@@ -188,6 +188,15 @@ targets:
         excludes: ["**/* [0-9].*"]
       - path: Fixtures
         buildPhase: resources
+      # COLORFUL CARDS (v6.96): the suit-colour chokepoints live in the app
+      # target, unlinkable from this logic-only bundle — so the three
+      # self-contained files (CRT + PixelGlyphs + PixelTexture close over
+      # each other and UIKit/SpriteKit only) compile directly INTO the test
+      # bundle, letting ColorfulCardsTests pin the REAL rule and a real bake,
+      # never a re-implementation.
+      - path: Rendering/CRT.swift
+      - path: Rendering/PixelTexture.swift
+      - path: UI/PixelGlyphs.swift
     dependencies:
       - target: GameCore
     settings:

@@ -5,9 +5,10 @@ import XCTest
 /// a conditional sticker checked at its carrier's landing either FIRES
 /// (another alive pile's top matches the carrier's suit), CONVERTS into a
 /// pathway-rolled curse (no match), or is EXEMPT (no other alive pile at
-/// all). Conversions and cover-punish curses are DORMANT for the landing
+/// all). Conversions are DORMANT for the landing
 /// that created them. Retired (`inactive`) stickers leave every acquisition
-/// pool but keep working from old saves.
+/// pool but keep working from old saves. (v6.95: the Payout/Anchor cover
+/// punish is gone — both are pure deal-end stickers now.)
 final class ConditionalStickerTests: XCTestCase {
     private let data = GameData.shared
 
@@ -188,34 +189,22 @@ final class ConditionalStickerTests: XCTestCase {
         XCTAssertEqual(data.stickerTypes.get(top.stickers[0].type)?.cursed, true)
     }
 
-    // MARK: - 6. Cover punish: Payout/Anchor curse their cover
+    // MARK: - 6. v6.95: the cover punish is GONE — Payout/Anchor are pure deal-end
 
-    func testCoverPunishCursesTheIncomingCardPermanently() {
-        let e = IV.engine(tops: [spec(1, 5, "♠", ["extraCoin"]), spec(2, 6, "♥"), spec(3, 7, "♦")],
-                          deckOrder: [spec(50, 3, "♥"), spec(51, 4, "♥")])
-        var cover: (cardId: Int, typeId: String)?
-        var curseFired = false
-        e.on { ev in
-            if case .coverCursed(_, let cardId, let typeId, let source) = ev {
-                cover = (cardId, typeId)
-                XCTAssertEqual(source, "extraCoin")
-            }
-            if case .curseFired = ev { curseFired = true }
+    func testCoveringPayoutOrAnchorCursesNothing() {
+        for sticker in ["extraCoin", "anchor"] {
+            let e = IV.engine(tops: [spec(1, 5, "♠", [sticker]), spec(2, 6, "♥"), spec(3, 7, "♦")],
+                              deckOrder: [spec(50, 3, "♥"), spec(51, 4, "♥")])
+            e.guess(0, .lower)                     // 3♥ lands ON the carrier
+            let top = e.board.top(0)!
+            XCTAssertEqual(top.id, 50)
+            XCTAssertTrue(top.stickers.isEmpty,
+                          "\(sticker): the covering card gains nothing — no curse")
+            // The carrier itself is untouched beneath, keeping its deal-end effect.
+            let beneath = e.board.piles[0].cards[e.board.piles[0].cards.count - 2]
+            XCTAssertEqual(beneath.stickers.map(\.type), [sticker],
+                           "\(sticker): the carrier keeps its sticker")
         }
-        let coinsBefore = e.run.bonusCoins
-        e.guess(0, .lower)                     // 3♥ lands ON the Payout carrier
-        XCTAssertEqual(cover?.cardId, 50, "the INCOMING card takes the curse")
-        let top = e.board.top(0)!
-        XCTAssertEqual(top.id, 50)
-        XCTAssertEqual(top.stickers.count, 1)
-        XCTAssertEqual(top.stickers[0].type, cover?.typeId)
-        XCTAssertEqual(data.stickerTypes.get(top.stickers[0].type)?.cursed, true)
-        // Dormant on the landing that created it — even a rolled Leech.
-        XCTAssertFalse(curseFired)
-        XCTAssertEqual(e.run.bonusCoins, coinsBefore)
-        // The Payout carrier itself is untouched (no self-conversion).
-        let beneath = e.board.piles[0].cards[e.board.piles[0].cards.count - 2]
-        XCTAssertEqual(beneath.stickers.map(\.type), ["extraCoin"])
     }
 
     // MARK: - 7. Retired items leave EVERY acquisition pool

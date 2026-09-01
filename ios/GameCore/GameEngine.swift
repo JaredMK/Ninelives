@@ -831,9 +831,6 @@ public final class GameEngine {
         } else if correct {
             board.push(index, drawn)
             curseTouch(index: index, current: current, drawn: drawn)
-            // COVER PUNISH (v6.85): a Payout/Anchor top curses its cover —
-            // after curseTouch, so the new curse waits for the NEXT landing.
-            maybeCoverPunish(index, current: current, drawn: drawn)
             // Scout: the placed card reveals the next deck card (display-only).
             if drawn.revealNext { run.revealNextActive = true; recT("sticker", "revealNext", "Scout", ["peeks": 1]) }
             // Tell (CONDITIONAL, v6.85): the carrier's suit is the bet.
@@ -851,9 +848,8 @@ public final class GameEngine {
             // Trapdoor: the landed curse opens under the pile — its BOTTOM
             // card slips back into the deck (hidden), one per Trapdoor on the
             // drawn card. The pile always keeps its top. v6.85: a Trapdoor
-            // that a conversion/cover punish appended DURING this landing is
-            // dormant (the freshCurses ledger) — it opens from the card's
-            // NEXT landing.
+            // that a conversion appended DURING this landing is dormant (the
+            // freshCurses ledger) — it opens from the card's NEXT landing.
             let doors = drawn.stickers.filter { st in
                 guard stickerTypes.get(st.type)?.behavior == "trapdoor" else { return false }
                 return !run.freshCurses.contains { $0.cardId == drawn.id && $0.type == st.type }
@@ -955,7 +951,7 @@ public final class GameEngine {
             // SAVED landing is still a LANDING (v6.57): the card became the
             // pile's new top, so its own beneficial landing stickers fire.
             fireSavedLandingStickers(index: index, current: current, drawn: drawn, col: col)
-            logLine("Same Charge consumed — pile saved (\(cardName(drawn)) landed on \(cardName(current)) as the new pile card)")
+            logLine("Same Shield consumed — pile saved (\(cardName(drawn)) landed on \(cardName(current)) as the new pile card)")   // v6.96 rename
             emit(.sameSaved(index: index, guess: g, current: current, drawn: drawn, sameCharge: sameCharge))
             // A saved landing can queue the same optional offers a correct one
             // can (Shuffle / Donate) — surface them through the same path.

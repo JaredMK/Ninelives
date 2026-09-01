@@ -466,6 +466,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         }
     }
     static func suitTint(_ s: String) -> UIColor {
+        // PHASE CHROME, not card-suit colour (v6.96): the map's phase bands
+        // keep their own tints (♣ phosphor by design) — the Colorful Cards
+        // setting does NOT reach here. Suit rendering goes through
+        // CRT.suitColor.
         switch s {
         case "♦", "♥": return CRT.suitRed
         case "♣": return CRT.phosphor

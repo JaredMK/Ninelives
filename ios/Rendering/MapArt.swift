@@ -34,6 +34,10 @@ public enum MapArt {
         return img
     }
 
+    /// COLORFUL CARDS (v6.96): the loot badge's suit marks bake suit colours
+    /// in under a colour-blind key — flush when the scheme changes.
+    public static func flushColorCaches() { cache.removeAll() }
+
     // MARK: - Deal / boss synapse cluster
 
     /// 52×46 (boss 72×62): four cream nodes linked to a hub, a suit-red crack

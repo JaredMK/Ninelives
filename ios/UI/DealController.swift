@@ -522,17 +522,6 @@ public final class DealController {
                     done()
                 }]))
             }
-        case .coverCursed(let index, let cardId, let typeId, _):
-            // v6.85 COVER PUNISH: the card that landed on Payout/Anchor
-            // keeps its new curse for the rest of the climb.
-            if isCampaign { _ = campaign.convertStickerOnCard(cardId, from: nil, to: typeId) }
-            Sound.shared.stripSticker()
-            if let label = GameData.shared.stickerTypes.get(typeId)?.label {
-                animQueue.add(priority: 1) { [weak self] done in
-                    self?.scene.curseIndicator(at: index, label: label)
-                    done()
-                }
-            }
         case .pillarSticker(let col, let pileIndex, let cardId, let typeId):
             // Flypaper's catch: persist the sticker durably. v6.89: the card
             // LANDS bare — the catch (sound + badge pop + pulse) plays a
@@ -687,7 +676,7 @@ public final class DealController {
                     Sound.shared.place()
                     self.scene.pileLandPop(index)
                     Sound.shared.saveSameCharge()
-                    self.scene.savedIndicator(at: index, label: "Same Charge")
+                    self.scene.savedIndicator(at: index, label: "Same Shield")   // v6.96 rename
                     done()
                 }
             }
@@ -1981,20 +1970,19 @@ public final class DealController {
                                            rows: rows, alignment: .left))
     }
 
-    /// The Pillar plaque's hold-help (the web's pillarPeekHtml): name + effect,
-    /// and the column it governs. Registry copy, never hand-typed.
+    /// The Pillar plaque's hold-help (the web's pillarPeekHtml): name + effect.
+    /// Registry copy, never hand-typed. v6.96: the title dropped its
+    /// "· column N" tail — the plaque sits ON its column.
     public func helpText(forPillar col: Int) -> (String, String)? {
         guard let id = pillarId(for: col), let def = GameData.shared.pillarTypes.get(id) else { return nil }
-        // The column rides the NAME (router batch) — "Applies to column N"
-        // read like a second sentence of rules.
-        var body = campaign.itemDescription(def)
         // SCARCE SUIT (v6.81): the registry copy names the rule (fewest-held
         // suit, per deal) — the hold names THIS deal's read (the plaque
         // shows it too).
+        var body = campaign.itemDescription(def)
         if def.effect == "suitShieldDaily", let suit = engine?.run.dailySuits?[col] {
             body += "\nThis deal shields \(suit)."
         }
-        return ("\(def.label) · column \(col + 1)", body)
+        return (def.label, body)
     }
 
     /// The Base plaque's hold-help (the web's basePeekHtml): name + effect and
@@ -2027,28 +2015,24 @@ public final class DealController {
         }
     }
 
-    /// The top-bar chips' hold-for-help (web attachInput HUD copy, verbatim).
+    /// The top-bar chips' hold/tap-for-help. v6.96: the stage track, SCORE
+    /// and COINS lost their help (self-evident readouts) — the Same Shield,
+    /// the Same-Power slot and the reward line keep theirs.
     public func helpText(forHUDChip id: String) -> (String, String)? {
         switch id {
         case "sameCharge":
-            return ("Same Charge",
-                    "Same Charge: a correct Same banks it (max 1). It auto-saves a pile from death as a last resort")
+            return ("Same Shield",
+                    "Charges by a correct same call. Auto-saves a pile")
         case "samePower":
             guard let pid = engine?.equippedSamePower(),
-                  let def = GameData.shared.samePowerTypes.get(pid) else { return nil }
+                  let def = GameData.shared.samePowerTypes.get(pid) else {
+                // v6.96: the EMPTY slot is a live chip too (tap or hold).
+                return ("Same Power", "None equipped")
+            }
             return (def.label, campaign.itemDescription(def))
-        case "stageRun":
-            return ("The climb",
-                    "3 stages, each ending at a boss deal. Clear the stage-3 boss to win the campaign. Losing any deal ends it.")
         case "dealStatus":
             return ("Reward & Score",
                     "Reward: base + bonus. The base is the flat coins this deal pays on a clear, set by its stage & difficulty (harder pays more), fixed for the deal. The bonus is what your items have piled on top so far (stickers, pillars, bases; live, and a Tribute can drag it negative). Score: surviving piles × the smallest surviving pile if you cleared right now. Personal bests only, never coins.")
-        case "score":
-            return ("Score",
-                    "Your score: surviving piles × the smallest pile on each cleared deal, added up over the climb. Banked as your campaign score when the ♠ boss falls. Deals after that build your endless score. Chased for personal bests only; it never changes coins or play.")
-        case "coins":
-            return ("Coins",
-                    "Coins: what you spend in the store on stickers, Pillars, Bases, cards and packs. Earned by clearing deals (base + bonus), plus Payout stickers, Pillar payouts and events. They carry for the whole climb; unlike Score, they change what you can buy.")
         default:
             return nil
         }
@@ -2272,10 +2256,10 @@ public final class DealController {
                       sameCharged: engine.sameCharge,
                       samePower: engine.equippedSamePower(),
                       coins: campaign.getCoins(),
-                      // The HUD chip is the CLIMB score (what its hold-help
-                      // describes, and what the web's #hudScore shows) beside
-                      // the lifetime best. The live piles×smallest projection
-                      // for THIS deal has its own home in the reward line.
+                      // The HUD chip is the CLIMB score (what the web's
+                      // #hudScore shows) beside the lifetime best. The live
+                      // piles×smallest projection for THIS deal has its own
+                      // home in the reward line.
                       score: isZen ? currentScore() : campaign.getRunScore(),
                       best: isZen ? 0
                           : campaign.stats.get().deckTierBest["\(campaign.deckId).\(campaign.difficultyTier)"] ?? 0,

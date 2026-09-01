@@ -64,6 +64,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // Pre-arm the audio session off-main so the first cue never hitches a frame.
         Sound.shared.warmUp()
         mark("audio warm-up dispatched")
+        // COLORFUL CARDS (v6.96): the pref rides UserDefaults like sound's —
+        // read it into the CRT flag before anything bakes a suit colour.
+        CRT.loadColorfulCardsPref()
 
         let window = UIWindow(frame: UIScreen.main.bounds)
         // Phase 3: the campaign shell is the app. The Phase 2 debug launcher

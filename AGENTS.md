@@ -289,6 +289,20 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   WITH deliberate visual changes; never delete around them. `backdrop-filter`
   and `feTurbulence` are gone game-wide — do not reintroduce either.
 - `app/www` is stale build output; `npm run build` in `app/` refreshes it.
+- **iOS suit color is SINGLE-SOURCE (v6.96):** every suit-colored pixel
+  resolves through `CRT.suitColor(_:onFelt:)` (context-known surfaces) or
+  `CRT.forcedSuitColor(_:) ?? callerColor` (inline glyphs that must keep the
+  surrounding run's ink). The COLORFUL CARDS setting (default OFF; ON = ♦
+  `suitBlue`, ♣ `suitGreen`, ♥/♠ unchanged) flips them both, and
+  `CRT.setColorfulCards` flushes the bake caches (CardArt, ItemArt, MapArt,
+  PixelTexture text caches — PixelGlyph's cache is color-keyed and
+  self-heals). Any NEW suit-colored surface must route through the helpers;
+  a suit blue on the card but red in the histogram is the failure mode.
+  Map phase bands are phase chrome (♣ phosphor), NOT suit color.
+- **iOS: "Same Charge" is now "Same Shield" player-facing (v6.96)** — the
+  code keeps `sameCharge` (the run/climb rule's twin); its chip answers TAP
+  as well as hold, and an empty Same-Power slot (help: "None equipped")
+  shows beside it when no power is equipped.
 
 ### Economy & score
 
@@ -488,13 +502,15 @@ purges and re-rasters where Safari never does). Every one is load-bearing.
   "sticker" pathway — `cursePool(path:)`, severe band excluded by
   saboteur's curseExclude), else the effect fires. Pillar/Base Scout keep
   their column condition with the same conversion on failure (exempt in
-  column-agnostic runs). Payout/Anchor are COVER PUNISH instead: any card
-  landing on them gains a pathway curse. ALL new curses are DORMANT for
+  column-agnostic runs). v6.95: the Payout/Anchor COVER PUNISH is REMOVED —
+  both are pure deal-end stickers; a card landing on them gains nothing
+  (the `maybeCoverPunish` path and the `.coverCursed` event are deleted).
+  ALL new curses are DORMANT for
   the landing that created them — `run.freshCurses` (transient, cleared at
   each guess entry, never snapshotted) makes later same-landing stages
   (Leech's toll, Trapdoor's drop) skip them; a state curse (Mute, Flatline)
   still acts as top-state immediately, the documented nuance. Durable
-  campaign writes ride `.stickerConverted` / `.coverCursed` →
+  campaign writes ride `.stickerConverted` →
   `convertStickerOnCard`. Heavy's old passive pile-size weight is RETIRED
   (Shrink keeps its) — Heavy is a latched sizeBonus landing effect now.
   SAME-SAFE went LIVE in v6.86 on the RANK axis (`conditionalRankMatches`):

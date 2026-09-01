@@ -17,6 +17,13 @@ public enum CRT {
     public static let cardFace = UIColor(hex: 0xece4cf)
     /// suit red — ♥ ♦, danger, death
     public static let suitRed  = UIColor(hex: 0xc22f45)
+    /// suit blue — ♦ in COLORFUL CARDS mode (v6.96). The proven rockoBlue,
+    /// moved here from DeckPanel: the one sanctioned blue in the palette.
+    public static let suitBlue = UIColor(hex: 0x3f7fd9)
+    /// suit green — ♣ in COLORFUL CARDS mode (v6.96). A deep green in
+    /// feltMid-lightened territory: legible on both felt and the cream card
+    /// face, and clearly distinct from phosphor (which stays glow-only).
+    public static let suitGreen = UIColor(hex: 0x3d9e5f)
     /// ink — outlines, ♠ ♣, text on light
     public static let ink      = UIColor(hex: 0x10100e)
     /// coin gold — coins, prices, secondary accents
@@ -99,13 +106,39 @@ public enum CRT {
 
     // MARK: - Suits
 
-    public static func color(forSuit suit: String) -> UIColor {
+    /// COLORFUL CARDS (v6.96): the four-suit recolour, default OFF. OFF is
+    /// the classic red/black; ON paints ♦ suit-blue and ♣ suit-green so all
+    /// four suits read apart at a glance (♥ stays suit-red, ♠ unchanged).
+    /// App code flips this ONLY through `setColorfulCards` (ColorfulCards.swift
+    /// — persists the pref and flushes the baked-art caches); tests may set it
+    /// directly.
+    public static var colorfulCards = false
+
+    /// The suit colours that IGNORE the surrounding run's ink: ♥ always
+    /// self-tints suit-red; Colorful Cards adds ♦ blue and ♣ green. Nil =
+    /// the glyph takes the caller's colour (classic ♦, ♣ and always ♠).
+    public static func forcedSuitColor(_ suit: String) -> UIColor? {
         switch suit {
-        case "♥", "♦": return suitRed
-        case "★":      return gold        // Joker
-        default:       return ink         // ♠ ♣
+        case "♥": return suitRed
+        case "♦": return colorfulCards ? suitBlue : suitRed
+        case "♣": return colorfulCards ? suitGreen : nil
+        default:  return nil
         }
     }
+
+    /// THE one suit-colour chokepoint (v6.96) — every suit-rendering surface
+    /// (card faces, HUD phase tracks, picker chips, item captions) resolves
+    /// through here so the Colorful Cards setting can never desync: a suit
+    /// blue on the card but red in the histogram is THE failure mode.
+    /// `onFelt` preserves the dark-surface split: ♠/♣ render cream, not ink,
+    /// on felt (card faces keep ink).
+    public static func suitColor(_ suit: String, onFelt: Bool = false) -> UIColor {
+        if let forced = forcedSuitColor(suit) { return forced }
+        if suit == "★" { return gold }   // Joker
+        return onFelt ? cardFace : ink   // ♠, and classic ♣
+    }
+
+    public static func color(forSuit suit: String) -> UIColor { suitColor(suit) }
 }
 
 public extension UIColor {

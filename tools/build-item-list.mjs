@@ -180,7 +180,7 @@ const OUTCOMES = {
   columnAllAlive: ["Coin Gain", [], "if all survive"], columnNoneAlive: ["Coin Gain", [], "if none survive"],
   greedy: ["Coin Gain", ["Loadout"], "only pillar equipped"], tax: ["Coin Gain", [], "per ♥ in column"],
   heartDemolish: ["Coin Gain", ["Pile Destruction"], "kills ♥ piles for coins"],
-  linkCoins: ["Coin Gain", [], "per alive pile"], pauperHeartPeek: ["Peek", ["Pauper"], "while broke, per ♥ landing"],
+  linkCoins: ["Coin Gain", [], "per alive pile"], pauperHeartTell: ["Tell", ["Pauper"], "while broke, per ♥ landing"],
   devilsDeal: ["Coin Gain", ["Curse Payoff"], "doubles bonus, adds a curse"],
 
   // Pile Size & Score.

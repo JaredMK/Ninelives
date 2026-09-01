@@ -233,7 +233,7 @@ public final class TopShellView: UIView {
                 let ph = phaseOf[s] ?? 0
                 let done = ph < 0 || pi > ph, active = pi == ph
                 let alpha: CGFloat = done || active ? 1 : 0.26
-                let color = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
+                let color = CRT.suitColor(s, onFelt: true)
                 guard let rows = PixelGlyph.suits[s] else { continue }
                 // Active phase steps UP an integer pixel scale (was 25pt vs
                 // 20pt text) — the grid stays square either way.
@@ -276,7 +276,8 @@ public final class TopShellView: UIView {
             // so this chart wore the system font's smooth suits while the deal
             // HUD's identical tallies wore the pixel ones. Centred against the
             // 16pt cap band exactly the way the substitution centres inline
-            // marks; red suits self-tint suit-red there too.
+            // marks; self-tinting suits keep their own colour there (v6.96:
+            // Colorful Cards' ♦ blue / ♣ green included).
             let cellFont = CRT.Font.of(16)
             for (i, cell) in cells.enumerated() {
                 let col = i % 2, row = i / 2

@@ -48,6 +48,10 @@ public enum ItemArt {
         return img
     }
 
+    /// COLORFUL CARDS (v6.96): suit-glyph icons and the restriction captions
+    /// bake suit colours in — flush when the scheme changes.
+    public static func flushColorCaches() { cache.removeAll() }
+
     /// Tier rim colors: common recedes, uncommon gold, rare phosphor.
     static func tierColor(_ tier: String) -> UIColor {
         switch tier {
@@ -1539,7 +1543,10 @@ public enum ItemArt {
 
     /// Upright 7×7 suit pips for the restriction caption — clean readable
     /// silhouettes (a point-top spade vs a round-top club, a lobed heart, a
-    /// hard diamond), ♠/♣ cream, ♥/♦ suit-red. Drawn on TRANSPARENCY with no
+    /// hard diamond). The letters are SHAPE markers only: the colour resolves
+    /// at bake time through `CRT.suitColor(_:onFelt:)` (the caption sits on
+    /// dark chrome), so Colorful Cards (v6.96) recolours ♦/♣ here too.
+    /// Drawn on TRANSPARENCY with no
     /// plate and no lean: the caption is a separate image (`suitCaption`),
     /// never baked into the chip, so suited and unsuited chips render at the
     /// SAME size and the chip keeps its clean rim.
@@ -3011,7 +3018,7 @@ public enum ItemArt {
             let text = icon as NSString
             let font = CRT.Font.of(size)
             let sz = text.size(withAttributes: [.font: font])
-            let tint = (icon == "♥" || icon == "♦") ? CRT.suitRed : color
+            let tint = CRT.forcedSuitColor(icon) ?? color
             text.draw(at: CGPoint(x: rect.midX - sz.width / 2, y: rect.midY - sz.height / 2),
                       withAttributes: [.font: font, .foregroundColor: tint])
             UIGraphicsPopContext()
@@ -3173,16 +3180,27 @@ public enum ItemArt {
     /// chip's top; the chip's frame never changes.
     public static func suitCaption(_ def: ItemDef, width: CGFloat = 40) -> UIImage? {
         guard let suits = def.suits, !suits.isEmpty else { return nil }
-        let marks = suits.compactMap { suitCaptionMarks[$0] }
-        guard !marks.isEmpty else { return nil }
+        let pairs: [(suit: String, mark: [String])] = suits.compactMap { s in
+            suitCaptionMarks[s].map { (s, $0) }
+        }
+        guard !pairs.isEmpty else { return nil }
         return baked("cap-\(def.id)-\(Int(width))") {
             let pip = 7, air = 2
-            let cols = marks.count * pip + (marks.count - 1) * air
+            let cols = pairs.count * pip + (pairs.count - 1) * air
             let k = max(1, Int((width / CGFloat(3 * pip + 2 * air)).rounded()))
             return PixelTexture.image(size: CGSize(width: cols * k, height: pip * k)) { cg in
                 var ox: CGFloat = 0
-                for mark in marks {
-                    drawMatrix(cg, mark, ox: ox, oy: 0, cell: CGFloat(k))
+                for pair in pairs {
+                    // The pip's colour resolves through the suit-colour
+                    // chokepoint (onFelt — dark chrome), never the authored
+                    // letter, so a Colorful Cards toggle recolours it.
+                    cg.setFillColor(CRT.suitColor(pair.suit, onFelt: true).cgColor)
+                    for (y, row) in pair.mark.enumerated() {
+                        for (x, ch) in row.enumerated() where ch != "." {
+                            cg.fill(CGRect(x: ox + CGFloat(x * k), y: CGFloat(y * k),
+                                           width: CGFloat(k), height: CGFloat(k)))
+                        }
+                    }
                     ox += CGFloat((pip + air) * k)
                 }
             }

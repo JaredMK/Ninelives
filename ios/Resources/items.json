@@ -195,7 +195,7 @@
       "behavior": "tieSafe",
       "tier": "common",
       "price": 2,
-      "description": "If another pile's top card matches this rank → Safe\nIf no pile's top card matches this rank → Sticker becomes cursed"
+      "description": "If another pile shows this rank → Safe\nOtherwise → Sticker becomes cursed"
     },
     {
       "id": "suitImmunity",
@@ -210,7 +210,7 @@
       "behavior": "suitImmunity",
       "tier": "uncommon",
       "price": 5,
-      "description": "If another pile's top card matches this card's suit → this card is safe when it lands.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → this card is safe when it lands.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "heartGuard",
@@ -286,7 +286,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 3,
-      "description": "At deal end if this card tops its pile → earn coins equal to pile size.\nAny card played on top of this card is cursed"
+      "description": "At deal end if this card tops its pile → earn coins equal to pile size"
     },
     {
       "id": "gainCoin",
@@ -297,7 +297,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 2,
-      "description": "If another pile's top card matches this card's suit → +1 coin per pile whose top card matches.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → +1 coin per pile whose top card matches.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "anchor",
@@ -307,7 +307,7 @@
       "behavior": "anchor",
       "tier": "common",
       "price": 2,
-      "description": "At deal end if this card tops its pile → exclude the pile from the smallest-pile score.\nAny card played on top of this card is cursed"
+      "description": "At deal end if this card tops its pile → exclude the pile from the smallest-pile score"
     },
     {
       "id": "deathBounty",
@@ -334,7 +334,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 1,
-      "description": "If another pile's top card matches this card's suit → +1 pile size to every pile whose top matches, including this one.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → +1 pile size to every pile whose top matches, including this one.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "massive",
@@ -449,7 +449,7 @@
       "count": 1,
       "tier": "uncommon",
       "price": 1,
-      "description": "If another pile's top card matches this card's suit → make all pile sizes equal.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → make all pile sizes equal.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "quickBury",
@@ -459,7 +459,7 @@
       "behavior": "quickBury",
       "tier": "uncommon",
       "price": 7,
-      "description": "If another pile's top card matches this card's suit → bury 1 card under this pile.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → bury 1 card under this pile.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "twinSpark",
@@ -474,7 +474,7 @@
       "behavior": "twinSpark",
       "tier": "uncommon",
       "price": 3,
-      "description": "Peek at the next card if another pile's top card matches this rank",
+      "description": "Peek at the next card if another pile shows this rank",
       "suits": [
         "♠"
       ]
@@ -621,7 +621,7 @@
       "behavior": "diamondSnob",
       "tier": "uncommon",
       "price": 6,
-      "description": "If another pile's top card matches this card's suit → optionally shuffle those piles.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → optionally shuffle those piles.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "clubSnob",
@@ -729,7 +729,7 @@
       "behavior": "tell",
       "tier": "uncommon",
       "price": 4,
-      "description": "If another pile's top card matches this card's suit → this card shows a tell (higher, lower, or same) for the next draw.\nIf none does → this sticker becomes a curse"
+      "description": "If another pile shows this suit → this card shows a tell (higher, lower, or same) for the next draw.\nOtherwise → this sticker becomes a curse"
     },
     {
       "id": "rechargeSameShield",
@@ -744,7 +744,7 @@
       "behavior": "rechargeSameShield",
       "tier": "rare",
       "price": 8,
-      "description": "If another pile's top card matches this rank → Charge Same Shield\nIf no pile's top card matches this rank → Sticker becomes cursed"
+      "description": "If another pile shows this rank → Charge Same Shield\nOtherwise → Sticker becomes cursed"
     },
     {
       "id": "activateSamePower",
@@ -759,7 +759,7 @@
       "behavior": "activateSamePower",
       "tier": "rare",
       "price": 6,
-      "description": "If another pile's top card matches this rank → Fire Same Power\nIf no pile's top card matches this rank → Sticker becomes cursed"
+      "description": "If another pile shows this rank → Fire Same Power\nOtherwise → Sticker becomes cursed"
     },
     {
       "id": "leech",
@@ -1771,11 +1771,11 @@
       "label": "Pauper's Heart",
       "icon": "❤️‍🩹",
       "kind": "live",
-      "effect": "pauperHeartPeek",
+      "effect": "pauperHeartTell",
       "purseBelow": 10,
       "tier": "common",
       "price": 2,
-      "description": "While your purse holds under 10 coins → when a ♥ lands in this column, peek 1 card"
+      "description": "While your purse holds under 10 coins → when a ♥ lands in this column, that pile gets a tell"
     },
     {
       "id": "pauperDiamond",

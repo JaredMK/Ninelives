@@ -883,9 +883,9 @@ public enum DeckCharacter {
     /// `blended` mixer (§1: tempered hues, never a colour outside the
     /// locked palette's reach).
     static let rockoBrown = CRT.gold.blended(with: CRT.ink, amount: 0.45)
-    /// Rocko's odd eye. The CRT palette carries no blue at all, so this is
-    /// the one local constant, declared in the CRT.swift style.
-    static let rockoBlue = UIColor(hex: 0x3f7fd9)
+    /// Rocko's odd eye — v6.96: the colour moved to the CRT palette as
+    /// `suitBlue` (the Colorful Cards ♦); this alias keeps the art reads.
+    static let rockoBlue = CRT.suitBlue
 
     private struct Key: Hashable {
         let deckId: String; let mood: Mood; let scale: Int

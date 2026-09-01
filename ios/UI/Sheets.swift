@@ -593,9 +593,17 @@ final class SettingsSheetView: SheetView {
     /// Wired by the flow: runs the double-confirm reset through the shared
     /// prompt bar (the sheet itself never owns destructive flow).
     var onResetProgress: (() -> Void)?
+    /// Wired by the flow: the Colorful Cards flip needs the screen BEHIND the
+    /// sheet re-synced (flushed caches don't recolour live views).
+    var onColorfulCardsChanged: (() -> Void)?
 
     private let campaign: CampaignState
     private let soundButton = PixelButtonView("", role: .plain, fontSize: 16)
+    /// COLORFUL CARDS (v6.96): ♦ blue / ♣ green for suit readability. The
+    /// toggle itself is `CRT.setColorfulCards` (persist + cache flush); the
+    /// flow owns the screen re-sync via onColorfulCardsChanged.
+    private let colorfulButton = PixelButtonView("", role: .plain, fontSize: 16)
+    private let colorfulHint = CRTKit.label("", size: 14, color: CRT.muted)
     /// ODDS ASSIST (v6.71): visible even while LOCKED — the locked row is a
     /// goal, not a secret. Unlocks on the first Straight (Legendary) win with
     /// any deck; the state derives from DeckUnlocks, so it persists like
@@ -610,12 +618,19 @@ final class SettingsSheetView: SheetView {
     init(campaign: CampaignState) {
         self.campaign = campaign
         super.init(title: "Settings")
-        setBodyHeight(370)
+        setBodyHeight(410)
         soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
         soundButton.onTap = { [weak self] in
             Sound.shared.enabled.toggle()
             self?.soundButton.setTitle("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")")
         }
+        colorfulButton.onTap = { [weak self] in
+            CRT.setColorfulCards(!CRT.colorfulCards)
+            self?.refreshColorfulRow()
+            self?.onColorfulCardsChanged?()
+        }
+        refreshColorfulRow()
+        colorfulHint.textAlignment = .center
         assistButton.onTap = { [weak self] in
             guard let self, self.campaign.deckUnlocks.wonAnyStraight() else { return }
             let on = self.campaign.saveStore.pref("oddsAssist") == "1"
@@ -637,12 +652,21 @@ final class SettingsSheetView: SheetView {
         foot.numberOfLines = 2
         foot.alpha = 0.6
         body.addSubview(soundButton)
+        body.addSubview(colorfulButton)
+        body.addSubview(colorfulHint)
         body.addSubview(assistButton)
         body.addSubview(assistHint)
         body.addSubview(shareButton)
         body.addSubview(shareHint)
         body.addSubview(resetButton)
         body.addSubview(foot)
+    }
+
+    private func refreshColorfulRow() {
+        colorfulButton.setTitle("COLORFUL CARDS: \(CRT.colorfulCards ? "ON" : "OFF")")
+        colorfulHint.attributedText = CRTKit.attributed(
+            "Diamonds blue, clubs green — hearts stay red, spades stay black.",
+            size: 14, color: CRT.muted)
     }
 
     private func refreshShareRow() {
@@ -675,12 +699,14 @@ final class SettingsSheetView: SheetView {
         let w = body.bounds.width - 28
         guard w > 0 else { return }
         soundButton.frame = CGRect(x: 14, y: 8, width: w, height: 48)
-        assistButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
-        assistHint.frame = CGRect(x: 14, y: 118, width: w, height: 16)
-        shareButton.frame = CGRect(x: 14, y: 144, width: w, height: 48)
-        shareHint.frame = CGRect(x: 14, y: 196, width: w, height: 16)
-        resetButton.frame = CGRect(x: 14, y: 224, width: w, height: 48)
-        foot.frame = CGRect(x: 14, y: 284, width: w, height: 34)
+        colorfulButton.frame = CGRect(x: 14, y: 66, width: w, height: 48)
+        colorfulHint.frame = CGRect(x: 14, y: 118, width: w, height: 16)
+        assistButton.frame = CGRect(x: 14, y: 144, width: w, height: 48)
+        assistHint.frame = CGRect(x: 14, y: 196, width: w, height: 16)
+        shareButton.frame = CGRect(x: 14, y: 222, width: w, height: 48)
+        shareHint.frame = CGRect(x: 14, y: 274, width: w, height: 16)
+        resetButton.frame = CGRect(x: 14, y: 302, width: w, height: 48)
+        foot.frame = CGRect(x: 14, y: 362, width: w, height: 34)
     }
 }
 

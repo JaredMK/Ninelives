@@ -150,24 +150,6 @@ extension GameEngine {
         recT("sticker", type.id, type.label, ["converted": 1])
     }
 
-    /// COVER PUNISH (v6.85, Payout/Anchor): the PRE-LANDING top carried a
-    /// cover sticker, so the card that just landed on it takes a permanent
-    /// curse — one per cover instance. Runs AFTER curseTouch (deferred
-    /// activation, like the conversion). Durable via `.coverCursed`.
-    func maybeCoverPunish(_ index: Int, current: LiveCard?, drawn: LiveCard) {
-        guard let current else { return }
-        for st in current.stickers {
-            guard let t = stickerTypes.get(st.type),
-                  t.behavior == "extraCoin" || t.behavior == "anchor" else { continue }
-            guard let curse = rollStickerPathCurse(for: drawn) else { continue }
-            drawn.stickers.append(StickerRecord(type: curse.id))
-            run.freshCurses.append((cardId: drawn.id, type: curse.id))
-            logLine("\(t.label) punished \(cardName(drawn)) — \(curse.label) sticks")
-            emit(.coverCursed(index: index, cardId: drawn.id, typeId: curse.id, source: t.id))
-            recT("sticker", t.id, t.label, ["cursed": 1])
-        }
-    }
-
     /// Donate's v6.85 fire: equalise EVERY alive pile (the board-wide twin
     /// of Ballast's column walk — hand a buried card from the biggest pile
     /// to the smallest until every pair is within 1). The move list is for
@@ -308,11 +290,14 @@ extension GameEngine {
             recT("pillar", pillar.id, pillar.label, ["buried": Double(nb), "peeks": 1])
             logLine("\(pillar.label): a cursed landing — buried \(nb), peeking the next card")
 
-        case "pauperHeartPeek" where matchesSuit(drawn, "♥") && purseBelow(pillar):
-            // PAUPER'S HEART (v6.87): the broke player's ♥ landing PEEKS the
-            // next card now — the coin payout retired with the old effect
-            // key (pauperHeart), which no handler reads any more.
-            peekPillar(col, pillar)
+        case "pauperHeartTell" where matchesSuit(drawn, "♥") && purseBelow(pillar):
+            // PAUPER'S HEART (v6.96): the broke player's ♥ landing arms a
+            // TELL on the landing pile (the next draw's direction chip —
+            // Pauper's Spade's shape). No longer a peek; never coins.
+            run.tellPiles.insert(index)
+            firePillar(col, "pauperHeartTell", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["tells": 1])
+            logLine("\(pillar.label): a tell arms on pile \(index + 1)")
 
         case "heartZeroRanksCoin" where matchesSuit(drawn, "♥"):
             // EMPTY RANKS COINS (v6.87): the narrow-deck family's coin leg —
@@ -826,7 +811,7 @@ extension GameEngine {
                 } else {
                     let was = sameCharge
                     sameCharge = true
-                    if !was { logLine("Recharge Shield: banked a Same Charge") }
+                    if !was { logLine("Recharge Shield: banked a Same Shield") }   // v6.96 rename
                     recT("sticker", "rechargeSameShield", "Recharge Shield", ["saves": was ? 0 : 1])
                     emit(.sameBanked(index: index, sameCharge: sameCharge))
                 }

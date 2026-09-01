@@ -657,7 +657,7 @@ enum IVPillarsBases {
         case "startPileSizeEight":       return eightStartScenarios(def)
         case "diamondDupeSize":          return diamondDupeScenarios(def)
         case "eightPeek":                return eightPeekScenarios(def)
-        case "pauperHeartPeek":          return pauperHeartPeekScenarios(def)
+        case "pauperHeartTell":          return pauperHeartTellScenarios(def)
         case "stickerCurseWard":         return curseWardScenarios(def)
         case "finalPilePurge":           return finalCutScenarios(def)
         case "heartZeroRanksCoin":       return zeroRanksCoinScenarios(def)
@@ -1409,35 +1409,38 @@ enum IVPillarsBases {
         return [trigger, edge, mustNot]
     }
 
-    /// PAUPER'S HEART (v6.87): while the purse is under purseBelow, a ♥
-    /// landing PEEKS the next card — and pays NOTHING (the coin payout
-    /// retired with the old `pauperHeart` effect key; the frame check
-    /// enforces the no-coins half, `.coins` is deliberately NOT allowed).
-    static func pauperHeartPeekScenarios(_ def: ItemDef) -> [IV.Scenario] {
+    /// PAUPER'S HEART (v6.96): while the purse is under purseBelow, a ♥
+    /// landing arms a TELL on the landing pile — never a peek, never coins
+    /// (the coin payout retired with the old `pauperHeart` key, the peek
+    /// with `pauperHeartPeek`; the frame check enforces both,
+    /// `.coins`/`.peeks` deliberately NOT allowed).
+    static func pauperHeartTellScenarios(_ def: ItemDef) -> [IV.Scenario] {
         let ceiling = def.int("purseBelow", 10)
         let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")]
-        let trigger = IV.Scenario("trigger-brokeHeartPeeks", allowed: [.guesses, .deck, .board],
+        let trigger = IV.Scenario("trigger-brokeHeartArmsTell", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil], purse: ceiling - 1) },
             fire: { $0.guess(0, .higher) },
             expect: { e, f, c in
-                XCTAssertTrue(e.run.revealNextActive, "\(c): under \(ceiling) coins the ♥ peeks")
-                XCTAssertEqual(e.revealedNextCard()?.id, 51, "\(c): the REAL next draw")
-                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): a peek, never coins (v6.87)")
+                XCTAssertTrue(e.run.tellPiles.contains(0),
+                              "\(c): under \(ceiling) coins the ♥ arms a tell on ITS pile")
+                XCTAssertNotNil(e.pileHint(0), "\(c): the tell reads the next draw's direction")
+                XCTAssertFalse(e.run.revealNextActive, "\(c): a tell, never a peek (v6.96)")
+                XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): a tell, never coins (v6.87)")
             })
         let edge = IV.Scenario("edge-atCeilingSleeps", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil], purse: ceiling) },
             fire: { $0.guess(0, .higher) },
             expect: { e, _, c in
-                XCTAssertFalse(e.run.revealNextActive,
-                               "\(c): purseBelow is EXCLUSIVE — at \(ceiling) it sleeps")
+                XCTAssertTrue(e.run.tellPiles.isEmpty,
+                              "\(c): purseBelow is EXCLUSIVE — at \(ceiling) it sleeps")
             })
         let mustNot = IV.Scenario("mustNotFire-nonHeart", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 7, "♠"), IV.spec(51, 3, "♦")],
                                pillars: [def.id, nil, nil], purse: ceiling - 1) },
             fire: { $0.guess(0, .higher) },
-            expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
+            expect: { e, _, c in XCTAssertTrue(e.run.tellPiles.isEmpty, "\(c)") })
         return [trigger, edge, mustNot]
     }
 

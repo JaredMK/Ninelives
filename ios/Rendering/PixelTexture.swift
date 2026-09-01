@@ -112,6 +112,15 @@ public enum PixelTexture {
     private struct AttrKey: Hashable { let hash: Int; let length: Int; let width: Int }
     private static var attrCache: [AttrKey: SKTexture] = [:]
 
+    /// COLORFUL CARDS (v6.96): textCache's key has no component for the
+    /// substituted suit glyph's forced tint, so a suit-recolour toggle must
+    /// drop both text caches — otherwise baked suit-naming labels keep the
+    /// old scheme.
+    public static func flushTextCaches() {
+        textCache.removeAll()
+        attrCache.removeAll()
+    }
+
     /// A ready-to-place label sprite. `anchorPoint` defaults to centre.
     public static func label(_ string: String, size: CGFloat, color: UIColor,
                             display: Bool = false, glow: Bool = false) -> SKSpriteNode {

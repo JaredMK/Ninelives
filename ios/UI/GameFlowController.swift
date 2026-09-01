@@ -565,6 +565,7 @@ public final class GameFlowController: UIViewController {
     /// behind it, which is also what keeps it consistent with the menu's.
     func showSettings() {
         let sheet = SettingsSheetView(campaign: campaign)
+        sheet.onColorfulCardsChanged = { [weak self] in self?.resyncForColorfulCards() }
         sheet.onResetProgress = { [weak self, weak sheet] in
             guard let self else { return }
             self.view.insertSubview(self.prompt, belowSubview: self.crt)
@@ -1471,9 +1472,23 @@ public final class GameFlowController: UIViewController {
 
     // MARK: - Pause menu
 
-    /// The in-deal pause menu (v6.74): EXACTLY four entries — Resume, Odds
-    /// Assist (only once a Straight win unlocks it; the same toggle + pref as
-    /// the Settings sheet), Sound, Quit to Menu. Same list in Zen. The seed
+    /// COLORFUL CARDS (v6.96): `CRT.setColorfulCards` has already flipped the
+    /// flag and flushed the bake caches; this re-syncs the VISIBLE screen,
+    /// which still holds the old scheme's baked textures. In a deal, the
+    /// controller's normal refresh path rebakes the board + HUD; the settings
+    /// sheet only ever sits over the menu, which rebuilds.
+    private func resyncForColorfulCards() {
+        if let deal = current as? DealViewController {
+            deal.controller?.refreshAll()
+        } else if current is MainMenuViewController {
+            showMenu()
+        }
+    }
+
+    /// The in-deal pause menu (v6.74; five entries since v6.96 added Colorful
+    /// Cards): Resume, Odds Assist (only once a Straight win unlocks it; the
+    /// same toggle + pref as the Settings sheet), Sound, Colorful Cards, Quit
+    /// to Menu. Same list in Zen. The seed
     /// row, How to Play/Restart and New Climb are retired from here.
     func showPauseMenu() {
         let isZenGame = zenDiff != nil
@@ -1496,6 +1511,15 @@ public final class GameFlowController: UIViewController {
             items.append(.init("SOUND: \(Sound.shared.enabled ? "ON" : "OFF")",
                                keepOpen: true) { [weak sheet] in
                 Sound.shared.enabled.toggle()
+                sheet?.setItems(makeItems())
+            })
+            // COLORFUL CARDS (v6.96): the same toggle + pref as the Settings
+            // sheet — flushes the bake caches and re-syncs the live deal.
+            items.append(.init("COLORFUL CARDS: \(CRT.colorfulCards ? "ON" : "OFF")",
+                               keepOpen: true) { [weak self, weak sheet] in
+                guard let self else { return }
+                CRT.setColorfulCards(!CRT.colorfulCards)
+                self.resyncForColorfulCards()
                 sheet?.setItems(makeItems())
             })
             items.append(.init("QUIT TO MENU", role: .danger) { [weak self] in

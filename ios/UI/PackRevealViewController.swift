@@ -395,7 +395,7 @@ public final class PackRevealViewController: UIViewController {
                 // items.js has NO joker entry (the joker isn't a sellable
                 // item) — the web itself hardcodes this copy
                 // (index.html:29565), so the native mirrors it verbatim.
-                infoView.show(title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE: when it's drawn and placed on a pile, and when you guess on top of it (higher, lower, or same), it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Charge AND fires your equipped Same-Power.")
+                infoView.show(title: "★ Joker", body: "A wild card. Any guess it's part of is SAFE: when it's drawn and placed on a pile, and when you guess on top of it (higher, lower, or same), it can never be wrong. Call SAME with a Joker involved and it counts as a true Same: banks the Same Shield AND fires your equipped Same-Power.")
             } else if c.blank {
                 // Registry-derived (items.js store.removal), price line
                 // dropped (v6.86): a pack Blank is FREE — the store's

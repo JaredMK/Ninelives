@@ -633,7 +633,8 @@ public final class CardPickerViewController: UIViewController {
         allL.attributedText = allText
         legendRow.addSubview(allL)
 
-        // BY SUIT: feltDeep chips, suit-entry order (♦ ♥ ♣ ♠), red suits red.
+        // BY SUIT: feltDeep chips, suit-entry order (♦ ♥ ♣ ♠), each suit its
+        // own colour (v6.96: the Colorful Cards scheme applies here too).
         // remaining == total here, so each chip reads N/N.
         let bySuitText = CRTKit.attributed("BY SUIT", size: 14, color: CRT.muted)
         let bySuitW = ceil(bySuitText.size().width)
@@ -642,7 +643,7 @@ public final class CardPickerViewController: UIViewController {
             let n = suitCounts[s.symbol] ?? 0
             let str = NSMutableAttributedString()
             str.append(CRTKit.attributed(s.symbol, size: 14,
-                                         color: s.red ? CRT.suitRed : CRT.cardFace))
+                                         color: CRT.suitColor(s.symbol, onFelt: true)))
             str.append(CRTKit.attributed(" \(n)", size: 14, color: CRT.cardFace))
             str.append(CRTKit.attributed("/\(n)", size: 14, color: CRT.muted))
             let l = UILabel()

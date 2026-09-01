@@ -665,7 +665,8 @@ public final class DealScene: SKScene {
     // MARK: - HUD chip hit-testing (hold-for-help)
 
     /// The HUD chip id under a scene point (sameCharge / samePower / stageRun /
-    /// dealStatus / score / coins), or nil. Drives the top-bar hold-for-help.
+    /// dealStatus / score / coins), or nil. Drives the top-bar hold/tap-for-help
+    /// (v6.96: only sameCharge / samePower / dealStatus still answer help).
     public func hudChip(at scenePoint: CGPoint) -> String? {
         let local = CGPoint(x: scenePoint.x - hud.position.x, y: scenePoint.y - hud.position.y)
         if let id = hud.chipId(at: local) { return id }
@@ -1408,6 +1409,7 @@ public final class DealScene: SKScene {
     public func showHelp(title: String, rich: NSAttributedString) {
         helpPanel.removeAllChildren()
         helpPanel.isHidden = false
+        helpReceiptText = title + "|" + rich.string
         let w = size.width - 16
         let textW = w - 16
         let block = PixelTexture.attributedText(rich, maxWidth: textW)
@@ -1434,6 +1436,7 @@ public final class DealScene: SKScene {
     public func showHelp(title: String, body: String) {
         helpPanel.removeAllChildren()
         helpPanel.isHidden = false
+        helpReceiptText = title + "|" + body
         let w = size.width - 16
         // Wrap the body by hand — one baked texture per line, no layout engine.
         // Paragraphs (sticker rows) wrap independently. The panel then GROWS to
@@ -1470,8 +1473,16 @@ public final class DealScene: SKScene {
         }
     }
 
-    public func hideHelp() { helpPanel.isHidden = true; helpPanel.removeAllChildren() }
+    public func hideHelp() { helpPanel.isHidden = true; helpPanel.removeAllChildren(); helpReceiptText = "" }
     public var isHelpVisible: Bool { !helpPanel.isHidden }
+
+    /// `-helpReceipt 1` (SameShieldUITests, v6.96): the help panel is pure
+    /// SpriteKit — invisible to the XCUITest accessibility tree — so the test
+    /// hook's UIKit label mirrors the last help shown here ("title|body", ""
+    /// once hidden). The HUD chip ids expose the top bar's registered chips
+    /// (the empty Same-Power slot registers "samePower" like a live one).
+    public private(set) var helpReceiptText = ""
+    public var hudChipIDs: [String] { hud?.chips.map(\.id) ?? [] }
 
     /// Word-wrap to a real PIXEL width, measured in the font that will actually
     /// draw the line. The old version counted CHARACTERS against `width / 7.2`,
@@ -2311,7 +2322,7 @@ final class DealTopBar: SKNode {
                     let ph = phaseOf[s]!
                     let done = ph < 0 || phaseIndex > ph
                     let active = !done && phaseIndex == ph
-                    let base: UIColor = (s == "♥" || s == "♦") ? CRT.suitRed : CRT.cardFace
+                    let base: UIColor = CRT.suitColor(s, onFelt: true)
                     let color = (done || active) ? base : CRT.cardFace.withAlphaComponent(0.26)
                     put(PixelTexture.label(s, size: active ? 22 : 17, color: color), gap: 3)
                 }
@@ -2341,6 +2352,22 @@ final class DealTopBar: SKNode {
             content.addChild(icon)
             chips.append(("samePower", CGRect(x: scoreX - 4, y: -height + 4,
                                               width: icon.size.width + 8, height: height - 8)))
+        } else {
+            // v6.96: no power equipped → the EMPTY-SLOT idiom the pillar/base
+            // rows use (a small dashed gold box). The chip still registers,
+            // so a tap or hold on it answers "None equipped".
+            let img = PixelTexture.image(size: CGSize(width: 18, height: 18)) { cg in
+                cg.setStrokeColor(CRT.gold.withAlphaComponent(0.35).cgColor)
+                cg.setLineWidth(1)
+                cg.setLineDash(phase: 0, lengths: [4, 4])
+                cg.stroke(CGRect(x: 0.5, y: 0.5, width: 17, height: 17))
+            }
+            let slot = SKSpriteNode(texture: PixelTexture.texture(from: img))
+            slot.anchorPoint = CGPoint(x: 0, y: 0.5)
+            slot.position = CGPoint(x: scoreX, y: midY)
+            content.addChild(slot)
+            chips.append(("samePower", CGRect(x: scoreX - 4, y: -height + 4,
+                                              width: 26, height: height - 8)))
         }
         scoreX += 26
 

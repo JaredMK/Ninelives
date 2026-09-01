@@ -67,6 +67,14 @@ public enum CardArt {
     private static var cache: [Key: SKTexture] = [:]
     private static var imageCache: [Key: UIImage] = [:]
 
+    /// COLORFUL CARDS (v6.96): the cache key carries no colour component, so
+    /// a suit-recolour toggle must drop every baked face — the next bake
+    /// reads the new scheme.
+    public static func flushColorCaches() {
+        cache.removeAll()
+        imageCache.removeAll()
+    }
+
     public static func texture(_ face: Face, scale: Scale) -> SKTexture {
         let key = Key(face: face, scale: scale)
         if let c = cache[key] { return c }

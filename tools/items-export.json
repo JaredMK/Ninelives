@@ -1,6 +1,6 @@
 {
- "version": "v6.93",
- "generatedAt": "2026-08-31 23:15",
+ "version": "v6.96",
+ "generatedAt": "2026-09-01 01:58",
  "rows": [
   {
    "cls": "Stickers",
@@ -251,7 +251,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this rank → Safe\nIf no pile's top card matches this rank → Sticker becomes cursed",
+   "description": "If another pile shows this rank → Safe\nOtherwise → Sticker becomes cursed",
    "flags": "",
    "flagNotes": ""
   },
@@ -274,7 +274,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → this card is safe when it lands.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → this card is safe when it lands.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -299,7 +299,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end if this card tops its pile → earn coins equal to pile size.\nAny card played on top of this card is cursed",
+   "description": "At deal end if this card tops its pile → earn coins equal to pile size",
    "flags": "",
    "flagNotes": ""
   },
@@ -322,7 +322,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → +1 coin per pile whose top card matches.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → +1 coin per pile whose top card matches.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -347,7 +347,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end if this card tops its pile → exclude the pile from the smallest-pile score.\nAny card played on top of this card is cursed",
+   "description": "At deal end if this card tops its pile → exclude the pile from the smallest-pile score",
    "flags": "",
    "flagNotes": ""
   },
@@ -370,7 +370,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → make all pile sizes equal.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → make all pile sizes equal.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -393,7 +393,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → bury 1 card under this pile.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → bury 1 card under this pile.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -416,7 +416,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Peek at the next card if another pile's top card matches this rank",
+   "description": "Peek at the next card if another pile shows this rank",
    "flags": "",
    "flagNotes": ""
   },
@@ -485,7 +485,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → optionally shuffle those piles.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → optionally shuffle those piles.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -508,7 +508,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → this card shows a tell (higher, lower, or same) for the next draw.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → this card shows a tell (higher, lower, or same) for the next draw.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },
@@ -531,7 +531,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this rank → Charge Same Shield\nIf no pile's top card matches this rank → Sticker becomes cursed",
+   "description": "If another pile shows this rank → Charge Same Shield\nOtherwise → Sticker becomes cursed",
    "flags": "",
    "flagNotes": ""
   },
@@ -554,7 +554,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this rank → Fire Same Power\nIf no pile's top card matches this rank → Sticker becomes cursed",
+   "description": "If another pile shows this rank → Fire Same Power\nOtherwise → Sticker becomes cursed",
    "flags": "",
    "flagNotes": ""
   },
@@ -1518,12 +1518,12 @@
   {
    "cls": "Pillars",
    "inactive": false,
-   "outcome": "Peek",
+   "outcome": "Tell",
    "outcomeDetail": "while broke, per ♥ landing",
    "outcomeAlso": [
     "Pauper"
    ],
-   "effectKey": "pauperHeartPeek",
+   "effectKey": "pauperHeartTell",
    "id": "pauperHeart",
    "label": "Pauper's Heart",
    "tier": "common",
@@ -1536,7 +1536,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "While your purse holds under 10 coins → when a ♥ lands in this column, peek 1 card",
+   "description": "While your purse holds under 10 coins → when a ♥ lands in this column, that pile gets a tell",
    "flags": "",
    "flagNotes": ""
   },
@@ -3041,7 +3041,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If another pile's top card matches this card's suit → +1 pile size to every pile whose top matches, including this one.\nIf none does → this sticker becomes a curse",
+   "description": "If another pile shows this suit → +1 pile size to every pile whose top matches, including this one.\nOtherwise → this sticker becomes a curse",
    "flags": "",
    "flagNotes": ""
   },

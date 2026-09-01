@@ -185,7 +185,7 @@ public enum PlacementLog {
         "clubZeroRanksBury", "excavator", "highestHeart", "heartPiles",
         "allSuitTop", "kamikaze", "spadePeek", "clubTell", "heartDemolish",
         "diamondBoost", "setSuit", "suitDig", "curseBuryPeek", "queensEye",
-        "linkBury", "pauperHeartPeek", "heartZeroRanksCoin", "diamondZeroRanksSize",
+        "linkBury", "pauperHeartTell", "heartZeroRanksCoin", "diamondZeroRanksSize",
     ]
 
     static func equippedAxes(_ def: ItemDef) -> [(axis: String, from: String)] {

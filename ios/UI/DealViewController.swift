@@ -54,6 +54,19 @@ public final class DealViewController: UIViewController {
         l.isUserInteractionEnabled = false
         return l
     }()
+    /// `-helpReceipt 1` (SameShieldUITests, v6.96): the SpriteKit help panel
+    /// and the HUD chips are invisible to the XCUITest accessibility tree, so
+    /// this label mirrors them — "help:<title>|<body>" while a panel is up,
+    /// "help:none chips=<ids>" once it hides. It exists only with the arg;
+    /// play is untouched.
+    private lazy var helpReceiptLabel: UILabel = {
+        let l = UILabel()
+        l.accessibilityIdentifier = "helpReceipt"
+        l.font = CRT.Font.of(12)
+        l.textColor = CRT.cardFace
+        l.isUserInteractionEnabled = false
+        return l
+    }()
     /// Piles armed as tap TARGETS (revive / Phoenix), with the answer callback.
     private var targetPick: (targets: [Int], kind: TargetKind, answer: (Int?) -> Void)?
 
@@ -211,6 +224,12 @@ public final class DealViewController: UIViewController {
                                                  y: view.safeAreaInsets.top + 2,
                                                  width: 120, height: 20)
                 view.addSubview(guessReceiptLabel)
+            }
+            if UserDefaults.standard.bool(forKey: "helpReceipt") {
+                helpReceiptLabel.text = "help:none"
+                helpReceiptLabel.frame = CGRect(x: 8, y: view.safeAreaInsets.top + 2,
+                                                width: view.bounds.width - 150, height: 20)
+                view.addSubview(helpReceiptLabel)
             }
             scene.showsFrameHUD = UserDefaults.standard.bool(forKey: "fps")
             skView.presentScene(scene)
@@ -563,6 +582,7 @@ public final class DealViewController: UIViewController {
 
     @objc private func onTap(_ g: UITapGestureRecognizer) {
         let p = scenePoint(g.location(in: view))
+        defer { updateHelpReceipt() }
 
         // A visible help panel collapses on the next tap — EXCEPT a tap on
         // a live control: a pile re-targets the info (v6.88), and a call
@@ -624,16 +644,17 @@ public final class DealViewController: UIViewController {
             controller.basePlaqueTapped(col: col)
             return
         }
-        // TAP-FOR-HELP (v6.52): a Pillar plaque, the Same-Power chip and a
-        // card's sticker corner answer a plain TAP with the same help a hold
-        // shows — the next tap anywhere collapses it (the isHelpVisible gate
-        // at the top of this handler).
+        // TAP-FOR-HELP (v6.52): a Pillar plaque, the Same-Shield/Same-Power
+        // chips (v6.96: the shield joined, and the EMPTY power slot answers
+        // too) and a card's sticker corner answer a plain TAP with the same
+        // help a hold shows — the next tap anywhere collapses it (the
+        // isHelpVisible gate at the top of this handler).
         if let col = scene.pillarCol(at: p), let (title, body) = controller.helpText(forPillar: col) {
             scene.showHelp(title: title, body: body)
             return
         }
-        if scene.hudChip(at: p) == "samePower",
-           let (title, body) = controller.helpText(forHUDChip: "samePower") {
+        if let chip = scene.hudChip(at: p), chip == "samePower" || chip == "sameCharge",
+           let (title, body) = controller.helpText(forHUDChip: chip) {
             scene.showHelp(title: title, body: body)
             return
         }
@@ -740,6 +761,24 @@ public final class DealViewController: UIViewController {
         guessReceiptLabel.text = "guesses:\(n)"
     }
 
+    /// The `-helpReceipt` mirror (SameShieldUITests): refreshed from the
+    /// tap/hold handlers, so the label always reflects the panel state a
+    /// gesture left behind. Chip ids ride the "none" line so the empty
+    /// Same-Power slot's registration is assertable without a tap.
+    private func updateHelpReceipt() {
+        guard helpReceiptLabel.superview != nil else { return }
+        let help = scene.helpReceiptText
+        if !help.isEmpty { helpReceiptLast = help }
+        helpReceiptLabel.text = help.isEmpty
+            ? (helpReceiptLast.isEmpty ? "help:none" : "help:none last=" + helpReceiptLast)
+              + " chips=" + scene.hudChipIDs.joined(separator: ",")
+            : "help:" + help
+    }
+    /// The last help the receipt mirrored, LATCHED: a hold hides its panel on
+    /// finger-up, and XCTest's press(forDuration:) blocks until the lift — so
+    /// the hold test asserts this latched line after the press returns.
+    private var helpReceiptLast = ""
+
     // MARK: - Swipe guessing
 
     @objc private func onPan(_ g: UIPanGestureRecognizer) {
@@ -830,14 +869,16 @@ public final class DealViewController: UIViewController {
 
     @objc private func onHold(_ g: UILongPressGestureRecognizer) {
         let p = scenePoint(g.location(in: view))
+        defer { updateHelpReceipt() }
         switch g.state {
         case .began:
             // A hold that turned into a drag is a guess, not a help request —
             // and a hold DURING a histogram scrub must not pop the band help
             // over the bars the finger is reading.
             guard !dragMoved, !scrubbing else { return }
-            // The top-bar chips take hold-help too (Same Charge, Same-Power,
-            // the stage track, the reward/score line, score, coins).
+            // The top-bar chips take hold-help too (Same Shield, Same-Power,
+            // the reward/score line — v6.96 dropped the stage track, SCORE
+            // and COINS; their cases are gone from helpText(forHUDChip:)).
             if let chip = scene.hudChip(at: p),
                let (title, body) = controller.helpText(forHUDChip: chip) {
                 holdShown = true
@@ -851,16 +892,12 @@ public final class DealViewController: UIViewController {
             } else if let col = scene.baseCol(at: p), let (title, body) = controller.helpText(forBase: col) {
                 holdShown = true
                 scene.showHelp(title: title, body: body)
-            } else if let b = scene.button(at: p) {
+            } else if let b = scene.button(at: p), b.id == "fan" || b.id == "reshuffle" {
+                // v6.96: only the two utility buttons keep hold-help. The
+                // call buttons, MENU, the deck stack and the deck tracker
+                // lost theirs (the deck stack keeps its TAP-to-inspect).
                 holdShown = true
                 scene.showHelp(title: helpTitle(b.id), body: helpBody(b.id))
-            } else if scene.isDeckPanel(p) {
-                holdShown = true
-                scene.showHelp(title: "Deck", body: "Cards left in the draw pile. Empty the deck before every pile dies to clear the deal. Tap for the full deck list.")
-            } else if scene.isDeckBand(p) {
-                holdShown = true
-                scene.showHelp(title: "Deck tracker",
-                               body: "What's left in the draw pile: the suit counts, and one bar per rank (grey = the deal's starting count, bright = still drawable). Hold and drag across the bars for the exact higher / same / lower odds of any rank.")
             }
         case .ended, .cancelled, .failed:
             if holdShown { scene.hideHelp(); holdShown = false }
@@ -868,26 +905,20 @@ public final class DealViewController: UIViewController {
         }
     }
 
+    /// v6.96: button hold-help survives only on the two utility buttons —
+    /// the call buttons and MENU lost theirs.
     private func helpTitle(_ id: String) -> String {
         switch id {
         case "fan": return "Fan"
-        case "higher": return "Higher"
-        case "same": return "Same"
-        case "lower": return "Lower"
         case "reshuffle": return "Reshuffle"
-        case "menu": return "Menu"
         default: return id
         }
     }
 
     private func helpBody(_ id: String) -> String {
         switch id {
-        case "fan":    return "Fan: spreads every living pile so the cards underneath peek out, a reminder of what each pile is holding. Tap again to collapse. Pure memory aid: it changes nothing about the deal, and guessing stays live."
-        case "higher": return "The next card is higher in rank. Ace is high; suits never matter."
-        case "same":   return "The next card matches this rank. A correct Same banks a charge that saves your next miss."
-        case "lower":  return "The next card is lower in rank. A tie kills on Higher or Lower."
+        case "fan":    return "See the cards under each pile"   // v6.96
         case "reshuffle": return "Gather every pile back into the deck and re-deal. Only before your first guess. In a climb it costs coins, more each time."
-        case "menu":   return "Pause: leave the deal for the map or options. The deal waits exactly as you left it."
         default:       return ""
         }
     }

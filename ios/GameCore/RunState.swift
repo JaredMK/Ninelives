@@ -165,7 +165,7 @@ public final class RunState {
     public var stickerPeels: [Int: Int] = [:]
 
     /// v6.85 FRESH CURSES — the deferred-activation ledger: curses a
-    /// conversion or cover punish appended DURING the current landing, so
+    /// conversion appended DURING the current landing, so
     /// the later stages of the SAME landing must skip them (a converted
     /// Leech would otherwise toll immediately in maybeStickerTribute).
     /// TRANSIENT within one guess: cleared at every guess entry, so it is
@@ -278,9 +278,6 @@ public enum EngineEvent {
     /// v6.85 CONDITIONAL STICKERS: a failed bet — `from` was removed and
     /// `to` (nil when nothing could stick) took its place on the card.
     case stickerConverted(index: Int, cardId: Int, from: String, to: String?)
-    /// v6.85 COVER PUNISH (Payout/Anchor): the card that landed ON the
-    /// carrier gained `typeId` permanently.
-    case coverCursed(index: Int, cardId: Int, typeId: String, source: String)
     case secondWind(index: Int, guess: Guess, current: LiveCard)
     case sameSaved(index: Int, guess: Guess, current: LiveCard, drawn: LiveCard, sameCharge: Bool)
     case sameBanked(index: Int, sameCharge: Bool)

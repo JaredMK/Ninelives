@@ -63,7 +63,7 @@ pillar,sameTolSuit,Same Suit Safe,r,6,false,DEAL,NONE,card lands,column,safety/s
 pillar,rankShield,Rank Shield,u,5,false,DEAL,deck: most-common rank,specific rank lands,column,safety/save,column,NONE,NONE,,,Most common card in deck ({rank}) is always safe in this column,re-reads per deal
 pillar,suitShield,Scarce Suit,u,6,false,DEAL,deck: scarcest suit,specific suit lands,column,safety/save,column,NONE,NONE,,,The suit your deck holds the fewest of is safe when it lands in this column,zero-count suits eligible
 pillar,eightPeek,Eight Ball,c,3,false,DEAL,NONE,specific rank lands,column,peek,deck,NONE,NONE,,,When an 8 lands in this column → peek at the next card,
-pillar,pauperHeart,Pauper's Heart,c,2,false,DEAL,<10 coins,specific suit lands,column,peek,deck,NONE,NONE,,,"While your purse holds under 10 coins → when a ♥ lands in this column, peek 1 card",
+pillar,pauperHeart,Pauper's Heart,c,2,false,DEAL,<10 coins,specific suit lands,column,tell,pile,NONE,NONE,,,"While your purse holds under 10 coins → when a ♥ lands in this column, that pile gets a tell",
 pillar,pauperDiamond,Pauper's Diamond,c,3,false,DEAL,<10 coins,specific suit lands,board,pile size,board,NONE,NONE,,,While your purse holds under 10 coins → a ♦ landing anywhere on the board counts +2 toward pile size instead of +1,
 pillar,pauperSpade,Pauper's Spade,c,2,false,DEAL,<10 coins,specific suit lands,column,tell,deck,NONE,NONE,,,"While your purse holds under 10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)",
 pillar,pauperClub,Pauper's Club,c,2,false,DEAL,<10 coins,specific suit lands,column,bury,pile,NONE,NONE,,,"While your purse holds under 10 coins → when a ♣ lands in this column, bury 1 card under that pile",
