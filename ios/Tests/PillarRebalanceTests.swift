@@ -34,12 +34,18 @@ final class PillarRebalanceTests: XCTestCase {
         XCTAssertEqual(bury.board.piles[0].cards.count, 1 + 1 + 3, "bury: 3 buried under the landing")
         XCTAssertEqual(bury.run.bonusCoins, 0, "bury: no coins")
         XCTAssertEqual(bury.board.pileSize(0), 5, "bury: size = its 5 physical cards, no latch")
-        // The COIN leg: +value × 3 — nothing buried, no size latch.
-        let coin = land("heartZeroRanksCoin", drawnSuit: "♥")
+        // The COIN leg (v6.98 retrigger): fires on the MOST-HELD rank now,
+        // not ♥ — two extra 8s make the landing 8 the leader; the empty
+        // ranks are still 2, 3, 4.
+        let coinE = IV.engine(tops: tops,
+                              deckOrder: [IV.spec(50, 8, "♥")] + fillers
+                                  + [IV.spec(61, 8, "♥"), IV.spec(62, 8, "♠")],
+                              pillars: ["heartZeroRanksCoin", nil, nil])
+        coinE.guess(0, .higher)
         let v = data.pillarTypes.get("heartZeroRanksCoin")!.num("value", 2)
-        XCTAssertEqual(coin.run.bonusCoins, v * 3, "coins: +value per empty rank")
-        XCTAssertEqual(coin.board.piles[0].cards.count, 2, "coins: nothing buried")
-        XCTAssertEqual(coin.board.pileSize(0), 2, "coins: no size latch")
+        XCTAssertEqual(coinE.run.bonusCoins, v * 3, "coins: +value per empty rank")
+        XCTAssertEqual(coinE.board.piles[0].cards.count, 2, "coins: nothing buried")
+        XCTAssertEqual(coinE.board.pileSize(0), 2, "coins: no size latch")
         // The SIZE leg: +value × 3 latched — nothing buried, no coins.
         let size = land("diamondZeroRanksSize", drawnSuit: "♦")
         XCTAssertEqual(size.board.pileSize(0), 2 + 3, "size: +1 per empty rank, latched")

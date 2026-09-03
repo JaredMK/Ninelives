@@ -693,13 +693,13 @@ final class ItemBehaviorTests: XCTestCase {
         let base = Int(c.removalPrice())
         _ = c.buyRemoval(c.getRunDeck().first!.id)
         let stepFull = Int(c.removalPrice()) - base
-        XCTAssertEqual(stepFull, 2, "the naked ladder climbs by priceStep (2)")
+        XCTAssertEqual(stepFull, 1, "the naked ladder climbs by priceStep (1, v6.98)")
         guard let def = data.items.pillars.first(where: { $0.effect == "purgeStepDiscount" }) else {
             return XCTFail("no Bulk Rate in the registry")
         }
         c.setColumnPillar(col: 0, typeId: def.id)
         let discounted = Int(c.removalPrice())
-        XCTAssertEqual(discounted, base + 1, "equipped, the climb is 1 less per purchase")
+        XCTAssertEqual(discounted, base, "equipped, the ladder STOPS climbing (v6.98: step 1 − 1 = 0)")
         // Save/restore: derived pricing, identical after a round trip.
         let c2 = CampaignState()
         XCTAssertTrue(c2.restore(c.serialize()))

@@ -68,6 +68,26 @@ extension GameEngine {
             // safe when it lands in this column.
             guard let suit = run.dailySuits?[col], matchesSuit(drawn, suit) else { return nil }
             return "suitShieldDaily"
+        case "pauperHeartSafe":
+            // PAUPER'S HEART (v6.98): a ♥ landing is safe while the purse is
+            // under the ceiling — read LIVE, the family rule. (The flat-broke
+            // peek rides the correct-landing extras, not the save.)
+            guard matchesSuit(drawn, "♥"), purseBelow(pillar) else { return nil }
+            return "pauperHeartSafe"
+        case "rankGapSafe":
+            // RANK GAP (v6.98): safe when the full deck holds ZERO copies of
+            // the rank ABOVE or BELOW the landing card. EDGE RULE (documented
+            // in items.js): the rank line does NOT wrap and a non-existent
+            // boundary neighbour is NOT "absent" — a 2 qualifies only via its
+            // 3s, an Ace only via its Kings. Jokers/Blanks are rankless and
+            // never qualify.
+            guard !drawn.joker, !drawn.blank else { return nil }
+            let counts = fullDeckRankCounts()
+            let above = drawn.value + 1, below = drawn.value - 1
+            let gapAbove = above <= maxRank && (counts[above] ?? 0) == 0
+            let gapBelow = below >= minRank && (counts[below] ?? 0) == 0
+            guard gapAbove || gapBelow else { return nil }
+            return "rankGapSafe"
         default:
             return nil
         }
@@ -295,18 +315,21 @@ extension GameEngine {
             recT("pillar", pillar.id, pillar.label, ["buried": Double(nb), "peeks": 1])
             logLine("\(pillar.label): a cursed landing — buried \(nb), peeking the next card")
 
-        case "pauperHeartTell" where matchesSuit(drawn, "♥") && purseBelow(pillar):
-            // PAUPER'S HEART (v6.96): the broke player's ♥ landing arms a
-            // TELL on the landing pile (the next draw's direction chip —
-            // Pauper's Spade's shape). No longer a peek; never coins.
-            run.tellPiles.insert(index)
-            firePillar(col, "pauperHeartTell", pillar.label, 0)
-            recT("pillar", pillar.id, pillar.label, ["tells": 1])
-            logLine("\(pillar.label): a tell arms on pile \(index + 1)")
+        case "pauperHeartSafe" where matchesSuit(drawn, "♥") && purseBroke():
+            // PAUPER'S HEART (v6.98): the SAFE half lives in landingSave —
+            // this is the deeper tier: a flat-broke purse (exactly 0) also
+            // peeks the next card on the ♥ landing. The v6.96 tell key
+            // retired with the tell.
+            run.revealNextActive = true
+            firePillar(col, "pauperHeartSafe", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["peeks": 1])
+            logLine("\(pillar.label): flat broke — peeking the next card")
 
-        case "heartZeroRanksCoin" where matchesSuit(drawn, "♥"):
-            // EMPTY RANKS COINS (v6.87): the narrow-deck family's coin leg —
-            // `value` coins per zero-copy rank, on a ♥ landing.
+        case "heartZeroRanksCoin" where drawn.value == mostCopiedRank():
+            // EMPTY RANKS COINS (v6.98 retrigger): `value` coins per
+            // zero-copy rank when the MOST-HELD rank lands (live, ties →
+            // lowest — the shared mostCopiedRank rule). The effect key is
+            // stable; only the trigger moved off ♥.
             let empties = zeroCopyRankCount()
             if empties > 0 {
                 payPillar(col, "heartZeroRanksCoin", pillar.label,
@@ -329,10 +352,52 @@ extension GameEngine {
         case "pauperSpadeTell" where matchesSuit(drawn, "♠") && purseBelow(pillar):
             // PAUPER'S SPADE: a ♠ landing while broke arms a TELL on this pile
             // (the Tell sticker's armed-pile chip — the next draw's direction).
-            run.tellPiles.insert(index)
+            // v6.98 deeper tier: flat broke (exactly 0) arms EVERY alive pile.
+            if purseBroke() {
+                for i in 0..<board.size where board.isActive(i) { run.tellPiles.insert(i) }
+                logLine("\(pillar.label): flat broke — a tell arms on every alive pile")
+            } else {
+                run.tellPiles.insert(index)
+                logLine("\(pillar.label): a tell arms on pile \(index + 1)")
+            }
             firePillar(col, "pauperSpadeTell", pillar.label, 0)
-            recT("pillar", pillar.id, pillar.label, ["peeks": 1])
-            logLine("\(pillar.label): a tell arms on pile \(index + 1)")
+            recT("pillar", pillar.id, pillar.label, ["tells": 1])
+
+        case "mostHeldRankTell" where v == mostCopiedRank():
+            // MOST-HELD TELL (v6.98, Rank Focus bench): the most-held rank
+            // landing arms a tell on its pile; a deck already missing
+            // `missingForPeek`+ ranks upgrades the same landing with a peek.
+            run.tellPiles.insert(index)
+            var vals: [String: Double] = ["tells": 1]
+            if zeroCopyRankCount() >= pillar.int("missingForPeek", 3) {
+                run.revealNextActive = true
+                vals["peeks"] = 1
+                logLine("\(pillar.label): a tell arms on pile \(index + 1) — and 3+ ranks missing peeks the next card")
+            } else {
+                logLine("\(pillar.label): a tell arms on pile \(index + 1)")
+            }
+            firePillar(col, "mostHeldRankTell", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, vals)
+
+        case "pauperDiamondEqualize" where isDiamond && purseBelow(pillar):
+            // PAUPER'S DIAMOND (v6.98 — a NEW item; the pile-size one stays
+            // retired): while under the purse ceiling a ♦ landing equalises
+            // EVERY alive pile (Donate's board-wide walk). Flat broke
+            // (exactly 0) ALSO offers an optional board-wide purge — the
+            // player may pick any alive pile and its top card leaves the
+            // deck for good (surfaced through the pending-action queue, so
+            // dialogs never stack; decline is free).
+            let eq = equalizeAllPiles()
+            if eq.moved > 0 {
+                firePillar(col, "pauperDiamondEqualize", pillar.label, 0, moves: eq.moves)
+                logLine("\(pillar.label): equalised the board — \(eq.moved) buried card\(eq.moved == 1 ? "" : "s") moved (hidden)")
+            } else {
+                firePillar(col, "pauperDiamondEqualize", pillar.label, 0)
+            }
+            recT("pillar", pillar.id, pillar.label, ["moved": Double(eq.moved)])
+            if purseBroke() {
+                run.pendingActions.append(PendingAction(kind: "pauperPurge", index: index, target: col))
+            }
 
         case "diamondDupeSize" where isDiamond:
             // DIAMOND ECHO: +1 pile size per DUPLICATE of the landed rank in
@@ -440,10 +505,26 @@ extension GameEngine {
             }
         } else if pillar.effect == "pauperClubBury" && isClub && purseBelow(pillar) {
             // PAUPER'S CLUB (v6.76): a ♣ landing while broke buries digCount.
-            let nb = buryTribute(index, pillar.int("digCount", 1), pillar.label)
+            // v6.98 deeper tier: flat broke (exactly 0) buries digCountBroke
+            // INSTEAD (the stated total, not a stack).
+            let n = purseBroke() ? pillar.int("digCountBroke", 3) : pillar.int("digCount", 1)
+            let nb = buryTribute(index, n, pillar.label)
             if nb > 0 {
                 firePillar(col, "pauperClubBury", pillar.label, 0)
                 recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+            }
+        } else if pillar.effect == "mostHeldRankBury" && drawn.value == mostCopiedRank() {
+            // MOST-HELD BURY (v6.98, Rank Focus bench): the most-held rank
+            // landing buries 1 per zero-copy rank — the Empty Ranks scale on
+            // the most-held trigger. Live reads, ties → lowest, uncapped
+            // (the scaling model is in the batch report).
+            let empties = zeroCopyRankCount()
+            if empties > 0 {
+                let nb = buryTribute(index, empties, pillar.label)
+                if nb > 0 {
+                    firePillar(col, "mostHeldRankBury", pillar.label, 0)
+                    recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
+                }
             }
         } else if pillar.effect == "clubThin" && isClub {
             // CLUB THIN (v6.76): bury digCount per full `per`-card step of the

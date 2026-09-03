@@ -416,6 +416,12 @@ public final class DealViewController: UIViewController {
             guard let self else { fire(nil); return }
             self.armTargetPick(dead, prompt: "Revive: tap a dead pile to bring it back.", fire: fire)
         }
+        controller.onPurgeOffer = { [weak self] alive, fire in
+            // PAUPER'S DIAMOND (v6.98): the flat-broke purge — a board-wide
+            // pile pick; Skip declines for free (the armTargetPick idiom).
+            guard let self else { fire(nil); return }
+            self.armTargetPick(alive, prompt: "Pauper's Diamond: tap a pile to purge its top card — or Skip.", fire: fire)
+        }
         controller.onBaseTarget = { [weak self] piles, prompt, fire in
             guard let self else { fire(nil); return }
             self.armTargetPick(piles, prompt: prompt, fire: fire)

@@ -304,8 +304,11 @@ public final class CampaignState {
         // COMPOSITION-DRIVEN {rank} (v6.78): Transmute names the full
         // deck's LIVE most common rank; Rank Shield names the rank it
         // protects — the climb's incumbent when one exists, else the live
-        // leader it would protect at the next deal's start.
-        if def.effect == "transmute" || def.effect == "rankShield" || def.effect == "chorus",
+        // leader it would protect at the next deal's start. v6.98: the Rank
+        // Focus bench (most-held-rank triggers) names the same live leader.
+        let rankLiveEffects: Set<String> = ["transmute", "rankShield", "chorus",
+                                            "heartZeroRanksCoin", "mostHeldRankBury", "mostHeldRankTell"]
+        if let eff = def.effect, rankLiveEffects.contains(eff),
            out.contains("{rank}") {
             let r = (def.effect == "rankShield" ? shopRolls[def.id]?.rank : nil) ?? mostCommonRank()
             if let r, let label = DeckManager.ranks.first(where: { $0.value == r })?.label {

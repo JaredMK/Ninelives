@@ -139,7 +139,7 @@ const NINELIVES_ITEMS = {
     // this much to the next one's price (0 = flat forever). The ladder resets
     // with each new climb, like the reroll ladder resets each shop visit.
     removal: {
-      id: "removal", label: "Purge", icon: "∅", price: 5, priceStep: 2,
+      id: "removal", label: "Purge", icon: "∅", price: 3, priceStep: 1,
       description: "Permanently purge a card from your deck — the price climbs each use",
     },
     // SELL values by tier — what the store pays when an equipped item is
@@ -153,8 +153,8 @@ const NINELIVES_ITEMS = {
      number of stickers, duplicates included. `rankDelta`, `tributeCount`,
      `coinCost`, `value`, `step`, `per`, `max`, `count` are
      effect knobs.
-     SUIT-TIMING PRICING convention: a ♣ item costs its ♦/♥ twin's price −1;
-     a ♠ item costs −2 (floor 1).
+     PRICING (v6.98): flat by rarity — common 1, uncommon 3, rare 5. (The
+     old suit-timing convention retired with the suit-locked stickers.)
   -------------------------------------------------------------------- */
   stickers: [
     /* ═══ STICKER CONDITIONAL REWORK (v6.85) ═══════════════════════════════
@@ -176,9 +176,9 @@ const NINELIVES_ITEMS = {
       description: "+1 rank (stops at Ace)"},
     { id: "rankDown",   label: "−1 Rank",     icon: "➖", kind: "rank",     rankDelta: -1, tier: "common",   price: 1,
       description: "-1 rank (stops at 2)" },
-    { id: "rankUp2", unlock: { type: "milestone", stat: "dealsWonRegular", count: 4 }, label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: 2,  tier: "uncommon", price: 2,
+    { id: "rankUp2", unlock: { type: "milestone", stat: "dealsWonRegular", count: 4 }, label: "+2 Rank",     icon: "⏫", kind: "rank",     rankDelta: 2,  tier: "uncommon", price: 3,
       description: "+2 rank (stops at Ace)" },
-    { id: "rankDown2", unlock: { type: "milestone", stat: "dealsSurvived", count: 12 }, label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 2,
+    { id: "rankDown2", unlock: { type: "milestone", stat: "dealsSurvived", count: 12 }, label: "−2 Rank",     icon: "⏬", kind: "rank",     rankDelta: -2, tier: "uncommon", price: 3,
       description: "-2 rank (stops at 2)" },
     { id: "randomFixedValue", unlock: { type: "milestone", stat: "runsPlayed", count: 3 }, label: "Random Rank", icon: "🎰", kind: "behavior", behavior: "randomFixedValue", tier: "common", price: 1,
       description: "Randomize rank" },
@@ -196,12 +196,12 @@ const NINELIVES_ITEMS = {
     // the suit nine's contract on the RANK axis: the tie save is gated on
     // another alive pile's top showing this rank, a missed bet converts,
     // no other alive pile is exempt (and saves nothing).
-    { id: "tieSafe",    label: "Same-Safe",   icon: "🛡️", kind: "behavior", behavior: "tieSafe", tier: "common", price: 2,
+    { id: "tieSafe",    label: "Same-Safe",   icon: "🛡️", kind: "behavior", behavior: "tieSafe", tier: "common", price: 1,
       description: "If another pile shows this rank → safe\nOtherwise → this becomes a curse" },
     // GUARD (v6.85, was "Spade Guard" — id stays suitImmunity): suit-agnostic
     // and conditional. The save reads the CARRIER's own suit against the
     // OTHER pile tops at its landing.
-    { id: "suitImmunity", unlock: { type: "behavior", stat: "spadesPlayed", count: 150 }, label: "Guard", icon: "🪬", kind: "behavior", behavior: "suitImmunity", tier: "uncommon", price: 5,
+    { id: "suitImmunity", unlock: { type: "behavior", stat: "spadesPlayed", count: 150 }, label: "Guard", icon: "🪬", kind: "behavior", behavior: "suitImmunity", tier: "uncommon", price: 3,
       description: "If another pile shows this suit → safe\nOtherwise → this becomes a curse" },
     { id: "heartGuard", inactive: true, unlock: { type: "milestone", stat: "dealsSurvived", count: 25 }, label: "Heart Guard", icon: "♥️🪬", kind: "behavior", behavior: "suitImmunity", suit: "♥", suits: ["♥"], tier: "uncommon", price: 5,
       description: "Safe if this card lands on a ♥, or a ♥ lands on this card" },
@@ -214,9 +214,9 @@ const NINELIVES_ITEMS = {
     // v6.95: the cover punish is GONE — Payout is a pure deal-end sticker.
     { id: "extraCoin",  unlock: { type: "behavior", stat: "perfectDeals", count: 1 }, label: "Payout",      icon: "💰", kind: "behavior", behavior: "extraCoin", value: 1, tier: "uncommon", price: 3,
       description: "At deal end if top card → earn coins equal to pile size" },
-    { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "uncommon", price: 2,
+    { id: "gainCoin",   label: "Bonus Coin",  icon: "🍀", kind: "behavior", behavior: "gainCoin", value: 1, tier: "uncommon", price: 3,
       description: "If another pile shows this suit → +1 coin per pile with matching suit\nOtherwise → this becomes a curse" },
-    { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor", tier: "common", price: 2,
+    { id: "anchor",     label: "Anchor",      icon: "⚓", kind: "behavior", behavior: "anchor", tier: "common", price: 1,
       description: "At deal end if top card → exclude from smallest-pile size" },
     { id: "deathBounty", inactive: true, label: "Last Coin",  icon: "💀", kind: "behavior", behavior: "deathBounty", value: 3, tier: "common", price: 2,
       description: "+3 coins if it kills a pile", suits: ["♥"] },
@@ -243,12 +243,12 @@ const NINELIVES_ITEMS = {
     { id: "shuffle", inactive: true, label: "Shuffle",     icon: "🔀", kind: "behavior", behavior: "shuffle", tier: "uncommon", price: 1,
       description: "Optionally shuffle the pile", suits: ["♦"]  },
     // v6.85: conditional — the fire equalises EVERY alive pile (board-wide).
-    { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", count: 1, tier: "uncommon", price: 1,
+    { id: "donate",     label: "Donate",      icon: "🤝", kind: "behavior", behavior: "donate", count: 1, tier: "uncommon", price: 3,
       description: "If another pile shows this suit → make all pile sizes equal size\nOtherwise → this becomes a curse" },
     // UNGATED on purpose: with Bury 1 retired, Quick Bury is the cardsBuried
     // unlock ladder's only seed source (chicken-and-egg otherwise).
     // v6.85: conditional — the carrier's suit is the bet.
-    { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 7,
+    { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 3,
       description: "If another pile shows this suit → bury 1 card under this pile\nOtherwise → this becomes a curse" },
     { id: "twinSpark", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 4 }, label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "uncommon", price: 3,
       description: "If another pile shows this rank → peek next card\nOtherwise → this becomes a curse", suits: ["♠"]  },
@@ -261,9 +261,9 @@ const NINELIVES_ITEMS = {
     // per = deck cards per +1 coin (floor(deck remaining ÷ per)).
     { id: "deepPockets", inactive: true, unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 140 }, label: "Deep Pockets", icon: "👛", kind: "behavior", behavior: "deepPockets", per: 10, tier: "uncommon", price: 3,
       description: "+1 coin per 10 cards left in the deck", suits: ["♥"]},
-    { id: "pillarScout", unlock: { type: "behavior", stat: "pillarsPlaced", count: 12 }, label: "Pillar Scout", icon: "🔭", kind: "behavior", behavior: "pillarScout", tier: "uncommon", price: 2,
+    { id: "pillarScout", unlock: { type: "behavior", stat: "pillarsPlaced", count: 12 }, label: "Pillar Scout", icon: "🔭", kind: "behavior", behavior: "pillarScout", tier: "uncommon", price: 3,
       description: "If in column with no Pillar → peek next card\nOtherwise → this becomes a curse" },
-    { id: "baseScout", unlock: { type: "behavior", stat: "basesPlaced", count: 12 }, label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 2,
+    { id: "baseScout", unlock: { type: "behavior", stat: "basesPlaced", count: 12 }, label: "Base Scout",  icon: "🔎", kind: "behavior", behavior: "baseScout", tier: "uncommon", price: 3,
       description: "If in column with no Base → peek next card\nOtherwise → this becomes a curse" },
     // ---- the Snob family: BIDIRECTIONAL — fires when a matching-suit card lands on
      // this card, AND when this card lands on a matching-suit pile top ----
@@ -274,7 +274,7 @@ const NINELIVES_ITEMS = {
       description: "When a ♥ lands on this card, or this card lands on a ♥ → +2 coins", suits: ["♥"] },
     // RIPPLE (v6.85, was "Diamond Snob" — id stays diamondSnob, ids are
     // stable keys): suit-agnostic, conditional, and the shuffle is OFFERED.
-    { id: "diamondSnob", unlock: { type: "behavior", stat: "removalsUsed", count: 18 }, label: "Ripple", icon: "🌊", kind: "behavior", behavior: "diamondSnob", tier: "uncommon", price: 6,
+    { id: "diamondSnob", unlock: { type: "behavior", stat: "removalsUsed", count: 18 }, label: "Ripple", icon: "🌊", kind: "behavior", behavior: "diamondSnob", tier: "uncommon", price: 3,
       description: "If another pile shows this suit → optionally shuffle those piles\nOtherwise → this becomes a curse" },
     // digCount = deck cards buried under the pile per Club Snob.
     { id: "clubSnob", inactive: true, unlock: { type: "behavior", stat: "pilesLost", count: 40 }, label: "Club Snob",   icon: "🍀", kind: "behavior", behavior: "clubSnob", digCount: 1, tier: "uncommon", price: 10,
@@ -297,16 +297,16 @@ const NINELIVES_ITEMS = {
     { id: "spadeWhispers", inactive: true, unlock: { type: "behavior", stat: "spadesPlayed", count: 200 }, label: "Spade Whispers", icon: "🌬️", kind: "behavior", behavior: "spadeWhispers", tier: "rare", price: 8,
       description: "The next X cards show a hint (higher/lower/same), where X = other piles with a ♠ top card", suits: ["♠"] },
     // step = coins X grows per correct placement (resets to 0 on a wrong one).
-    { id: "tell", label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 4,
+    { id: "tell", label: "Tell",        icon: "🔮", kind: "behavior", behavior: "tell", tier: "uncommon", price: 3,
       description: "If another pile shows this suit → this card shows a tell (higher/lower/same)\nOtherwise → this becomes a curse" },
     // ---- Same-charge / Same-power stickers (CONDITIONAL, v6.90) ----------
     // The last two held-back rank conditionals go LIVE on the shared v6.85
     // template: the CARRIER's rank is the bet, read against the OTHER alive
     // tops at its landing — a hit fires, a miss converts (the ~21% hold
     // rate is the INTENDED risk), no other alive pile is exempt.
-    { id: "rechargeSameShield", unlock: { type: "behavior", stat: "correctSames", count: 10 }, label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "rare", price: 8,
+    { id: "rechargeSameShield", unlock: { type: "behavior", stat: "correctSames", count: 10 }, label: "Recharge Shield", icon: "🛡️", kind: "behavior", behavior: "rechargeSameShield", tier: "uncommon", price: 3,
       description: "If another pile shows this rank → charge Same Shield\nOtherwise → this becomes a curse" },
-    { id: "activateSamePower", unlock: { type: "behavior", stat: "correctSames", count: 34 }, label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "rare", price: 6,
+    { id: "activateSamePower", unlock: { type: "behavior", stat: "correctSames", count: 34 }, label: "Tap Power", icon: "🔗", kind: "behavior", behavior: "activateSamePower", tier: "uncommon", price: 3,
       description: "If another pile shows this rank → fire Same Power\nOtherwise → this becomes a curse" },
     // ---- CURSED stickers -----------------------------------------------------
     // cursed: true keeps a sticker OUT of every normal grant pool (store offers,
@@ -363,18 +363,18 @@ const NINELIVES_ITEMS = {
   pillars: [
     // +value per correct guess placing a matching-suit card in this column.
     { id: "heartBounty", label: "Heart Bonus", icon: "♥️",
-      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 5,
+      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
       description: "When a ♥ lands in this column → +1 coin" },
     { id: "columnTieSafe", unlock: { type: "behavior", stat: "samesCalled", count: 12 }, label: "Column Tie-Safe", icon: "🛡️",
-      kind: "guess", effect: "columnTieSafe", tier: "rare", price: 10,
+      kind: "guess", effect: "columnTieSafe", tier: "uncommon", price: 6,
       description: "Any tie is safe in this column" },
     // value = coins paid when the column is completely WIPED OUT at deal end
     // (the mirror of Guardian). Pays nothing if a single pile survives.
     { id: "lastLicks", unlock: { type: "behavior", stat: "pilesLost", count: 18 }, label: "Last Licks", icon: "🪦",
-      kind: "scoring", effect: "columnNoneAlive", value: 3, tier: "uncommon", price: 4,
+      kind: "scoring", effect: "columnNoneAlive", value: 3, tier: "uncommon", price: 6,
       description: "At deal end if no pile in this column survived → +3 coins" },
     { id: "columnGuardian", label: "Guardian", icon: "🏛️",
-      kind: "scoring", effect: "columnAllAlive", value: 4, tier: "uncommon", price: 4,
+      kind: "scoring", effect: "columnAllAlive", value: 4, tier: "uncommon", price: 6,
       description: "At deal end if every pile in this column survived → +4 coins" },
     // digCount = deck cards buried per qualifying (sticker-free ♣) landing.
     { id: "clubTribute", inactive: true, unlock: { type: "behavior", stat: "clubsPlayed", count: 150 }, label: "Clean Bury", icon: "🧹",
@@ -385,7 +385,7 @@ const NINELIVES_ITEMS = {
       description: "At deal end → +4 coins if every surviving pile in this column has a ♥ top card" },
     // value = coins per alive ♥-topped pile in this column at end of deal.
     { id: "envy", unlock: { type: "milestone", stat: "runsPlayed", count: 5 }, label: "Envy", icon: "💚",
-      kind: "scoring", effect: "heartPiles", value: 2, tier: "common", price: 4,
+      kind: "scoring", effect: "heartPiles", value: 2, tier: "uncommon", price: 6,
       description: "At deal end → +2 coins per pile in this column with a ♥" },
     // threshold = the in-column streak step the bonus starts at (+1 size per
     // step from there on; resets on a wrong guess or any other-column guess).
@@ -395,58 +395,59 @@ const NINELIVES_ITEMS = {
     // threshold = the streak step burials start at; digCount = cards buried
     // per correct in-column guess from that step onward (flat, no escalation).
     { id: "streakTribute", unlock: { type: "behavior", stat: "cardsBuried", count: 90 }, label: "Streak Bury", icon: "🔥",
-      kind: "composition", effect: "streakTribute", threshold: 4, digCount: 1, tier: "rare", price: 10,
+      kind: "composition", effect: "streakTribute", threshold: 4, digCount: 1, tier: "uncommon", price: 6,
       description: "From the 4th consecutive correct guess in this column → bury 1 card per guess — resets on a wrong guess or a guess in another column" },
     // value = the CAP this column may be widened to. The board's normal 3-way
     // split runs first, then this column gains ONE seat, never past `value` —
     // so a 1-pile column opens with 2 and a column already at the cap is
     // untouched. Ditto mirroring this widens the mirroring column too.
     { id: "fourthSeat", unlock: { type: "milestone", stat: "endlessStagesReached", count: 1 }, label: "Fourth Seat", icon: "🪑",
-      kind: "composition", effect: "columnPiles", value: 4, tier: "rare", price: 10,
+      kind: "composition", effect: "columnPiles", value: 4, tier: "uncommon", price: 6,
       description: "This column starts each deal with 1 extra pile (max 4)" },
     { id: "secondWind", label: "Second Wind", icon: "🌬️",
-      kind: "guess", effect: "secondWind", tier: "rare", price: 6, saveChance: 0.25,
+      kind: "guess", effect: "secondWind", tier: "uncommon", price: 6, saveChance: 0.25,
       description: "When a pile in this column dies → 25% chance to save it: the top card stays, the buried cards shuffle back into the deck" },
     // GREEDY (v6.93 rework): the fat-deck / empty-loadout archetype piece —
     // it scales WITH deck size while the rest of the game punishes bloat,
     // and only pays while the board carries no other pillar. value = coins
     // per chunk; perCards = the deck-size chunk that pays one chunk.
     { id: "greedy", unlock: { type: "milestone", stat: "dealsSurvived", count: 6 }, label: "Greedy", icon: "🤑",
-      kind: "scoring", effect: "greedy", value: 1, perCards: 5, tier: "common", price: 5,
+      kind: "scoring", effect: "greedy", value: 1, perCards: 5, tier: "uncommon", price: 6,
       description: "At deal end if only equipped pillar → +1 coin per 5 cards in your full deck" },
     { id: "highestEven", inactive: true, unlock: { type: "milestone", stat: "bestCampaignScore", count: 220 }, label: "Highest Heart", icon: "💗",
       kind: "scoring", effect: "highestHeart", tier: "rare", price: 8,
       description: "At deal end → earn coins equal to the highest numbered ♥ top card in this column (2–10 face value, Ace pays 1, royals pay 0)" },
     // minStickers = stickers a landing ♣ must carry; digCount = cards buried.
     { id: "denseBury", unlock: { type: "behavior", stat: "stickersApplied", count: 140 }, label: "Dense Bury", icon: "🧊",
-      kind: "composition", effect: "denseBury", minStickers: 3, digCount: 1, tier: "rare", price: 10,
+      kind: "composition", effect: "denseBury", minStickers: 3, digCount: 1, tier: "uncommon", price: 6,
       description: "When a ♣ with 3+ stickers lands correctly in this column → bury 1 card under that pile" },
     // trigger = the pile size (cards) that arms the one-shot revive offer.
     { id: "revive", unlock: { type: "milestone", stat: "dealsWonLegendary", count: 4 }, label: "Revive", icon: "♻️",
-      kind: "guess", effect: "revive", trigger: 10, tier: "rare", price: 10,
+      kind: "guess", effect: "revive", trigger: 10, tier: "uncommon", price: 6,
       description: "When a pile in this column reaches 10 cards → revive one dead pile" },
-    // BULK RATE: the store's Purge ladder climbs `value` less per purchase
-    // while equipped (a step of 2 becomes 1). Pure derived pricing — no
-    // saved state of its own.
+    // BULK RATE (v6.98): the store's Purge ladder climbs `value` less per
+    // purchase while equipped — against the flat ladder's step of 1 that is
+    // a full stop (an Old Joker-steepened ladder still creeps by the
+    // difference). Pure derived pricing — no saved state of its own.
     { id: "bulkRate", unlock: { type: "behavior", stat: "removalsUsed", count: 16 }, label: "Bulk Rate", icon: "🏷️",
       kind: "meta", effect: "purgeStepDiscount", value: 1, tier: "uncommon", price: 6,
-      description: "The store's Purge price climbs by 1 instead of 2 (no effect during deal)" },
+      description: "The store's Purge price does not climb (no effect during deal)" },
     // FREEBIE: one random shelf item per store visit costs 0 — rolled from
     // the same seeded store stream, so a reload shows the same gift.
     { id: "freebie", unlock: { type: "behavior", stat: "pinkyTipsSeen", count: 2 }, label: "Freebie", icon: "🎁",
-      kind: "meta", effect: "freebie", tier: "rare", price: 9,
+      kind: "meta", effect: "freebie", tier: "uncommon", price: 6,
       description: "One random item in every store costs 0 (no effect during deal)" },
     // RARE HUNTER: the store's rare tier weight is multiplied by `value`
     // while equipped (20 → 40 against common 100 / uncommon 50).
     { id: "rareHunter", unlock: { type: "behavior", stat: "pillarsPlaced", count: 25 }, label: "Rare Hunter", icon: "🦅",
-      kind: "meta", effect: "rareHunter", value: 2, tier: "rare", price: 8,
+      kind: "meta", effect: "rareHunter", value: 2, tier: "uncommon", price: 6,
       description: "Rare items appear in the store twice as often (no effect during deal)" },
     // BOUNCER: a campaign-level ward — 30% to turn JUST A TWO away at a ?
     // node; CERTAIN when the deck holds no 2s at all (v6.87 — reads the
     // full deck at the node). He still appears, says "Ah, nothing for you
     // today.", and takes nothing. No in-deal effect; the engine never sees it.
     { id: "twoWard", unlock: { type: "behavior", stat: "jokersPlayed", count: 4 }, label: "Bouncer", icon: "🚪",
-      kind: "meta", effect: "twoWard", chance: 0.3, tier: "uncommon", price: 5,
+      kind: "meta", effect: "twoWard", chance: 0.3, tier: "uncommon", price: 6,
       description: "30% chance to turn away a Just a Two mystery — 100% if your full deck has no 2s (no effect during deal)" },
     // QUEEN-FINDER (v6.87): the Bouncer's twin on the QUEEN side of the
     // mystery split. Rolls ride their OWN salted substream (queenFinderSalt)
@@ -455,7 +456,7 @@ const NINELIVES_ITEMS = {
     // the Old Joker's claim on the node. Cost/unlock proposed — STOP-FLAGGED
     // in the batch report.
     { id: "queenFinder", unlock: { type: "behavior", stat: "jokersPlayed", count: 6 }, label: "Queen-Finder", icon: "👑",
-      kind: "meta", effect: "queenFinder", chance: 0.3, tier: "uncommon", price: 5,
+      kind: "meta", effect: "queenFinder", chance: 0.3, tier: "uncommon", price: 6,
       description: "+30% chance to find a Beheaded Queen at a mystery stop — 100% if Queens are the most common rank in your full deck, ties don't count (no effect during deal)" },
     // FLYPAPER: sticky column — a small chance each landing picks up a
     // random sticker, permanently.
@@ -466,17 +467,17 @@ const NINELIVES_ITEMS = {
     // shop this climb — Underdog reads your deck's SCARCEST rank, Crowd
     // Favorite its most common (random tiebreak) — and holds all climb.
     { id: "underdog", unlock: { type: "behavior", stat: "cardsBuried", count: 40 }, label: "Underdog", icon: "🐜",
-      kind: "composition", effect: "rankBury", digCount: 1, tier: "rare", price: 6,
+      kind: "composition", effect: "rankBury", digCount: 1, tier: "uncommon", price: 6,
       description: "When a {rank} lands correctly in this column → bury 1 card under that pile" },
     { id: "crowdFavorite", unlock: { type: "milestone", stat: "dealsSurvived", count: 18 }, label: "Crowd Favorite", icon: "📣",
-      kind: "live", effect: "rankCoin", value: 2, tier: "rare", price: 6,
+      kind: "live", effect: "rankCoin", value: 2, tier: "uncommon", price: 6,
       description: "When a {rank} lands correctly in this column → +2 coins" },
     // ---- expansion Pillars ------------------------------------------------
     { id: "insurance", unlock: { type: "behavior", stat: "pilesLost", count: 55 }, label: "Insurance", icon: "🛟",
-      kind: "scoring", effect: "insurance", value: 8, tier: "rare", price: 4,
+      kind: "scoring", effect: "insurance", value: 8, tier: "uncommon", price: 6,
       description: "At deal end if only one pile is alive → +8 coins" },
     { id: "ditto", unlock: { type: "milestone", stat: "runsWon", count: 1 }, label: "Ditto", icon: "🪞",
-      kind: "meta", effect: "ditto", tier: "rare", price: 5,
+      kind: "meta", effect: "ditto", tier: "uncommon", price: 6,
       description: "Mirror the center column's Pillar" },
     // value = extra pile size per ♦ card (top or buried) in the column.
     { id: "stickerCount", inactive: true, label: "Massive Diamond", icon: "🏷️",
@@ -487,10 +488,10 @@ const NINELIVES_ITEMS = {
       kind: "live", effect: "prime", value: 1, tier: "rare", price: 3,
       description: "When a prime-rank card (2/3/5/7) lands correctly in this column → +1 coin" },
     { id: "queensEye", label: "Queen's Eye", icon: "👁️",
-      kind: "live", effect: "queensEye", tier: "uncommon", price: 4,
+      kind: "live", effect: "queensEye", tier: "uncommon", price: 6,
       description: "When a royal ♠ (J/Q/K) lands in this column → peek next card" },
     { id: "royalCourt", label: "Shuffler", icon: "👑",
-      kind: "guess", effect: "shuffler", tier: "uncommon", price: 3,
+      kind: "guess", effect: "shuffler", tier: "uncommon", price: 6,
       description: "When a ♦ lands in this column → optionally shuffle this column's other piles" },
     // value = coins per buried card in the largest ♥-topped alive pile.
     { id: "excavator", inactive: true, unlock: { type: "behavior", stat: "cardsBuried", count: 60 }, label: "Excavator", icon: "⛏️",
@@ -501,7 +502,7 @@ const NINELIVES_ITEMS = {
       kind: "scoring", effect: "gambler", value: 3, chance: 0.5, tier: "uncommon", price: 5,
       description: "At deal end → 50/50: +3 coins or nothing" },
     { id: "lastRites", unlock: { type: "behavior", stat: "dealsWonLegendary", count: 1 }, label: "Last Rites", icon: "🕯️",
-      kind: "live", effect: "lastRites", tier: "rare", price: 10,
+      kind: "live", effect: "lastRites", tier: "uncommon", price: 6,
       description: "When a pile in this column dies → peek next card" },
     // selfDestruct = probability (0–1) the Pillar destroys itself each deal end.
     // chance = probability the ♠ landing actually fires the peek.
@@ -509,13 +510,13 @@ const NINELIVES_ITEMS = {
       kind: "live", effect: "static", chance: 0.5, tier: "rare", price: 3,
       description: "When a ♠ lands in this column → 50% chance to peek at the next card" },
     { id: "wildAces", unlock: { type: "behavior", stat: "jokersPlayed", count: 8 }, label: "Wild Aces", icon: "🃏",
-      kind: "guess", effect: "wildAces", tier: "rare", price: 10,
+      kind: "guess", effect: "wildAces", tier: "uncommon", price: 6,
       description: "Aces count as high or low in this column" },
     { id: "diamondAnchor", unlock: { type: "behavior", stat: "diamondsPlayed", count: 200 }, label: "Diamond Anchor", icon: "⚓",
-      kind: "modifier", effect: "diamondAnchor", tier: "rare", price: 6,
+      kind: "modifier", effect: "diamondAnchor", tier: "uncommon", price: 6,
       description: "At deal end → exclude each ♦-topped pile in this column from the smallest-pile score" },
     { id: "diamondDistribution", unlock: { type: "behavior", stat: "removalsUsed", count: 10 }, label: "Diamond Distribution", icon: "⚖️",
-      kind: "guess", effect: "diamondDistribution", tier: "uncommon", price: 3,
+      kind: "guess", effect: "diamondDistribution", tier: "uncommon", price: 6,
       description: "When a ♦ lands in this column → make this column's piles equal size" },
 
     /* ====================== ARCHETYPE BATCH v6.76 =======================
@@ -533,11 +534,42 @@ const NINELIVES_ITEMS = {
     // deck-shaping teaching gate. New gates/costs STOP-FLAGGED in the
     // batch report.
     { id: "zeroRanksBury", unlock: { type: "behavior", stat: "removalsUsed", count: 40 }, label: "Empty Ranks Bury", icon: "🈳",
-      kind: "live", effect: "clubZeroRanksBury", tier: "rare", price: 8,
+      kind: "live", effect: "clubZeroRanksBury", tier: "uncommon", price: 6,
       description: "When a ♣ lands in this column → bury 1 card under that pile per rank with zero copies in your full deck" },
+    // v6.98 RETRIGGER: fires on the MOST-HELD rank (live, ties → lowest —
+    // the Chorus rule), not on ♥ — the Rank Focus bench's coin leg. The
+    // effect key is STABLE (the clubRoots rename precedent); {rank} names
+    // the live leader wherever a deck exists.
     { id: "heartZeroRanksCoin", unlock: { type: "behavior", stat: "removalsUsed", count: 50 }, label: "Empty Ranks Coins", icon: "🉐",
-      kind: "live", effect: "heartZeroRanksCoin", value: 2, tier: "uncommon", price: 8,
-      description: "When a ♥ lands in this column → +2 coins per rank with zero copies in your full deck" },
+      kind: "live", effect: "heartZeroRanksCoin", value: 2, tier: "uncommon", price: 6,
+      description: "When your most-held rank ({rank}) lands in this column → +2 coins per rank with zero copies in your full deck" },
+
+    /* ---- RANK FOCUS bench (v6.98) — the most-held-rank trigger family.
+       The trigger rank is DERIVED LIVE at every landing (full owned deck,
+       ties → the LOWEST rank, the shared mostCopiedRank rule) and the
+       {rank} template names the current leader. Gates ride the
+       removalsUsed deck-shaping ladder — proposals, STOP-FLAGGED in the
+       batch report. */
+    // Bury leg: scales by the SAME empty-rank count the coins leg pays on.
+    // UNCAPPED — the scaling model is in the v6.98 batch report.
+    { id: "mostHeldRankBury", unlock: { type: "behavior", stat: "removalsUsed", count: 45 }, label: "Most-Held Bury", icon: "🀄",
+      kind: "composition", effect: "mostHeldRankBury", tier: "uncommon", price: 6,
+      description: "When your most-held rank ({rank}) lands in this column → bury 1 card under that pile per rank with zero copies in your full deck" },
+    // Tell leg: the landing pile reads the next draw; a deck already missing
+    // 3+ ranks upgrades the same landing with a peek.
+    { id: "mostHeldRankTell", unlock: { type: "behavior", stat: "removalsUsed", count: 25 }, label: "Most-Held Tell", icon: "🎴",
+      kind: "live", effect: "mostHeldRankTell", missingForPeek: 3, tier: "uncommon", price: 6,
+      description: "When your most-held rank ({rank}) lands in this column → it shows a tell\nIf 3+ ranks are missing → peek next card" },
+    // RANK GAP: a landing is safe when the full deck holds ZERO copies of a
+    // NEIGHBOURING rank. EDGE RULE (v6.98, documented choice): the rank line
+    // does NOT wrap and a non-existent neighbour is NOT "absent" — a 2
+    // qualifies only via its 3s, an Ace only via its Kings. (Wrapping has no
+    // precedent — Ace is high everywhere but Wild Aces; and counting the
+    // missing boundary neighbour as absent would make every 2 and Ace
+    // unconditionally safe, an unwritten freebie.)
+    { id: "rankGapSafe", unlock: { type: "behavior", stat: "removalsUsed", count: 20 }, label: "Rank Gap", icon: "🕳️",
+      kind: "guess", effect: "rankGapSafe", tier: "uncommon", price: 6,
+      description: "If a card lands in this column and your full deck holds zero copies of the rank above or below it → it is safe" },
     { id: "diamondZeroRanksSize", inactive: true, unlock: { type: "behavior", stat: "removalsUsed", count: 60 }, label: "Empty Ranks Heavy", icon: "🈵",
       kind: "live", effect: "diamondZeroRanksSize", value: 1, tier: "uncommon", price: 8,
       description: "When a ♦ lands in this column → +1 pile size per rank with zero copies in your full deck" },
@@ -565,7 +597,7 @@ const NINELIVES_ITEMS = {
     // The 50% majority threshold is the mechanic itself — no knob.
     // TUNE: price 8 proposed (R4).
     { id: "suitMajoritySafe", unlock: { type: "milestone", stat: "bossesBeaten", count: 6 }, label: "Majority Rule", icon: "🗳️",
-      kind: "guess", effect: "suitMajoritySafe", shopRoll: "suit", tier: "rare", price: 8,
+      kind: "guess", effect: "suitMajoritySafe", shopRoll: "suit", tier: "uncommon", price: 6,
       description: "If half or more of your full deck is {suit} → {suit} cards are safe when they land in this column" },
     // DIAMOND ECHO: the size bonus is DERIVED — +1 per duplicate of the
     // landing card's rank in the full deck — so there is no count knob.
@@ -581,14 +613,14 @@ const NINELIVES_ITEMS = {
     // pillar re-opens conversions (the shared resolvePillarDef rule).
     // Rarity/cost/unlock proposed — STOP-FLAGGED in the batch report.
     { id: "stickerCurseWard", unlock: { type: "behavior", stat: "stickersApplied", count: 40 }, label: "Curse Ward", icon: "🧿",
-      kind: "live", effect: "stickerCurseWard", tier: "rare", price: 7,
+      kind: "live", effect: "stickerCurseWard", tier: "uncommon", price: 6,
       description: "Stickers in this column never convert into curses" },
     // FINAL CUT (v6.88): deck-shaping PAYOFF — when this column's LAST
     // alive pile falls, the killer is permanently purged from the deck
     // (removeDeckCard, so it also feeds the removalsUsed unlock ladder).
     // Jokers/Blanks can't be purged. Proposal STOP-FLAGGED in the report.
     { id: "finalPilePurge", unlock: { type: "behavior", stat: "pilesLost", count: 50 }, label: "Final Cut", icon: "🎬",
-      kind: "live", effect: "finalPilePurge", tier: "rare", price: 8,
+      kind: "live", effect: "finalPilePurge", tier: "uncommon", price: 6,
       description: "When the last pile in this column dies → permanently purge the card that killed it" },
 
     // ---- SAME-TOLERANCE family (family: "sameTolerance") -----------------
@@ -600,11 +632,11 @@ const NINELIVES_ITEMS = {
     // equipped Same-Power.
     // TUNE: price 9 proposed (R4).
     { id: "sameTolNear", unlock: { type: "behavior", stat: "correctSames", count: 52 }, label: "Close Call", icon: "🤏",
-      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "near", tier: "rare", price: 9,
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "near", tier: "uncommon", price: 6,
       description: "Same calls are safe on cards ±1 in value in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)" },
     // TUNE: price 7 proposed (R4).
     { id: "sameTolRoyal", unlock: { type: "behavior", stat: "samesCalled", count: 40 }, label: "Royal Pair", icon: "🤴",
-      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "royalPair", tier: "rare", price: 7,
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "royalPair", tier: "uncommon", price: 6,
       description: "A royal landing on a royal survives a Same call in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)" },
     // TUNE: price 7 proposed (R4).
     { id: "sameTolSum10", inactive: true, label: "Perfect Ten", icon: "🔟",
@@ -616,7 +648,7 @@ const NINELIVES_ITEMS = {
     // check by the RARE tier instead (it was uncommon).
     // TUNE: price 6 proposed (R4).
     { id: "sameTolSuit", label: "Same Suit Safe", icon: "🧥",
-      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sameSuit", tier: "rare", price: 6,
+      kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sameSuit", tier: "uncommon", price: 6,
       description: "A card landing on its own suit is safe in this column" },
 
     // ---- SHIELDS ----------------------------------------------------------
@@ -628,7 +660,7 @@ const NINELIVES_ITEMS = {
     // the {rank} template below.
     // TUNE: price 5 proposed (R4).
     { id: "rankShield", label: "Rank Shield", icon: "🔰",
-      kind: "guess", effect: "rankShield", tier: "uncommon", price: 5,
+      kind: "guess", effect: "rankShield", tier: "uncommon", price: 6,
       description: "The most common rank in your full deck ({rank}) is always safe in this column" },
     // SCARCE SUIT (v6.81, was "Daily Suit"): no roll any more — each deal
     // start reads the FULL deck and shields the suit it holds the FEWEST of
@@ -649,13 +681,13 @@ const NINELIVES_ITEMS = {
     // always-costs-5 `purgeFlat` reader retired with the key. STOP-FLAGGED
     // in the batch report: a one-shot on a permanent pillar slot.
     { id: "purgeFlatFive", label: "Flat Purge", icon: "✋",
-      kind: "meta", effect: "purgeHalve", value: 5, tier: "rare", price: 8,
-      description: "On purchase → halve the store's Purge price (minimum 5, no effect during deal)" },
+      kind: "meta", effect: "purgeHalve", value: 3, tier: "uncommon", price: 6,
+      description: "On purchase → halve the store's Purge price (minimum 3, no effect during deal)" },
     // ON THE HOUSE: covers the FIRST restock per store visit AND the FIRST
     // reshuffle per deal. No knobs — the two freebies are the mechanic.
     // TUNE: price 7 proposed (R4).
     { id: "firstFree", label: "On the House", icon: "🆓",
-      kind: "meta", effect: "firstFree", tier: "rare", price: 7,
+      kind: "meta", effect: "firstFree", tier: "uncommon", price: 6,
       description: "First restock of each store and first reshuffle of each deal are free" },
     // EIGHT BALL (v6.97): a TELL trigger on an 8 landing — the tell arms on
     // the landing pile, reading the next draw's direction. No knobs. The peek
@@ -663,7 +695,7 @@ const NINELIVES_ITEMS = {
     // saves and art bind to it; only the effect key moved).
     // TUNE: price 3 proposed (R4).
     { id: "eightPeek", label: "Eight Ball", icon: "🎱",
-      kind: "live", effect: "eightTell", tier: "common", price: 3,
+      kind: "live", effect: "eightTell", tier: "uncommon", price: 6,
       description: "When an 8 lands in this column → tell on that card" },
 
     // ---- PAUPER family -----------------------------------------------------
@@ -671,12 +703,14 @@ const NINELIVES_ITEMS = {
     // coin ceiling, evaluated LIVE at every landing (drop below it mid-deal
     // and the pillar wakes; climb back above and it sleeps). Common + cheap
     // by design: the broke player's comeback kit.
-    // PAUPER'S HEART (v6.96): a TELL now, not a peek — the broke player's
-    // ♥ landing arms the direction chip on the landing pile. Its own effect
-    // key (pauperHeartTell): the peek key retired with the peek.
+    // PAUPER'S HEART (v6.98): a landing SHIELD now — a ♥ landing in the
+    // column is SAFE while the purse is under the ceiling, and a flat-broke
+    // purse (exactly 0) ALSO peeks the next card on that landing. Its own
+    // effect key (pauperHeartSafe): the v6.96 tell key retired with the
+    // tell, as the peek key did before it.
     { id: "pauperHeart", label: "Pauper's Heart", icon: "❤️‍🩹",
-      kind: "live", effect: "pauperHeartTell", purseBelow: 10, tier: "common", price: 2,
-      description: "If purse <10 coins → when a ♥ lands in this column, that card gets a tell" },
+      kind: "live", effect: "pauperHeartSafe", purseBelow: 10, tier: "uncommon", price: 6,
+      description: "If purse <10 coins → when a ♥ lands in this column it is safe\nIf 0 coins → peek next card" },
     // value = the pile size a ♦ counts toward (board-wide) while broke,
     // replacing the normal +1.
     // TUNE: price 3 proposed (R4).
@@ -687,20 +721,33 @@ const NINELIVES_ITEMS = {
     // v6.93: cost 8 (was the family's flat 2 — the tell is the strongest
     // Pauper effect and priced like the weakest).
     { id: "pauperSpade", label: "Pauper's Spade", icon: "🥄",
-      kind: "live", effect: "pauperSpadeTell", purseBelow: 10, tier: "common", price: 8,
-      description: "If purse <10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)" },
-    // digCount = cards buried per qualifying ♣ landing.
-    // TUNE: price 2 proposed (R4).
+      kind: "live", effect: "pauperSpadeTell", purseBelow: 10, tier: "uncommon", price: 6,
+      description: "If purse <10 coins → when a ♠ lands in this column it shows a tell\nIf 0 coins → all piles show a tell" },
+    // digCount = cards buried per qualifying ♣ landing while under the
+    // purse ceiling; digCountBroke REPLACES it at exactly 0 coins (v6.98 —
+    // the two-tier Pauper bench: broke is good, flat broke is better).
     { id: "pauperClub", label: "Pauper's Club", icon: "🍀",
-      kind: "live", effect: "pauperClubBury", purseBelow: 10, digCount: 1, tier: "common", price: 2,
-      description: "If purse <10 coins → when a ♣ lands in this column bury 1" },
+      kind: "live", effect: "pauperClubBury", purseBelow: 10, digCount: 1, digCountBroke: 3, tier: "uncommon", price: 6,
+      description: "If purse <10 coins → when a ♣ lands in this column bury 1\nIf 0 coins → bury 3" },
+
+    // PAUPER'S DIAMOND (v6.98, id pauperDiamondEqualize): a NEW item — the
+    // pile-size pauperDiamond retired in the v6.94 cull and stays retired.
+    // While the purse is under the ceiling a ♦ landing in the column
+    // equalises EVERY alive pile (Donate's board-wide walk); at exactly 0
+    // coins the landing ALSO offers an optional purge — the player may tap
+    // any alive pile board-wide and its top card leaves the deck for good
+    // (decline is free; the card beneath becomes the new top, and a
+    // one-card pile dies with its card).
+    { id: "pauperDiamondEqualize", label: "Pauper's Diamond", icon: "💎",
+      kind: "live", effect: "pauperDiamondEqualize", purseBelow: 10, tier: "uncommon", price: 6,
+      description: "If purse <10 coins → when a ♦ lands in this column make all piles the same size\nIf 0 coins → optionally purge the top card of any pile board-wide" },
 
     // ---- CURSE + THINNING ---------------------------------------------------
     // CURSE HARVEST: turns a cursed landing into value. digCount = cards
     // buried per cursed landing; the peek after is fixed (the mechanic).
     // TUNE: price 7 proposed (R4).
     { id: "curseHarvest", label: "Curse Harvest", icon: "🧺",
-      kind: "live", effect: "curseBuryPeek", digCount: 1, tier: "rare", price: 7,
+      kind: "live", effect: "curseBuryPeek", digCount: 1, tier: "uncommon", price: 6,
       description: "When a cursed card lands in this column → bury 1 card under that pile, then peek next card" },
     // CLUB THIN: per = the deck-remaining step the bury scales on;
     // digCount = cards buried per full step.
@@ -714,7 +761,7 @@ const NINELIVES_ITEMS = {
     // the shop; nothing in-deal.
     // Price 10 is USER-SPECIFIED (not an R4 proposal).
     { id: "purgeRank", label: "Rank Purge", icon: "🗑️",
-      kind: "meta", effect: "purgeRank", shopRoll: "rank", tier: "rare", price: 10,
+      kind: "meta", effect: "purgeRank", shopRoll: "rank", tier: "uncommon", price: 6,
       description: "On purchase → purge every {rank} from your deck (no effect during deal)" },
 
     // SIZE-ONE DIAMONDS (archetype batch v6.76 — ungated, data only):
@@ -736,93 +783,93 @@ const NINELIVES_ITEMS = {
   bases: [
     // peekCount = upcoming cards peeked after the sacrifice.
     { id: "kamikaze", unlock: { type: "milestone", stat: "dealsWonLegendary", count: 2 }, label: "Kamikaze", icon: "💥",
-      kind: "active", effect: "kamikaze", peekCount: 2, tier: "rare", price: 8,
+      kind: "active", effect: "kamikaze", peekCount: 2, tier: "uncommon", price: 6,
       description: "Kill a random ♠-topped pile in this column → peek the next 2 cards" },
     { id: "spadePeek", unlock: { type: "behavior", stat: "zenHardWon", count: 1 }, label: "Spade Peeker", icon: "🔦",
-      kind: "active", effect: "spadePeek", tier: "uncommon", price: 7,
+      kind: "active", effect: "spadePeek", tier: "uncommon", price: 6,
       description: "If every pile in this column has a ♠ top card → peek next card" },
     { id: "shuffleColumn", label: "Upheaval", icon: "🌀",
-      kind: "active", effect: "shuffleColumn", tier: "common", price: 5,
+      kind: "active", effect: "shuffleColumn", tier: "uncommon", price: 6,
       description: "Shuffle every pile in this column" },
     { id: "revive", label: "Phoenix", icon: "🔥",
-      kind: "active", effect: "reviveBase", tier: "uncommon", price: 7,
+      kind: "active", effect: "reviveBase", tier: "uncommon", price: 6,
       description: "Revive a random dead pile in this column — buried cards return to the deck" },
     { id: "randomSticker", unlock: { type: "behavior", stat: "stickersApplied", count: 30 }, label: "Wild Sticker", icon: "🎲",
-      kind: "active", effect: "randomSticker", tier: "uncommon", price: 10,
+      kind: "active", effect: "randomSticker", tier: "uncommon", price: 6,
       description: "Apply a random sticker to a random top card in this column" },
     // BALLAST (v6.88): BOARD-WIDE now — the column walk retired with the
     // text. Same conserve-and-hand-down algorithm, every alive pile.
     { id: "evenOut", label: "Ballast", icon: "🪨",
-      kind: "active", effect: "evenOut", tier: "common", price: 5,
+      kind: "active", effect: "evenOut", tier: "uncommon", price: 6,
       description: "Make every pile on the board equal size" },
     { id: "setValue", unlock: { type: "milestone", stat: "runsWon", count: 2 }, label: "Rank Setter", icon: "🗿",
-      kind: "active", effect: "setValue", tier: "rare", price: 10,
+      kind: "active", effect: "setValue", tier: "uncommon", price: 6,
       description: "Permanently set this column's top cards to the bottom pile's rank" },
     { id: "setSuit", unlock: { type: "milestone", stat: "runsWon", count: 3 }, label: "Suit Setter", icon: "🎨",
-      kind: "active", effect: "setSuit", tier: "rare", price: 5,
+      kind: "active", effect: "setSuit", tier: "uncommon", price: 6,
       description: "Permanently set this column's top cards to the bottom pile's suit" },
     // buryPerSticker = deck cards buried per sticker peeled off the pile card.
     { id: "stickerHarvest", unlock: { type: "behavior", stat: "stickersApplied", count: 115 }, label: "Sticker Harvest", icon: "🌾",
       kind: "active", effect: "stickerHarvest", target: "pile", buryPerSticker: 2, tier: "uncommon", price: 6,
       description: "Choose a pile → bury 2 cards per sticker on its top card, then peel all those stickers" },
     { id: "refreshBases", unlock: { type: "behavior", stat: "basesPlaced", count: 25 }, label: "Reactor", icon: "⚛️",
-      kind: "active", effect: "refreshBases", tier: "rare", price: 9,
+      kind: "active", effect: "refreshBases", tier: "uncommon", price: 6,
       description: "Recharge your other two Bases" },
     // ---- expansion Bases --------------------------------------------------
     // digCount = cards buried under each matching-suit-topped pile.
     { id: "clubDig", unlock: { type: "behavior", stat: "clubsPlayed", count: 250 }, label: "Club Dig", icon: "♣️",
-      kind: "active", effect: "suitDig", suit: "♣", digCount: 1, tier: "rare", price: 8,
+      kind: "active", effect: "suitDig", suit: "♣", digCount: 1, tier: "uncommon", price: 6,
       description: "Bury 1 card under each ♣-topped pile in this column" },
     // peekCount = upcoming cards peeked after the demolition. Destroys THIS
     // column's pillar; with no pillar here the base stays yellow.
     { id: "demolish", unlock: { type: "behavior", stat: "pillarsPlaced", count: 18 }, label: "Demolish", icon: "🔨",
-      kind: "active", effect: "demolish", peekCount: 3, tier: "uncommon", price: 8,
+      kind: "active", effect: "demolish", peekCount: 3, tier: "uncommon", price: 6,
       description: "Permanently destroy this column's Pillar → peek the next 3 cards" },
     // coinPerPile = coins gained per ♥-topped pile destroyed.
     { id: "heartDemolish", unlock: { type: "behavior", stat: "heartsPlayed", count: 90 }, label: "Heart Demolish", icon: "💔",
-      kind: "active", effect: "heartDemolish", coinPerPile: 4, tier: "uncommon", price: 5,
+      kind: "active", effect: "heartDemolish", coinPerPile: 4, tier: "uncommon", price: 6,
       description: "Destroy every ♥-topped pile in this column → +4 coins per pile" },
     // coinPerCard = coins gained per ♥ card counted in the column.
     { id: "tax", label: "Heart Tax", icon: "🧾",
-      kind: "active", effect: "tax", suit: "♥", coinPerCard: 1, tier: "uncommon", price: 5,
+      kind: "active", effect: "tax", suit: "♥", coinPerCard: 1, tier: "uncommon", price: 6,
       description: "+1 coin per ♥ card in this column" },
     // ---- Same-charge / Same-power bases (activated, once per deal) ----
     { id: "rechargeSame", unlock: { type: "milestone", stat: "correctSames", count: 28 }, label: "Recharge Cell", icon: "🔋",
-      kind: "active", effect: "rechargeSameShield", tier: "rare", price: 10,
+      kind: "active", effect: "rechargeSameShield", tier: "uncommon", price: 6,
       description: "Charge the Same Shield" },
     { id: "activateSame", unlock: { type: "behavior", stat: "correctSames", count: 44 }, label: "Power Surge", icon: "⚡",
-      kind: "active", effect: "activateSamePower", tier: "rare", price: 10,
+      kind: "active", effect: "activateSamePower", tier: "uncommon", price: 6,
       description: "Fire your Same-Power" },
     // LAST RESORT: the panic button — bury the WHOLE remaining deck under
     // one pile here and the deal ends as a win, scored normally. Never in a
     // boss deal. It blows itself up AND any base beside it on use.
     { id: "lastResort", unlock: { type: "behavior", stat: "pilesLost", count: 75 }, label: "Last Resort", icon: "🧨",
-      kind: "active", effect: "lastResort", tier: "rare", price: 10,
+      kind: "active", effect: "lastResort", tier: "uncommon", price: 6,
       description: "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys any nearby Base)" },
     // EMPTY PURSE: every coin you hold, for peeks — 1 baseline + 1 more per
     // 10 coins spent (v6.74 rework; was a flat single peek).
     { id: "emptyPurse", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 150 }, label: "Empty Purse", icon: "👛",
-      kind: "active", effect: "emptyPurse", tier: "rare", price: 5,
+      kind: "active", effect: "emptyPurse", tier: "uncommon", price: 6,
       description: "Spend all your coins → peek 1 card, +1 more per 10 coins spent" },
     // SAME TELL: answers exactly one question — is the next card the same
     // rank as a top card ANYWHERE on the board? A match gets the = mark;
     // no match, no word. (v6.62: board-wide, was this-column-only.)
     { id: "sameTell", label: "Same Tell", icon: "🪞",
-      kind: "active", effect: "sameTell", tier: "uncommon", price: 5,
+      kind: "active", effect: "sameTell", tier: "uncommon", price: 6,
       description: "If the next card matches a top card's rank anywhere on the board → that card shows the = mark" },
     // LONE EYE: the no-Same-Power build's consolation — a plain peek that
     // only works while the Same slot stays EMPTY.
     { id: "lonePeek", unlock: { type: "behavior", stat: "samesCalled", count: 8 }, label: "Lone Eye", icon: "👁",
-      kind: "active", effect: "lonePeek", tier: "rare", price: 10,
+      kind: "active", effect: "lonePeek", tier: "uncommon", price: 6,
       description: "If no Same-Power is equipped → peek next card" },
     // CLUB ORACLE: reads the next card against EVERY ♣ top in its column.
     { id: "clubOracle", unlock: { type: "behavior", stat: "clubsPlayed", count: 90 }, label: "Club Oracle", icon: "🔮",
-      kind: "active", effect: "clubTell", tier: "uncommon", price: 8,
+      kind: "active", effect: "clubTell", tier: "uncommon", price: 6,
       description: "Tell each ♣-topped pile in this column for the next draw (higher/lower/same)" },
     // AMBUSH ONLY. Its light is green during an ambush and red every other
     // deal — it is a panic button you carry for the deals you did not choose.
     { id: "ambushOut", unlock: { type: "behavior", stat: "ambushesWon", count: 3 }, label: "Escape Hatch", icon: "🚪",
-      kind: "active", effect: "ambushWin", tier: "rare", price: 8,
+      kind: "active", effect: "ambushWin", tier: "uncommon", price: 6,
       description: "If in a Just a Two ambush → clear the deal instantly" },
 
     /* ====================== ARCHETYPE BATCH v6.76 =======================
@@ -840,14 +887,14 @@ const NINELIVES_ITEMS = {
     // the price never drops below. A store-side lever carried on a base.
     // TUNE: price 5 proposed (R4).
     { id: "purgeDiscount", unlock: { type: "behavior", stat: "removalsUsed", count: 3 }, label: "Purge Coupon", icon: "🎟️",
-      kind: "active", effect: "purgeDiscount", perDiamond: 1, min: 5, tier: "uncommon", price: 5,
-      description: "−1 to the store's Purge price per ♦-topped pile in this column (minimum 5)" },
+      kind: "active", effect: "purgeDiscount", perDiamond: 1, min: 3, tier: "uncommon", price: 6,
+      description: "−1 to the store's Purge price per ♦-topped pile in this column (minimum 3)" },
     // BONUS RESET (v6.88): trade the deal's banked bonus coins for sight.
     // Only fireable while MORE than 1 bonus coin is banked and the deck
     // still holds a card to show. Rarity/cost/unlock proposed — STOP-FLAGGED
     // in the batch report.
     { id: "bonusResetPeek", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 80 }, label: "Bonus Reset", icon: "🔄",
-      kind: "active", effect: "bonusResetPeek", tier: "uncommon", price: 4,
+      kind: "active", effect: "bonusResetPeek", tier: "uncommon", price: 6,
       description: "Reset bonus coins earned this deal to 0 → peek next card" },
     // TRANSMUTE: an ON-PURCHASE base — it fires at BUY time and never in a
     // deal. Its target {rank} is DERIVED LIVE — the rank your full deck
@@ -872,23 +919,31 @@ const NINELIVES_ITEMS = {
     // wasted charge).
     // TUNE: price 8 proposed (R4).
     { id: "devilsDeal", label: "Devil's Deal", icon: "😈",
-      kind: "active", effect: "devilsDeal", tier: "rare", price: 8,
+      kind: "active", effect: "devilsDeal", tier: "uncommon", price: 6,
       description: "Double bonus coins earned this deal → add a curse to a top card in this column" },
     // CLEANSE: strips every curse off this column's top cards. No knobs.
     // TUNE: price 5 proposed (R4).
     { id: "cleanseColumn", label: "Cleanse", icon: "🧼",
-      kind: "active", effect: "cleanseColumn", tier: "uncommon", price: 5,
+      kind: "active", effect: "cleanseColumn", tier: "uncommon", price: 6,
       description: "Remove all curses from this column's top cards" },
     // CHORUS: the target rank is DERIVED — the rank your full deck holds the
     // most copies of — so there is no rank knob.
     // TUNE: price 8 proposed (R4).
     { id: "chorus", unlock: { type: "milestone", stat: "bestCampaignScore", count: 160 }, label: "Chorus", icon: "🎼",
-      kind: "active", effect: "chorus", tier: "rare", price: 8,
+      kind: "active", effect: "chorus", tier: "uncommon", price: 6,
       // v6.89: {rank} names the LIVE most-common rank wherever the player
       // can see it before firing (shelf, confirm prompt, hold-help) — the
       // generic fallback still reads "your deck's most common rank" where
       // no deck exists yet (unlock popup, Collection).
       description: "Set every top card in this column to {rank}" },
+    // MISSING RANK DIG (v6.98, Rank Focus bench): BOARD-WIDE — one fire
+    // buries the deck's empty-rank count under EVERY alive pile (deck-
+    // limited, walked pile by pile). UNCAPPED like the bench's bury leg —
+    // the scaling model is in the v6.98 batch report. Gate proposal on the
+    // removalsUsed ladder, STOP-FLAGGED.
+    { id: "missingRankDig", unlock: { type: "behavior", stat: "removalsUsed", count: 35 }, label: "Missing Rank Dig", icon: "⛏️",
+      kind: "active", effect: "missingRankDig", tier: "uncommon", price: 6,
+      description: "Bury 1 card under each pile per rank missing from your full deck" },
     // DIAMOND BOOST (v6.78: column-wide, no target pick) — value = the pile
     // size added to EVERY ♦-topped pile in the column.
     // TUNE: price 3 proposed (R4).
@@ -906,43 +961,43 @@ const NINELIVES_ITEMS = {
   samePowers: [
     // value = cards buried under EACH directly-linked alive pile.
     { id: "linkBury", unlock: { type: "behavior", stat: "samesCalled", count: 30 }, label: "Burrow", icon: "🦫",
-      effect: "linkBury", value: 1, tier: "rare", price: 9,
+      effect: "linkBury", value: 1, tier: "uncommon", price: 10,
       // {suit} is the climb-fixed rolled suit (native substitutes it live).
       description: "Bury 1 card under every {suit}-topped pile" },
     { id: "linkRevive", unlock: { type: "behavior", stat: "correctSames", count: 24 }, label: "Rekindle", icon: "🌱",
-      effect: "linkRevive", tier: "rare", price: 9,
+      effect: "linkRevive", tier: "uncommon", price: 10,
       description: "Revive a dead pile" },
     // value = coins per alive pile on the board (board-wide, not just linked).
     { id: "linkCoins", label: "Dividend", icon: "💰",
-      effect: "linkCoins", value: 1, tier: "rare", price: 9,
+      effect: "linkCoins", value: 1, tier: "uncommon", price: 10,
       description: "+1 coin per alive pile" },
     { id: "linkShuffle", label: "Link Shuffler", icon: "🔀",
-      effect: "linkShuffle", tier: "rare", price: 9,
+      effect: "linkShuffle", tier: "uncommon", price: 10,
       description: "Shuffle every alive pile" },
     // CLEANSE ALL (v6.88): the Cleanse Base's board-wide, Same-gated
     // sibling — every correct Same strips every curse from every alive
     // top, durably (.cursePeeled). Distinctness vs the Base reported.
     { id: "sameCleanseAll", unlock: { type: "behavior", stat: "correctSames", count: 40 }, label: "Cleanse All", icon: "🫧",
-      effect: "sameCleanseAll", tier: "rare", price: 9,
+      effect: "sameCleanseAll", tier: "uncommon", price: 10,
       description: "Clear all curses from every top card on the board" },
     { id: "samePeek", label: "Same Peeker", icon: "👁️",
-      effect: "samePeek", tier: "rare", price: 9,
+      effect: "samePeek", tier: "uncommon", price: 10,
       description: "Peek next card" },
     // SECOND SIGHT (v6.78): ONE draw of total vision — every alive pile
     // shows its tell (higher/lower/same) for the next draw only, then the
     // draw consumes them all (the Club Oracle window mechanic, board-wide).
     { id: "linkTell", unlock: { type: "behavior", stat: "correctSames", count: 16 }, label: "Second Sight", icon: "🔮",
-      effect: "linkTell", tier: "rare", price: 9,
+      effect: "linkTell", tier: "uncommon", price: 10,
       description: "Every alive pile gets a tell for the next draw (higher/lower/same)" },
     // Sprays the CALLED pile's whole column. Each sticker is rolled from the
     // grantable pool and is PERMANENT — it stays on the card after the deal.
     { id: "linkSticker", unlock: { type: "behavior", stat: "stickersApplied", count: 70 }, label: "Sticker Spray", icon: "🎨",
-      effect: "linkSticker", tier: "rare", price: 9,
+      effect: "linkSticker", tier: "uncommon", price: 10,
       description: "Apply a random sticker to every top card in this column" },
     // chance = probability (0–1) that a card is purged from the REMAINING deck
     // — it never touches the board, only what is still to come. v6.89: 50%.
     { id: "linkPurge", unlock: { type: "behavior", stat: "removalsUsed", count: 14 }, label: "Long Odds", icon: "🎯",
-      effect: "linkPurge", chance: 0.5, tier: "rare", price: 9,
+      effect: "linkPurge", chance: 0.5, tier: "uncommon", price: 10,
       description: "50% chance to purge a card from the deck" },
     { id: "linkHeavy", inactive: true, unlock: { type: "behavior", stat: "perfectDeals", count: 4 }, label: "Same Heavy", icon: "🧱",
       effect: "linkHeavy", value: 1, hubValue: 3, tier: "rare", price: 9,
@@ -956,7 +1011,7 @@ const NINELIVES_ITEMS = {
     // Joker-on-Joker makes Aces) are the mechanic.
     // TUNE: price 9 proposed (R4) — the flat same-power price point.
     { id: "rankFlood", unlock: { type: "behavior", stat: "samesCalled", count: 60 }, label: "Rank Flood", icon: "🌊",
-      effect: "rankFlood", tier: "rare", price: 9,
+      effect: "rankFlood", tier: "uncommon", price: 10,
       description: "Set the top card of every alive pile to this card's rank — a Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces" },
   ],
 

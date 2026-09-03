@@ -52,8 +52,8 @@
       "id": "removal",
       "label": "Purge",
       "icon": "∅",
-      "price": 5,
-      "priceStep": 2,
+      "price": 3,
+      "priceStep": 1,
       "description": "Permanently purge a card from your deck — the price climbs each use"
     },
     "sell": {
@@ -95,7 +95,7 @@
       "kind": "rank",
       "rankDelta": 2,
       "tier": "uncommon",
-      "price": 2,
+      "price": 3,
       "description": "+2 rank (stops at Ace)"
     },
     {
@@ -110,7 +110,7 @@
       "kind": "rank",
       "rankDelta": -2,
       "tier": "uncommon",
-      "price": 2,
+      "price": 3,
       "description": "-2 rank (stops at 2)"
     },
     {
@@ -194,7 +194,7 @@
       "kind": "behavior",
       "behavior": "tieSafe",
       "tier": "common",
-      "price": 2,
+      "price": 1,
       "description": "If another pile shows this rank → safe\nOtherwise → this becomes a curse"
     },
     {
@@ -209,7 +209,7 @@
       "kind": "behavior",
       "behavior": "suitImmunity",
       "tier": "uncommon",
-      "price": 5,
+      "price": 3,
       "description": "If another pile shows this suit → safe\nOtherwise → this becomes a curse"
     },
     {
@@ -296,7 +296,7 @@
       "behavior": "gainCoin",
       "value": 1,
       "tier": "uncommon",
-      "price": 2,
+      "price": 3,
       "description": "If another pile shows this suit → +1 coin per pile with matching suit\nOtherwise → this becomes a curse"
     },
     {
@@ -306,7 +306,7 @@
       "kind": "behavior",
       "behavior": "anchor",
       "tier": "common",
-      "price": 2,
+      "price": 1,
       "description": "At deal end if top card → exclude from smallest-pile size"
     },
     {
@@ -448,7 +448,7 @@
       "behavior": "donate",
       "count": 1,
       "tier": "uncommon",
-      "price": 1,
+      "price": 3,
       "description": "If another pile shows this suit → make all pile sizes equal size\nOtherwise → this becomes a curse"
     },
     {
@@ -458,7 +458,7 @@
       "kind": "behavior",
       "behavior": "quickBury",
       "tier": "uncommon",
-      "price": 7,
+      "price": 3,
       "description": "If another pile shows this suit → bury 1 card under this pile\nOtherwise → this becomes a curse"
     },
     {
@@ -551,7 +551,7 @@
       "kind": "behavior",
       "behavior": "pillarScout",
       "tier": "uncommon",
-      "price": 2,
+      "price": 3,
       "description": "If in column with no Pillar → peek next card\nOtherwise → this becomes a curse"
     },
     {
@@ -566,7 +566,7 @@
       "kind": "behavior",
       "behavior": "baseScout",
       "tier": "uncommon",
-      "price": 2,
+      "price": 3,
       "description": "If in column with no Base → peek next card\nOtherwise → this becomes a curse"
     },
     {
@@ -620,7 +620,7 @@
       "kind": "behavior",
       "behavior": "diamondSnob",
       "tier": "uncommon",
-      "price": 6,
+      "price": 3,
       "description": "If another pile shows this suit → optionally shuffle those piles\nOtherwise → this becomes a curse"
     },
     {
@@ -728,7 +728,7 @@
       "kind": "behavior",
       "behavior": "tell",
       "tier": "uncommon",
-      "price": 4,
+      "price": 3,
       "description": "If another pile shows this suit → this card shows a tell (higher/lower/same)\nOtherwise → this becomes a curse"
     },
     {
@@ -742,8 +742,8 @@
       "icon": "🛡️",
       "kind": "behavior",
       "behavior": "rechargeSameShield",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 3,
       "description": "If another pile shows this rank → charge Same Shield\nOtherwise → this becomes a curse"
     },
     {
@@ -757,8 +757,8 @@
       "icon": "🔗",
       "kind": "behavior",
       "behavior": "activateSamePower",
-      "tier": "rare",
-      "price": 6,
+      "tier": "uncommon",
+      "price": 3,
       "description": "If another pile shows this rank → fire Same Power\nOtherwise → this becomes a curse"
     },
     {
@@ -955,7 +955,7 @@
       "suit": "♥",
       "value": 1,
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "When a ♥ lands in this column → +1 coin"
     },
     {
@@ -969,8 +969,8 @@
       "icon": "🛡️",
       "kind": "guess",
       "effect": "columnTieSafe",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Any tie is safe in this column"
     },
     {
@@ -986,7 +986,7 @@
       "effect": "columnNoneAlive",
       "value": 3,
       "tier": "uncommon",
-      "price": 4,
+      "price": 6,
       "description": "At deal end if no pile in this column survived → +3 coins"
     },
     {
@@ -997,7 +997,7 @@
       "effect": "columnAllAlive",
       "value": 4,
       "tier": "uncommon",
-      "price": 4,
+      "price": 6,
       "description": "At deal end if every pile in this column survived → +4 coins"
     },
     {
@@ -1047,8 +1047,8 @@
       "kind": "scoring",
       "effect": "heartPiles",
       "value": 2,
-      "tier": "common",
-      "price": 4,
+      "tier": "uncommon",
+      "price": 6,
       "description": "At deal end → +2 coins per pile in this column with a ♥"
     },
     {
@@ -1081,8 +1081,8 @@
       "effect": "streakTribute",
       "threshold": 4,
       "digCount": 1,
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "From the 4th consecutive correct guess in this column → bury 1 card per guess — resets on a wrong guess or a guess in another column"
     },
     {
@@ -1097,8 +1097,8 @@
       "kind": "composition",
       "effect": "columnPiles",
       "value": 4,
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "This column starts each deal with 1 extra pile (max 4)"
     },
     {
@@ -1107,7 +1107,7 @@
       "icon": "🌬️",
       "kind": "guess",
       "effect": "secondWind",
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 6,
       "saveChance": 0.25,
       "description": "When a pile in this column dies → 25% chance to save it: the top card stays, the buried cards shuffle back into the deck"
@@ -1125,8 +1125,8 @@
       "effect": "greedy",
       "value": 1,
       "perCards": 5,
-      "tier": "common",
-      "price": 5,
+      "tier": "uncommon",
+      "price": 6,
       "description": "At deal end if only equipped pillar → +1 coin per 5 cards in your full deck"
     },
     {
@@ -1158,8 +1158,8 @@
       "effect": "denseBury",
       "minStickers": 3,
       "digCount": 1,
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When a ♣ with 3+ stickers lands correctly in this column → bury 1 card under that pile"
     },
     {
@@ -1174,8 +1174,8 @@
       "kind": "guess",
       "effect": "revive",
       "trigger": 10,
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When a pile in this column reaches 10 cards → revive one dead pile"
     },
     {
@@ -1192,7 +1192,7 @@
       "value": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "The store's Purge price climbs by 1 instead of 2 (no effect during deal)"
+      "description": "The store's Purge price does not climb (no effect during deal)"
     },
     {
       "id": "freebie",
@@ -1205,8 +1205,8 @@
       "icon": "🎁",
       "kind": "meta",
       "effect": "freebie",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 6,
       "description": "One random item in every store costs 0 (no effect during deal)"
     },
     {
@@ -1221,8 +1221,8 @@
       "kind": "meta",
       "effect": "rareHunter",
       "value": 2,
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Rare items appear in the store twice as often (no effect during deal)"
     },
     {
@@ -1238,7 +1238,7 @@
       "effect": "twoWard",
       "chance": 0.3,
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "30% chance to turn away a Just a Two mystery — 100% if your full deck has no 2s (no effect during deal)"
     },
     {
@@ -1254,7 +1254,7 @@
       "effect": "queenFinder",
       "chance": 0.3,
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "+30% chance to find a Beheaded Queen at a mystery stop — 100% if Queens are the most common rank in your full deck, ties don't count (no effect during deal)"
     },
     {
@@ -1285,7 +1285,7 @@
       "kind": "composition",
       "effect": "rankBury",
       "digCount": 1,
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 6,
       "description": "When a {rank} lands correctly in this column → bury 1 card under that pile"
     },
@@ -1301,7 +1301,7 @@
       "kind": "live",
       "effect": "rankCoin",
       "value": 2,
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 6,
       "description": "When a {rank} lands correctly in this column → +2 coins"
     },
@@ -1317,8 +1317,8 @@
       "kind": "scoring",
       "effect": "insurance",
       "value": 8,
-      "tier": "rare",
-      "price": 4,
+      "tier": "uncommon",
+      "price": 6,
       "description": "At deal end if only one pile is alive → +8 coins"
     },
     {
@@ -1332,8 +1332,8 @@
       "icon": "🪞",
       "kind": "meta",
       "effect": "ditto",
-      "tier": "rare",
-      "price": 5,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Mirror the center column's Pillar"
     },
     {
@@ -1372,7 +1372,7 @@
       "kind": "live",
       "effect": "queensEye",
       "tier": "uncommon",
-      "price": 4,
+      "price": 6,
       "description": "When a royal ♠ (J/Q/K) lands in this column → peek next card"
     },
     {
@@ -1382,7 +1382,7 @@
       "kind": "guess",
       "effect": "shuffler",
       "tier": "uncommon",
-      "price": 3,
+      "price": 6,
       "description": "When a ♦ lands in this column → optionally shuffle this column's other piles"
     },
     {
@@ -1431,8 +1431,8 @@
       "icon": "🕯️",
       "kind": "live",
       "effect": "lastRites",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When a pile in this column dies → peek next card"
     },
     {
@@ -1463,8 +1463,8 @@
       "icon": "🃏",
       "kind": "guess",
       "effect": "wildAces",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Aces count as high or low in this column"
     },
     {
@@ -1478,7 +1478,7 @@
       "icon": "⚓",
       "kind": "modifier",
       "effect": "diamondAnchor",
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 6,
       "description": "At deal end → exclude each ♦-topped pile in this column from the smallest-pile score"
     },
@@ -1494,7 +1494,7 @@
       "kind": "guess",
       "effect": "diamondDistribution",
       "tier": "uncommon",
-      "price": 3,
+      "price": 6,
       "description": "When a ♦ lands in this column → make this column's piles equal size"
     },
     {
@@ -1508,8 +1508,8 @@
       "icon": "🈳",
       "kind": "live",
       "effect": "clubZeroRanksBury",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When a ♣ lands in this column → bury 1 card under that pile per rank with zero copies in your full deck"
     },
     {
@@ -1525,8 +1525,54 @@
       "effect": "heartZeroRanksCoin",
       "value": 2,
       "tier": "uncommon",
-      "price": 8,
-      "description": "When a ♥ lands in this column → +2 coins per rank with zero copies in your full deck"
+      "price": 6,
+      "description": "When your most-held rank ({rank}) lands in this column → +2 coins per rank with zero copies in your full deck"
+    },
+    {
+      "id": "mostHeldRankBury",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 45
+      },
+      "label": "Most-Held Bury",
+      "icon": "🀄",
+      "kind": "composition",
+      "effect": "mostHeldRankBury",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "When your most-held rank ({rank}) lands in this column → bury 1 card under that pile per rank with zero copies in your full deck"
+    },
+    {
+      "id": "mostHeldRankTell",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 25
+      },
+      "label": "Most-Held Tell",
+      "icon": "🎴",
+      "kind": "live",
+      "effect": "mostHeldRankTell",
+      "missingForPeek": 3,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "When your most-held rank ({rank}) lands in this column → it shows a tell\nIf 3+ ranks are missing → peek next card"
+    },
+    {
+      "id": "rankGapSafe",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 20
+      },
+      "label": "Rank Gap",
+      "icon": "🕳️",
+      "kind": "guess",
+      "effect": "rankGapSafe",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "If a card lands in this column and your full deck holds zero copies of the rank above or below it → it is safe"
     },
     {
       "id": "diamondZeroRanksSize",
@@ -1606,8 +1652,8 @@
       "kind": "guess",
       "effect": "suitMajoritySafe",
       "shopRoll": "suit",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "If half or more of your full deck is {suit} → {suit} cards are safe when they land in this column"
     },
     {
@@ -1637,8 +1683,8 @@
       "icon": "🧿",
       "kind": "live",
       "effect": "stickerCurseWard",
-      "tier": "rare",
-      "price": 7,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Stickers in this column never convert into curses"
     },
     {
@@ -1652,8 +1698,8 @@
       "icon": "🎬",
       "kind": "live",
       "effect": "finalPilePurge",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When the last pile in this column dies → permanently purge the card that killed it"
     },
     {
@@ -1669,8 +1715,8 @@
       "effect": "sameTolerance",
       "family": "sameTolerance",
       "tol": "near",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Same calls are safe on cards ±1 in value in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)"
     },
     {
@@ -1686,8 +1732,8 @@
       "effect": "sameTolerance",
       "family": "sameTolerance",
       "tol": "royalPair",
-      "tier": "rare",
-      "price": 7,
+      "tier": "uncommon",
+      "price": 6,
       "description": "A royal landing on a royal survives a Same call in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)"
     },
     {
@@ -1711,7 +1757,7 @@
       "effect": "sameTolerance",
       "family": "sameTolerance",
       "tol": "sameSuit",
-      "tier": "rare",
+      "tier": "uncommon",
       "price": 6,
       "description": "A card landing on its own suit is safe in this column"
     },
@@ -1722,7 +1768,7 @@
       "kind": "guess",
       "effect": "rankShield",
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "The most common rank in your full deck ({rank}) is always safe in this column"
     },
     {
@@ -1741,10 +1787,10 @@
       "icon": "✋",
       "kind": "meta",
       "effect": "purgeHalve",
-      "value": 5,
-      "tier": "rare",
-      "price": 8,
-      "description": "On purchase → halve the store's Purge price (minimum 5, no effect during deal)"
+      "value": 3,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "On purchase → halve the store's Purge price (minimum 3, no effect during deal)"
     },
     {
       "id": "firstFree",
@@ -1752,8 +1798,8 @@
       "icon": "🆓",
       "kind": "meta",
       "effect": "firstFree",
-      "tier": "rare",
-      "price": 7,
+      "tier": "uncommon",
+      "price": 6,
       "description": "First restock of each store and first reshuffle of each deal are free"
     },
     {
@@ -1762,8 +1808,8 @@
       "icon": "🎱",
       "kind": "live",
       "effect": "eightTell",
-      "tier": "common",
-      "price": 3,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When an 8 lands in this column → tell on that card"
     },
     {
@@ -1771,11 +1817,11 @@
       "label": "Pauper's Heart",
       "icon": "❤️‍🩹",
       "kind": "live",
-      "effect": "pauperHeartTell",
+      "effect": "pauperHeartSafe",
       "purseBelow": 10,
-      "tier": "common",
-      "price": 2,
-      "description": "If purse <10 coins → when a ♥ lands in this column, that card gets a tell"
+      "tier": "uncommon",
+      "price": 6,
+      "description": "If purse <10 coins → when a ♥ lands in this column it is safe\nIf 0 coins → peek next card"
     },
     {
       "id": "pauperDiamond",
@@ -1797,9 +1843,9 @@
       "kind": "live",
       "effect": "pauperSpadeTell",
       "purseBelow": 10,
-      "tier": "common",
-      "price": 8,
-      "description": "If purse <10 coins → when a ♠ lands in this column, the next card shows a tell (higher/lower/same)"
+      "tier": "uncommon",
+      "price": 6,
+      "description": "If purse <10 coins → when a ♠ lands in this column it shows a tell\nIf 0 coins → all piles show a tell"
     },
     {
       "id": "pauperClub",
@@ -1809,9 +1855,21 @@
       "effect": "pauperClubBury",
       "purseBelow": 10,
       "digCount": 1,
-      "tier": "common",
-      "price": 2,
-      "description": "If purse <10 coins → when a ♣ lands in this column bury 1"
+      "digCountBroke": 3,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "If purse <10 coins → when a ♣ lands in this column bury 1\nIf 0 coins → bury 3"
+    },
+    {
+      "id": "pauperDiamondEqualize",
+      "label": "Pauper's Diamond",
+      "icon": "💎",
+      "kind": "live",
+      "effect": "pauperDiamondEqualize",
+      "purseBelow": 10,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "If purse <10 coins → when a ♦ lands in this column make all piles the same size\nIf 0 coins → optionally purge the top card of any pile board-wide"
     },
     {
       "id": "curseHarvest",
@@ -1820,8 +1878,8 @@
       "kind": "live",
       "effect": "curseBuryPeek",
       "digCount": 1,
-      "tier": "rare",
-      "price": 7,
+      "tier": "uncommon",
+      "price": 6,
       "description": "When a cursed card lands in this column → bury 1 card under that pile, then peek next card"
     },
     {
@@ -1849,8 +1907,8 @@
       "kind": "meta",
       "effect": "purgeRank",
       "shopRoll": "rank",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "On purchase → purge every {rank} from your deck (no effect during deal)"
     },
     {
@@ -1879,8 +1937,8 @@
       "kind": "active",
       "effect": "kamikaze",
       "peekCount": 2,
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Kill a random ♠-topped pile in this column → peek the next 2 cards"
     },
     {
@@ -1895,7 +1953,7 @@
       "kind": "active",
       "effect": "spadePeek",
       "tier": "uncommon",
-      "price": 7,
+      "price": 6,
       "description": "If every pile in this column has a ♠ top card → peek next card"
     },
     {
@@ -1904,8 +1962,8 @@
       "icon": "🌀",
       "kind": "active",
       "effect": "shuffleColumn",
-      "tier": "common",
-      "price": 5,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Shuffle every pile in this column"
     },
     {
@@ -1915,7 +1973,7 @@
       "kind": "active",
       "effect": "reviveBase",
       "tier": "uncommon",
-      "price": 7,
+      "price": 6,
       "description": "Revive a random dead pile in this column — buried cards return to the deck"
     },
     {
@@ -1930,7 +1988,7 @@
       "kind": "active",
       "effect": "randomSticker",
       "tier": "uncommon",
-      "price": 10,
+      "price": 6,
       "description": "Apply a random sticker to a random top card in this column"
     },
     {
@@ -1939,8 +1997,8 @@
       "icon": "🪨",
       "kind": "active",
       "effect": "evenOut",
-      "tier": "common",
-      "price": 5,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Make every pile on the board equal size"
     },
     {
@@ -1954,8 +2012,8 @@
       "icon": "🗿",
       "kind": "active",
       "effect": "setValue",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Permanently set this column's top cards to the bottom pile's rank"
     },
     {
@@ -1969,8 +2027,8 @@
       "icon": "🎨",
       "kind": "active",
       "effect": "setSuit",
-      "tier": "rare",
-      "price": 5,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Permanently set this column's top cards to the bottom pile's suit"
     },
     {
@@ -2001,8 +2059,8 @@
       "icon": "⚛️",
       "kind": "active",
       "effect": "refreshBases",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Recharge your other two Bases"
     },
     {
@@ -2018,8 +2076,8 @@
       "effect": "suitDig",
       "suit": "♣",
       "digCount": 1,
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Bury 1 card under each ♣-topped pile in this column"
     },
     {
@@ -2035,7 +2093,7 @@
       "effect": "demolish",
       "peekCount": 3,
       "tier": "uncommon",
-      "price": 8,
+      "price": 6,
       "description": "Permanently destroy this column's Pillar → peek the next 3 cards"
     },
     {
@@ -2051,7 +2109,7 @@
       "effect": "heartDemolish",
       "coinPerPile": 4,
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "Destroy every ♥-topped pile in this column → +4 coins per pile"
     },
     {
@@ -2063,7 +2121,7 @@
       "suit": "♥",
       "coinPerCard": 1,
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "+1 coin per ♥ card in this column"
     },
     {
@@ -2077,8 +2135,8 @@
       "icon": "🔋",
       "kind": "active",
       "effect": "rechargeSameShield",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Charge the Same Shield"
     },
     {
@@ -2092,8 +2150,8 @@
       "icon": "⚡",
       "kind": "active",
       "effect": "activateSamePower",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Fire your Same-Power"
     },
     {
@@ -2107,8 +2165,8 @@
       "icon": "🧨",
       "kind": "active",
       "effect": "lastResort",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys any nearby Base)"
     },
     {
@@ -2122,8 +2180,8 @@
       "icon": "👛",
       "kind": "active",
       "effect": "emptyPurse",
-      "tier": "rare",
-      "price": 5,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Spend all your coins → peek 1 card, +1 more per 10 coins spent"
     },
     {
@@ -2133,7 +2191,7 @@
       "kind": "active",
       "effect": "sameTell",
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "If the next card matches a top card's rank anywhere on the board → that card shows the = mark"
     },
     {
@@ -2147,8 +2205,8 @@
       "icon": "👁",
       "kind": "active",
       "effect": "lonePeek",
-      "tier": "rare",
-      "price": 10,
+      "tier": "uncommon",
+      "price": 6,
       "description": "If no Same-Power is equipped → peek next card"
     },
     {
@@ -2163,7 +2221,7 @@
       "kind": "active",
       "effect": "clubTell",
       "tier": "uncommon",
-      "price": 8,
+      "price": 6,
       "description": "Tell each ♣-topped pile in this column for the next draw (higher/lower/same)"
     },
     {
@@ -2177,8 +2235,8 @@
       "icon": "🚪",
       "kind": "active",
       "effect": "ambushWin",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "If in a Just a Two ambush → clear the deal instantly"
     },
     {
@@ -2193,10 +2251,10 @@
       "kind": "active",
       "effect": "purgeDiscount",
       "perDiamond": 1,
-      "min": 5,
+      "min": 3,
       "tier": "uncommon",
-      "price": 5,
-      "description": "−1 to the store's Purge price per ♦-topped pile in this column (minimum 5)"
+      "price": 6,
+      "description": "−1 to the store's Purge price per ♦-topped pile in this column (minimum 3)"
     },
     {
       "id": "bonusResetPeek",
@@ -2210,7 +2268,7 @@
       "kind": "active",
       "effect": "bonusResetPeek",
       "tier": "uncommon",
-      "price": 4,
+      "price": 6,
       "description": "Reset bonus coins earned this deal to 0 → peek next card"
     },
     {
@@ -2247,8 +2305,8 @@
       "icon": "😈",
       "kind": "active",
       "effect": "devilsDeal",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Double bonus coins earned this deal → add a curse to a top card in this column"
     },
     {
@@ -2258,7 +2316,7 @@
       "kind": "active",
       "effect": "cleanseColumn",
       "tier": "uncommon",
-      "price": 5,
+      "price": 6,
       "description": "Remove all curses from this column's top cards"
     },
     {
@@ -2272,9 +2330,24 @@
       "icon": "🎼",
       "kind": "active",
       "effect": "chorus",
-      "tier": "rare",
-      "price": 8,
+      "tier": "uncommon",
+      "price": 6,
       "description": "Set every top card in this column to {rank}"
+    },
+    {
+      "id": "missingRankDig",
+      "unlock": {
+        "type": "behavior",
+        "stat": "removalsUsed",
+        "count": 35
+      },
+      "label": "Missing Rank Dig",
+      "icon": "⛏️",
+      "kind": "active",
+      "effect": "missingRankDig",
+      "tier": "uncommon",
+      "price": 6,
+      "description": "Bury 1 card under each pile per rank missing from your full deck"
     },
     {
       "id": "diamondBoost",
@@ -2301,8 +2374,8 @@
       "icon": "🦫",
       "effect": "linkBury",
       "value": 1,
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Bury 1 card under every {suit}-topped pile"
     },
     {
@@ -2315,8 +2388,8 @@
       "label": "Rekindle",
       "icon": "🌱",
       "effect": "linkRevive",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Revive a dead pile"
     },
     {
@@ -2325,8 +2398,8 @@
       "icon": "💰",
       "effect": "linkCoins",
       "value": 1,
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "+1 coin per alive pile"
     },
     {
@@ -2334,8 +2407,8 @@
       "label": "Link Shuffler",
       "icon": "🔀",
       "effect": "linkShuffle",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Shuffle every alive pile"
     },
     {
@@ -2348,8 +2421,8 @@
       "label": "Cleanse All",
       "icon": "🫧",
       "effect": "sameCleanseAll",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Clear all curses from every top card on the board"
     },
     {
@@ -2357,8 +2430,8 @@
       "label": "Same Peeker",
       "icon": "👁️",
       "effect": "samePeek",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Peek next card"
     },
     {
@@ -2371,8 +2444,8 @@
       "label": "Second Sight",
       "icon": "🔮",
       "effect": "linkTell",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Every alive pile gets a tell for the next draw (higher/lower/same)"
     },
     {
@@ -2385,8 +2458,8 @@
       "label": "Sticker Spray",
       "icon": "🎨",
       "effect": "linkSticker",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Apply a random sticker to every top card in this column"
     },
     {
@@ -2400,8 +2473,8 @@
       "icon": "🎯",
       "effect": "linkPurge",
       "chance": 0.5,
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "50% chance to purge a card from the deck"
     },
     {
@@ -2431,8 +2504,8 @@
       "label": "Rank Flood",
       "icon": "🌊",
       "effect": "rankFlood",
-      "tier": "rare",
-      "price": 9,
+      "tier": "uncommon",
+      "price": 10,
       "description": "Set the top card of every alive pile to this card's rank — a Joker on either side ranks them by the ranked card; Joker-on-Joker makes Aces"
     }
   ],

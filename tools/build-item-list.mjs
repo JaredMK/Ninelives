@@ -65,7 +65,8 @@ try {
 // Mirrors CampaignState.itemDescription (iOS). Keep the two in step: if a new
 // live-substituted effect appears there, add it here or this page will call
 // it UNWIRED.
-const RANK_LIVE_EFFECTS = new Set(["transmute", "rankShield", "chorus"]);   // composition-driven, per display (chorus: v6.89)
+const RANK_LIVE_EFFECTS = new Set(["transmute", "rankShield", "chorus",
+  "heartZeroRanksCoin", "mostHeldRankBury", "mostHeldRankTell"]);   // composition-driven, per display (Rank Focus bench: v6.98)
 const RANK_VARIANT_EFFECTS = new Set(["rankBury", "rankCoin"]);   // climb-locked pillarRankVariants
 const SUIT_VARIANT_IDS = new Set(["linkBury"]);                   // samePowerVariant (suit)
 
@@ -142,13 +143,19 @@ const OUTCOMES = {
   clubSnob: ["Bury", [], "on ♣ contact"], clubRoots: ["Bury", [], "per rank-matching top"],
   clubTribute: ["Bury", [], "sticker-free ♣"], streakTribute: ["Bury", [], "streak-gated"],
   denseBury: ["Bury", [], "sticker-heavy ♣"], clubZeroRanksBury: ["Bury", ["Deck Shaping"], "per empty rank"],
-  heartZeroRanksCoin: ["Coin Gain", ["Deck Shaping"], "per empty rank, ♥ landing"],
+  heartZeroRanksCoin: ["Coin Gain", ["Deck Shaping"], "per empty rank, most-held landing"],
   diamondZeroRanksSize: ["Pile Size & Score", ["Deck Shaping"], "per empty rank, ♦ landing"],
   absentSuitClubBury: ["Bury", ["Deck Shaping"], "if a suit is absent"],
   pauperClubBury: ["Bury", ["Pauper"], "while broke"], clubThin: ["Bury", [], "scales with deck left"],
   suitDig: ["Bury", [], "under each ♣ top"], linkBury: ["Bury", [], "under suit-topped piles"],
   stickerHarvest: ["Bury", ["Sticker Removal"], "peels stickers to bury"],
   curseBuryPeek: ["Bury", ["Peek", "Curse Payoff"], "on a cursed landing"],
+  // v6.98 — the Rank Focus bench + the new Pauper's Diamond.
+  mostHeldRankBury: ["Bury", ["Deck Shaping"], "most-held rank, per empty rank"],
+  mostHeldRankTell: ["Tell", ["Peek", "Deck Shaping"], "most-held rank; 3+ missing peeks"],
+  rankGapSafe: ["Safety & Saves", ["Deck Shaping"], "neighbour rank at zero"],
+  missingRankDig: ["Bury", ["Deck Shaping"], "per missing rank, every alive pile"],
+  pauperDiamondEqualize: ["Pile Size & Score", ["Pauper", "Deck Removal"], "♦ while broke; flat broke may purge"],
 
   // Peek — see the next card.
   revealNext: ["Peek", [], "on landing"], twinSpark: ["Peek", [], "conditional: rank-twin bet"],
@@ -180,7 +187,8 @@ const OUTCOMES = {
   columnAllAlive: ["Coin Gain", [], "if all survive"], columnNoneAlive: ["Coin Gain", [], "if none survive"],
   greedy: ["Coin Gain", ["Loadout"], "only pillar equipped"], tax: ["Coin Gain", [], "per ♥ in column"],
   heartDemolish: ["Coin Gain", ["Pile Destruction"], "kills ♥ piles for coins"],
-  linkCoins: ["Coin Gain", [], "per alive pile"], pauperHeartTell: ["Tell", ["Pauper"], "while broke, per ♥ landing"],
+  linkCoins: ["Coin Gain", [], "per alive pile"],
+  pauperHeartSafe: ["Safety & Saves", ["Pauper", "Peek"], "♥ while broke; flat broke peeks"],
   devilsDeal: ["Coin Gain", ["Curse Payoff"], "doubles bonus, adds a curse"],
 
   // Pile Size & Score.

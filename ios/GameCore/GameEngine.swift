@@ -324,6 +324,13 @@ public final class GameEngine {
         guard let provider = purseCoinsProvider else { return false }
         return provider() < def.int("purseBelow", 0)
     }
+    /// Is the purse FLAT BROKE (exactly 0) right now? The Pauper bench's
+    /// deeper tier (v6.98). The nil-provider dormancy rule matches
+    /// purseBelow: unwired flows never read as broke.
+    func purseBroke() -> Bool {
+        guard let provider = purseCoinsProvider else { return false }
+        return provider() <= 0
+    }
 
     // MARK: - Full-deck composition (v6.76 archetype batch, R3)
 
@@ -1152,12 +1159,15 @@ public final class GameEngine {
         emit(.actionOffer(a))
     }
 
-    /// Resolve the head pending-action (Shuffle / Donate).
-    public func answerAction(_ accept: Bool) {
+    /// Resolve the head pending-action (Shuffle / Donate / the Pauper purge).
+    /// `pickedPile` carries the player-chosen pile for offers that need one
+    /// (v6.98: Pauper's Diamond's flat-broke purge) — nil + accept falls back
+    /// to a decline for those, so a pick-less accept can never mis-fire.
+    public func answerAction(_ accept: Bool, pickedPile: Int? = nil) {
         guard let run, !run.pendingActions.isEmpty else { return }
         let a = run.pendingActions.removeFirst()
         fireContext = "\(a.kind) offer · pile \(a.index + 1) · \(accept ? "accepted" : "declined")"
-        logBegin((a.kind == "shuffle" ? "Shuffle" : a.kind == "pillarShuffle" ? "Shuffler" : a.kind == "suitRipple" ? "Ripple" : "Donate") + (accept ? " — accepted" : " — declined"))
+        logBegin((a.kind == "shuffle" ? "Shuffle" : a.kind == "pillarShuffle" ? "Shuffler" : a.kind == "suitRipple" ? "Ripple" : a.kind == "pauperPurge" ? "Pauper's Diamond" : "Donate") + (accept ? " — accepted" : " — declined"))
         if accept {
             if a.kind == "pillarShuffle" {
                 // SHUFFLER (v6.91): the accepted offer — every OTHER alive
@@ -1193,6 +1203,39 @@ public final class GameEngine {
                 logLine("pile \(a.index + 1) shuffled (order hidden)")
                 let sdef = stickerTypes.get("shuffle")
                 recT("sticker", "shuffle", sdef?.label ?? "Shuffle", ["shuffled": 1])
+            } else if a.kind == "pauperPurge" {
+                // PAUPER'S DIAMOND (v6.98): purge the PICKED pile's top card
+                // from the deck for good. The card beneath becomes the new
+                // top (its Scout flag re-arms, the revive rule); a one-card
+                // pile dies with its card. The durable deck write rides the
+                // .pauperPurged event — the engine only reports.
+                if let pi = pickedPile, board.isActive(pi), let top = board.top(pi),
+                   !top.joker, !top.blank {
+                    let pdef = resolvePillarDef(a.target)
+                    board.piles[pi].cards.removeLast()
+                    if board.piles[pi].cards.isEmpty {
+                        board.kill(pi)
+                        run.tellPiles.remove(pi)
+                        run.whisperPiles.remove(pi)
+                        emit(.pileKilled(index: pi))
+                        // Last Rites on the purged pile's own column — any
+                        // death counts (the Kamikaze/Sacrifice rule).
+                        let dcol = run.pileColumns?[pi]
+                        if let dd = resolvePillarDef(dcol), dd.effect == "lastRites" { peekPillar(dcol, dd) }
+                        logLine("purged \(cardName(top)) — pile \(pi + 1) had nothing beneath and died")
+                    } else {
+                        if let now = board.top(pi), now.revealNext { run.revealNextActive = true }
+                        logLine("purged \(cardName(top)) from the deck — pile \(pi + 1)'s next card is up")
+                    }
+                    if let pdef {
+                        firePillar(a.target, "pauperDiamondEqualize", pdef.label, 0)
+                        recT("pillar", pdef.id, pdef.label, ["purged": 1])
+                    }
+                    emit(.pauperPurged(index: pi, cardId: top.id))
+                    evaluateEnd()   // purging the last pile's last card is a chosen death
+                } else {
+                    logLine("no valid pile picked — nothing purged")
+                }
             } else if a.kind == "donate", let target = a.target,
                       board.isActive(a.index), board.isActive(target) {
                 let dn = stickerTypes.get("donate")?.int("count", 1) ?? 1

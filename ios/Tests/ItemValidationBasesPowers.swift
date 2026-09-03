@@ -419,6 +419,59 @@ enum IVBases {
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
             ]
 
+        case "missingRankDig":
+            // MISSING RANK DIG (v6.98): board-wide — buries the empty-rank
+            // count under EVERY alive pile, deck-limited, walked in order.
+            // Fixture: tops 5/8/6 + deck 3,4,7,9,10,11,12,13 → present 3–13,
+            // empty {2, 14} = 2 → 2 per pile × 3 alive piles = 6 buried.
+            let digDeck = [IV.spec(50, 3, "♥"), IV.spec(51, 4, "♥"), IV.spec(52, 7, "♥"),
+                           IV.spec(53, 9, "♥"), IV.spec(54, 10, "♥"), IV.spec(55, 11, "♥"),
+                           IV.spec(56, 12, "♥"), IV.spec(57, 13, "♥")]
+            return [
+                IV.Scenario("trigger-buriesPerMissingRankBoardWide", allowed: .all,
+                    build: { baseEngine(def, deckOrder: digDeck) },
+                    fire: { e in
+                        XCTAssertEqual(e.baseLiveCounter(0), 6, "badge: 2 empty ranks × 3 alive piles")
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.buried, 6, "buried the full board's worth")
+                        XCTAssertEqual(r?.piles, 3, "…across every alive pile")
+                    },
+                    expect: { e, f, c in
+                        for i in 0..<3 {
+                            XCTAssertEqual(e.board.piles[i].cards.count, f.pileCounts[i] + 2,
+                                           "\(c): pile \(i + 1) took 2 — the OTHER column too (board-wide)")
+                        }
+                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 6, "\(c)")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-deckLimitedWalk", allowed: .all,
+                    build: { baseEngine(def, deckOrder: Array(digDeck.prefix(3))) },
+                    fire: { e in
+                        // Present 3,4,7 + tops 5,8,6 → many empty ranks; only
+                        // 3 deck cards exist — the walk stops when they run out.
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.buried, 3, "deck-limited: buried what was left")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.deck.remaining(), 0, "\(c): the deck ran dry mid-walk")
+                    },
+                    skipSnapshot: true),   // an empty deck ends the deal
+                IV.Scenario("mustNotFire-noMissingRanks", allowed: .all,
+                    build: {
+                        // Deck holds every rank 2–14 → nothing missing.
+                        let full = (2...14).enumerated().map { IV.spec(50 + $0.offset, $0.element, "♥") }
+                        return baseEngine(def, deckOrder: full)
+                    },
+                    fire: { e in
+                        XCTAssertFalse(e.baseCanActivate(0), "every rank held → amber")
+                        XCTAssertNil(e.baseActivate(col: 0))
+                    },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining, "\(c): nothing moved")
+                        XCTAssertEqual(e.run.basesUsed?[0], false, "\(c): the charge is kept")
+                    }),
+            ]
+
         case "evenOut":
             // BALLAST (v6.88): BOARD-WIDE — pile 2 lives in the OTHER column
             // and must equalize too; the move list rides the result.

@@ -22,6 +22,10 @@ final class OldJokerTests: XCTestCase {
         for (i, b) in data.items.bases.prefix(CampaignLayout.columnSlots).enumerated() {
             c.setColumnBase(col: i, typeId: b.id)
         }
+        // v6.98 flat rarity: every pillar/base is uncommon now, so BLIND
+        // SWAP's common-item pool can only come from the sticker INVENTORY —
+        // hold one common sticker, the way a real climb would.
+        _ = c.addStickerToInventory("rankUp")
     }
 
     private var cfg: OldJokerConfig { data.items.oldJoker }
@@ -596,7 +600,9 @@ final class OldJokerTests: XCTestCase {
     func testPurgeHalvingRoundsAnOddPriceUp() {
         let c = campaign()
         c.addCoins(200)
-        _ = c.buyRemoval(c.getRunDeck().first!.id)   // the ladder off its base
+        // v6.98 ladder (base 3, step 1): TWO removals put the rung at 5 — odd.
+        _ = c.buyRemoval(c.getRunDeck().first!.id)
+        _ = c.buyRemoval(c.getRunDeck().first!.id)
         let before = Int(c.removalPrice())
         XCTAssertEqual(before % 2, 1,
                        "setup: the ladder must sit on an ODD rung here (base + step×1) — if a data retune changed the parity, this test needs a new setup")
@@ -743,9 +749,13 @@ final class OldJokerTests: XCTestCase {
             let value = gifts.reduce(0) { $0 + c.jokerRefundValue($1) }
             XCTAssertLessThanOrEqual(value, budget, "budget \(budget): he never overspends")
         }
-        // A LARGE debt stops handing over commons.
+        // A LARGE debt stops handing over commons. v6.98: with every
+        // pillar/base flattened to uncommon the coat's dearest sell value is
+        // 2 — the floor clamps to the pool's own ceiling.
         let rich = c.rollThirstGifts(budget: 20, nodeId: 9)
-        XCTAssertTrue(rich.allSatisfy { c.jokerRefundValue($0) >= 3 },
+        let ceiling = rich.map { c.jokerRefundValue($0) }.max() ?? 0
+        XCTAssertGreaterThanOrEqual(ceiling, 2, "the dearest tier still leads")
+        XCTAssertTrue(rich.allSatisfy { c.jokerRefundValue($0) >= 2 },
                       "a heavy debt is paid in the dearest things he has")
         // …and the roll still replays for the same node.
         XCTAssertEqual(rich, c.rollThirstGifts(budget: 20, nodeId: 9))

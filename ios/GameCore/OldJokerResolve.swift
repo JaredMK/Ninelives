@@ -350,8 +350,12 @@ extension CampaignState {
         // budget is fine and expected — he pays in what he happens to carry.
         let maxRows = min(6, max(1, Int((Double(budget) / 2.0).rounded(.up))))
         // The cheapest tier he'll consider, so a large debt stops offering
-        // commons: budget 12+ skips tier-1 items entirely.
-        let floorValue = budget >= 12 ? 3 : (budget >= 7 ? 2 : 1)
+        // commons: budget 12+ skips tier-1 items entirely. v6.98: the floor
+        // clamps to the pool's own ceiling — with every pillar/base flattened
+        // to uncommon there may BE no tier-3 sell value, and an unclamped
+        // floor emptied the coat entirely for big debts.
+        let poolCeiling = pool.map { $0.1 }.max() ?? 1
+        let floorValue = min(budget >= 12 ? 3 : (budget >= 7 ? 2 : 1), poolCeiling)
 
         var left = budget
         var out: [OldJoker.Holding] = []

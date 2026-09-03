@@ -94,6 +94,9 @@ extension GameEngine {
         }
         case "chorus":            return !alive.isEmpty
         case "diamondBoost":      return alive.contains { matchesSuit(board.top($0), "♦") }
+        // MISSING RANK DIG (v6.98): BOARD-WIDE (the Ballast scope rule) —
+        // needs a rank actually missing, a deck card to bury, and a live board.
+        case "missingRankDig":    return !deck.isEmpty && board.aliveCount() > 0 && zeroCopyRankCount() > 0
         default:                   return false
         }
     }
@@ -155,6 +158,11 @@ extension GameEngine {
         case "diamondBoost":
             // Total pile size it would add: value × ♦-topped alive piles.
             return topCount("♦") * base.int("value", 3)
+        case "missingRankDig":
+            // Total cards it would bury: missing ranks × alive piles,
+            // board-wide (the fire is deck-limited; the badge shows intent —
+            // the suitDig convention).
+            return zeroCopyRankCount() * board.aliveCount()
         case "chorus":
             // Tops it would rewrite (jokers/blanks skipped, already-matching
             // skipped — the fire's exact rule).
@@ -262,6 +270,9 @@ extension GameEngine {
             return "No curses on this column's top cards."
         case "diamondBoost":
             return "Needs a ♦ on top of a pile in this column."
+        case "missingRankDig":
+            if deck.isEmpty { return "The deck is empty — nothing to bury." }
+            return "Your full deck still holds every rank."
         default: break
         }
         return nil
@@ -704,6 +715,23 @@ extension GameEngine {
             res.boostedPiles = boosted
             res.index = boosted.first
             logLine("\(boosted.count) ♦ pile\(boosted.count == 1 ? "" : "s") gain\(boosted.count == 1 ? "s" : "") +\(boost) pile size")
+
+        case "missingRankDig":
+            // MISSING RANK DIG (v6.98): bury the deck's empty-rank count
+            // under EVERY alive pile, board-wide, walked pile by pile until
+            // the draw deck runs dry. Uncapped by design — the scaling model
+            // is in the v6.98 batch report.
+            let per = zeroCopyRankCount()
+            var digPiles = 0, dug = 0
+            if per > 0 {
+                for i in 0..<board.size where board.isActive(i) {
+                    if deck.isEmpty { break }
+                    let n = buryTribute(i, per, base.label)
+                    if n > 0 { digPiles += 1; dug += n }
+                }
+            }
+            res.piles = digPiles; res.buried = dug
+            logLine("\(per) missing rank\(per == 1 ? "" : "s") → buried \(dug) card\(dug == 1 ? "" : "s") under \(digPiles) pile\(digPiles == 1 ? "" : "s")")
 
         default:
             currentEntry = nil

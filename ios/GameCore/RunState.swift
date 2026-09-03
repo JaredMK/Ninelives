@@ -299,6 +299,10 @@ public enum EngineEvent {
     /// Final Cut (v6.88): the column's LAST pile fell — the killing card is
     /// purged from the campaign deck (the flow commits the durable write).
     case finalCutPurged(col: Int, cardId: Int)
+    /// PAUPER'S DIAMOND (v6.98): the accepted flat-broke purge — the picked
+    /// pile's top card leaves the campaign deck for good (the flow commits
+    /// it on the event; the engine only reports — the Final Cut contract).
+    case pauperPurged(index: Int, cardId: Int)
     case reviveOffer(col: Int, dead: [Int])
     case revived(col: Int, index: Int)
     case baseFired(BaseResult)

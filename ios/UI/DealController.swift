@@ -737,6 +737,16 @@ public final class DealController {
                 }
             }
 
+        case .pauperPurged(let index, let cardId):
+            // PAUPER'S DIAMOND (v6.98): the picked pile's top leaves the
+            // campaign deck for good — the Final Cut contract (the durable
+            // write happens HERE; the engine only reports).
+            if isCampaign { _ = campaign.removeDeckCard(cardId) }
+            animQueue.add(priority: 1) { [weak self] done in
+                self?.scene.floatCue("PURGED", at: index, color: CRT.suitRed)
+                done()
+            }
+
         case .finalCutPurged(let col, let cardId):
             // FINAL CUT (v6.88): the killer leaves the campaign deck for
             // good — the durable write happens HERE (the engine reports).
@@ -1394,6 +1404,9 @@ public final class DealController {
     public var onTributeOffer: ((TributeOffer, @escaping (Bool) -> Void) -> Void)?
     /// Ask about an optional post-landing action (shuffle / donate).
     public var onActionOffer: ((PendingAction, @escaping (Bool) -> Void) -> Void)?
+    /// PAUPER'S DIAMOND (v6.98): the flat-broke purge offer — the UI arms a
+    /// board-wide pile pick over the passed alive piles; nil = declined.
+    public var onPurgeOffer: (([Int], @escaping (Int?) -> Void) -> Void)?
     /// Diamond Ripple consent: (the piles it would shuffle, answer-callback).
     public var onRippleOffer: (([Int], @escaping (Bool) -> Void) -> Void)?
     /// Second Wind consent (v6.55): (dying pile, cards the save recycles,
@@ -1446,6 +1459,26 @@ public final class DealController {
             return
         }
         if let a = engine.run.pendingActions.first {
+            // PAUPER'S DIAMOND (v6.98): the flat-broke purge needs a PILE
+            // PICK, not a yes/no — its own handler, ahead of the generic
+            // offer. No handler / reduce-motion declines, like every offer.
+            if a.kind == "pauperPurge" {
+                guard let handler = onPurgeOffer, !reduceMotion else {
+                    engine.answerAction(false)
+                    drainPrompts()
+                    return
+                }
+                promptActive = true
+                handler(alivePiles()) { [weak self] pile in
+                    guard let self else { return }
+                    self.promptActive = false
+                    self.engine.answerAction(pile != nil, pickedPile: pile)
+                    if pile != nil { Sound.shared.removeCard() }
+                    self.drainPrompts()
+                    self.refreshAll()
+                }
+                return
+            }
             guard let handler = onActionOffer, !reduceMotion else {
                 engine.answerAction(false)
                 drainPrompts()
