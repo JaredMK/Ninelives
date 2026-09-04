@@ -1,6 +1,6 @@
 {
- "version": "v7.05",
- "generatedAt": "2026-09-04 19:46",
+ "version": "v7.06",
+ "generatedAt": "2026-09-04 20:05",
  "rows": [
   {
    "cls": "Stickers",
@@ -2219,7 +2219,7 @@
    "cls": "Bases",
    "inactive": false,
    "outcome": "Peek",
-   "outcomeDetail": "needs an empty Same-Power slot",
+   "outcomeDetail": "peek the next card",
    "outcomeAlso": [],
    "effectKey": "lonePeek",
    "id": "lonePeek",
@@ -2234,7 +2234,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If no Same-Power is equipped → peek next card",
+   "description": "Peek the next card",
    "flags": "",
    "flagNotes": ""
   },

@@ -121,6 +121,27 @@ final class V699BatchTests: XCTestCase {
                        "the debt draws from the FULL variety (v6.99) — got \(seen.sorted())")
     }
 
+    // v7.06: a MULTI-ROW debt reads as VARIETY, not a stack of pillars. Before
+    // this, flat rarity (v6.98) + the tier floor collapsed big debts to the
+    // deck's one or two rare pillars — a wide shelf was ~80% pillars and a
+    // budget-12+ shelf was 100% pillars. The coat now spreads across classes.
+    func testThirstShelfSpreadsAcrossClassesNotJustPillars() {
+        let c = CampaignState(store: MemoryStore())
+        c.setDeck("pink"); c.setSeedOverride(4242); c.reset()
+        // A generous debt: every shelf should show a MIX, and not one shelf in
+        // the sample may come back pillars-only.
+        var pillarOnly = 0, multiRow = 0
+        for node in 1...200 {
+            let gifts = c.rollThirstGifts(budget: 12, nodeId: node)
+            guard gifts.count >= 2 else { continue }
+            multiRow += 1
+            if Set(gifts.map { $0.kind }) == [.pillar] { pillarOnly += 1 }
+        }
+        XCTAssertGreaterThan(multiRow, 100, "budget 12 should build wide shelves")
+        XCTAssertEqual(pillarOnly, 0,
+                       "no multi-row debt is pillars-only any more (was 100% at budget 12+)")
+    }
+
     func testGiftShelfMintsTheCardAndOffersItFree() {
         let c = CampaignState(store: MemoryStore())
         c.setDeck("pink"); c.setSeedOverride(7); c.reset()

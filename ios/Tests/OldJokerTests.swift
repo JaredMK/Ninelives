@@ -736,8 +736,7 @@ final class OldJokerTests: XCTestCase {
     }
 
     /// THE COAT IS A SHELF: 1–6 rows, never a duplicate, never something you
-    /// already have equipped, and a bigger debt reaches for dearer things
-    /// rather than simply more of them.
+    /// already have equipped, and a bigger debt buys a WIDER shelf.
     func testTheCoatShelfIsCappedAndScalesWithTheDebt() {
         let c = campaign()
         for budget in [1, 2, 4, 8, 12, 20, 60] {
@@ -749,14 +748,16 @@ final class OldJokerTests: XCTestCase {
             let value = gifts.reduce(0) { $0 + c.jokerRefundValue($1) }
             XCTAssertLessThanOrEqual(value, budget, "budget \(budget): he never overspends")
         }
-        // A LARGE debt stops handing over commons. v6.98: with every
-        // pillar/base flattened to uncommon the coat's dearest sell value is
-        // 2 — the floor clamps to the pool's own ceiling.
+        // v7.06: a LARGE debt reads as VARIETY, not a value-floored stack of
+        // pillars. It fills all six rows and spreads across classes — the old
+        // tier floor (dropped here) collapsed a heavy debt to the deck's one or
+        // two rare pillars.
         let rich = c.rollThirstGifts(budget: 20, nodeId: 9)
-        let ceiling = rich.map { c.jokerRefundValue($0) }.max() ?? 0
-        XCTAssertGreaterThanOrEqual(ceiling, 2, "the dearest tier still leads")
-        XCTAssertTrue(rich.allSatisfy { c.jokerRefundValue($0) >= 2 },
-                      "a heavy debt is paid in the dearest things he has")
+        XCTAssertEqual(rich.count, 6, "a heavy debt fills the whole shelf")
+        XCTAssertGreaterThan(Set(rich.map { $0.kind }).count, 1,
+                             "a heavy debt is paid in a MIX of classes, not pillars alone")
+        XCTAssertNotEqual(Set(rich.map { $0.kind }), [.pillar],
+                          "…and never pillars-only (the v7.06 fix)")
         // …and the roll still replays for the same node.
         XCTAssertEqual(rich, c.rollThirstGifts(budget: 20, nodeId: 9))
     }

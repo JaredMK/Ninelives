@@ -132,20 +132,24 @@ enum IVBases {
 
         case "lonePeek":
             return [
-                IV.Scenario("trigger-noPowerEquipped", allowed: .all,
+                IV.Scenario("trigger-plainPeek", allowed: .all,
                     build: { baseEngine(def) },
                     fire: { _ = $0.baseActivate(col: 0) },
                     expect: { e, _, c in
                         XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c)")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-emptyDeckStillFires", allowed: .all,
-                    build: { baseEngine(def, deckOrder: []) },
-                    fire: { _ = $0.baseActivate(col: 0) },
-                    expect: { _, _, _ in }, skipSnapshot: true),
-                IV.Scenario("mustNotFire-powerEquipped", allowed: [],
+                // v7.06: a Same-Power no longer blocks the Lone Eye — it just peeks.
+                IV.Scenario("trigger-firesEvenWithPower", allowed: .all,
                     build: { baseEngine(def, samePower: "linkCoins") },
-                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "a power blocks the Lone Eye") },
+                    fire: { e in XCTAssertNotNil(e.baseActivate(col: 0), "a power no longer blocks the Lone Eye") },
+                    expect: { e, _, c in
+                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c)")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("edge-emptyDeckRefuses", allowed: [],
+                    build: { baseEngine(def, deckOrder: []) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no cards left to peek") },
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
             ]
 

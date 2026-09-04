@@ -163,7 +163,7 @@ const OUTCOMES = {
   suitSnob: ["Peek", [], "on ♠ contact"], queensEye: ["Peek", [], "on a royal ♠"],
   static: ["Peek", [], "50% on a ♠"], lastRites: ["Peek", [], "on a pile death"],
   eightTell: ["Tell", [], "on an 8"], spadePeek: ["Peek", [], "needs an all-♠ column"],
-  lonePeek: ["Peek", [], "needs an empty Same-Power slot"],
+  lonePeek: ["Peek", [], "peek the next card"],
   emptyPurse: ["Peek", [], "spends the whole purse"],
   kamikaze: ["Peek", ["Pile Destruction"], "kills a ♠ pile first"],
   demolish: ["Peek", ["Loadout"], "destroys this column's pillar"],

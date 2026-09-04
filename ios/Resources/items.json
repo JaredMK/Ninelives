@@ -2218,7 +2218,7 @@
       "effect": "lonePeek",
       "tier": "uncommon",
       "price": 6,
-      "description": "If no Same-Power is equipped → peek next card"
+      "description": "Peek the next card"
     },
     {
       "id": "clubOracle",

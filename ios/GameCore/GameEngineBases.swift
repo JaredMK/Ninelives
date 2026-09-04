@@ -54,7 +54,7 @@ extension GameEngine {
             return alive.contains { !(board.top($0)?.stickers.isEmpty ?? true) }
         case "refreshBases":      return !refreshableBaseColumns(col).isEmpty
         case "suitDig":           return !deck.isEmpty && alive.contains { topIsSuit($0, base.suit ?? "") }
-        case "lonePeek":          return run.samePower == nil && !deck.isEmpty
+        case "lonePeek":          return !deck.isEmpty
         case "clubTell":          return !deck.isEmpty && alive.contains { topIsSuit($0, "♣") }
         case "lastResort":        return !runConfig.isBoss && !deck.isEmpty && !alive.isEmpty
         case "emptyPurse":        return !deck.isEmpty
@@ -257,7 +257,7 @@ extension GameEngine {
         case "activateSamePower":
             if run.samePower == nil { return "No Same-Power equipped." }
         case "lonePeek":
-            if run.samePower != nil { return "Works only while NO Same-Power is equipped." }
+            return "The deck is empty — nothing to peek."
         // ── v6.76 archetype batch ─────────────────────────────────────────
         case "transmute":
             return "Fires at purchase — never during a deal."
@@ -358,12 +358,12 @@ extension GameEngine {
             logLine("\(x) ♠ top\(x == 1 ? "" : "s"): peeking the next \(x) card\(x == 1 ? "" : "s")")
 
         case "lonePeek":
-            // The Lone Eye: a plain single peek, gated (in availability) on
-            // the Same-Power slot being EMPTY.
+            // The Lone Eye: a plain single peek of the next card (v7.06 — the
+            // old "only while the Same slot is empty" gate is gone).
             run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
             res.peekCount = 1
             res.cards = deck.peek(1)
-            logLine("\(base.label): peeking the next upcoming card (no Same-Power equipped)")
+            logLine("\(base.label): peeking the next upcoming card")
 
         case "lastResort":
             // LAST RESORT: the whole remaining deck goes UNDER one pile in

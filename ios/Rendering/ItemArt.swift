@@ -3019,7 +3019,7 @@ public enum ItemArt {
             "............",
             "............",
             "............"],
-        // Lone Eye: the empty-slot peek — one open eye.
+        // Lone Eye: a plain peek at the next card — one open eye.
         "lonePeek": [
             "............",
             "............",

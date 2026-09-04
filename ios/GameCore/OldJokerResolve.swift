@@ -360,30 +360,37 @@ extension CampaignState {
         guard !pool.isEmpty else { return [] }
 
         // THE SHELF IS 1–6 ITEMS, never more. A bigger debt buys a WIDER shelf
-        // first and then a DEARER one: past six items he stops adding rows and
-        // starts reaching for costlier things instead. Under-spending the
-        // budget is fine and expected — he pays in what he happens to carry.
+        // first: he keeps adding rows (reaching for a dearer item on each) until
+        // he hits six or runs out of budget. Under-spending is fine and expected
+        // — he pays in what he happens to carry.
         let maxRows = min(6, max(1, Int((Double(budget) / 2.0).rounded(.up))))
-        // The cheapest tier he'll consider, so a large debt stops offering
-        // commons: budget 12+ skips tier-1 items entirely. v6.98: the floor
-        // clamps to the pool's own ceiling — with every pillar/base flattened
-        // to uncommon there may BE no tier-3 sell value, and an unclamped
-        // floor emptied the coat entirely for big debts.
-        let poolCeiling = pool.map { $0.1 }.max() ?? 1
-        let floorValue = min(budget >= 12 ? 3 : (budget >= 7 ? 2 : 1), poolCeiling)
 
+        // v7.06: NO tier floor. The old floor ("a big debt skips commons",
+        // rising to tier-3 at budget 12+) predates v6.98's flat rarity: once
+        // every pillar/base flattened to uncommon, the only value-3 items left
+        // were the deck's one or two RARE items — nearly always pillars — so a
+        // heavy debt's coat collapsed to pillars alone (the "only pillars" the
+        // player kept seeing). Generosity now reads as a WIDER, more VARIED
+        // shelf, not a costlier-but-narrower one.
         var left = budget
         var out: [OldJoker.Holding] = []
         var seen = Set<String>()
         while out.count < maxRows {
             let affordable = pool.filter {
-                $0.1 <= left && $0.1 >= min(floorValue, left)
-                    && !seen.contains("\($0.0.kind.rawValue).\($0.0.id)")
+                $0.1 <= left && !seen.contains("\($0.0.kind.rawValue).\($0.0.id)")
             }
             guard !affordable.isEmpty else { break }
-            // Reach for the DEAREST thing still affordable most of the time, so
-            // a heavy debt reads as generosity rather than a pile of commons.
-            let sorted = affordable.sorted { $0.1 > $1.1 }
+            // SPREAD ACROSS CLASSES. Pillars outnumber every other class in the
+            // pool, so a value-only pick lands on a pillar ~80% of the time and
+            // a multi-row coat stacks pillars. Prefer a class NOT yet on the
+            // shelf, so the debt settles in a mix — a pillar, then a base, a
+            // sticker, a Same-Power, a pack, the card — the way the fiction reads.
+            let shown = Set(out.map { $0.kind })
+            let fresh = affordable.filter { !shown.contains($0.0.kind) }
+            let candidates = fresh.isEmpty ? affordable : fresh
+            // Within the candidate class(es), still reach for the DEARER thing
+            // most of the time, so each row feels like a real gift.
+            let sorted = candidates.sorted { $0.1 > $1.1 }
             let topSlice = sorted.prefix(max(1, sorted.count / 3))
             let pick = rng.next() < 0.7
                 ? Array(topSlice)[rng.index(topSlice.count)]

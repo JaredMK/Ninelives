@@ -877,11 +877,11 @@ const NINELIVES_ITEMS = {
     { id: "sameTell", label: "Same Tell", icon: "🪞",
       kind: "active", effect: "sameTell", tier: "uncommon", price: 6,
       description: "If the next card matches a top card's rank anywhere on the board → that card shows the = mark" },
-    // LONE EYE: the no-Same-Power build's consolation — a plain peek that
-    // only works while the Same slot stays EMPTY.
+    // LONE EYE: a plain peek at the next card. (v7.06 — the old
+    // "only while no Same-Power is equipped" condition was removed.)
     { id: "lonePeek", unlock: { type: "behavior", stat: "samesCalled", count: 8 }, label: "Lone Eye", icon: "👁",
       kind: "active", effect: "lonePeek", tier: "uncommon", price: 6,
-      description: "If no Same-Power is equipped → peek next card" },
+      description: "Peek the next card" },
     // CLUB ORACLE: reads the next card against EVERY ♣ top in its column.
     { id: "clubOracle", unlock: { type: "behavior", stat: "clubsPlayed", count: 90 }, label: "Club Oracle", icon: "🔮",
       kind: "active", effect: "clubTell", tier: "uncommon", price: 6,
