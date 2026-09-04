@@ -2419,6 +2419,153 @@ public enum ItemArt {
             "..X....X....",
             "..XXXXXX....",
             "............"],
+
+        /* ── v6.99 authored-glyph sweep: every active item wears pixel art —
+           no more family-matrix or first-letter fallbacks. ─────────────── */
+        // Crowd Favorite: the most-held rank pays (a podium: crowd bars, the
+        // middle one tallest, a coin above it).
+        "crowdFavorite": [
+            "............",
+            "....XXXX....",
+            "....X..X....",
+            "....XXXX....",
+            "............",
+            "....XX......",
+            "....XX......",
+            ".XX.XX.XX...",
+            ".XX.XX.XX...",
+            ".XXXXXXXX...",
+            ".XXXXXXXX...",
+            "............"],
+        // Underdog: the scarcest rank buries (a small box slipping under a
+        // big one, into the ground line).
+        "underdog": [
+            "............",
+            "..XXXXXXX...",
+            "..X.....X...",
+            "..X.....X...",
+            "..X.....X...",
+            "..XXXXXXX...",
+            "............",
+            "....XXX.....",
+            "....X.X.....",
+            "....XXX.....",
+            "XXXXXXXXXXXX",
+            "............"],
+        // Queen-Finder: the Beheaded Queen's crown.
+        "queenFinder": [
+            "............",
+            "............",
+            ".X...XX...X.",
+            ".XX..XX..XX.",
+            ".XXX.XX.XXX.",
+            ".XXXXXXXXXX.",
+            ".XXXXXXXXXX.",
+            ".XXXXXXXXXX.",
+            ".XXXXXXXXXX.",
+            "............",
+            "............",
+            "............"],
+        // Curse Ward: the warding eye — a diamond with an ink pupil.
+        "stickerCurseWard": [
+            "............",
+            ".....XX.....",
+            "....XXXX....",
+            "...XX..XX...",
+            "..XX.KK.XX..",
+            ".XX..KK..XX.",
+            ".XX..KK..XX.",
+            "..XX.KK.XX..",
+            "...XX..XX...",
+            "....XXXX....",
+            ".....XX.....",
+            "............"],
+        // Final Cut: the killer leaves the deck — a card sliced through.
+        "finalPilePurge": [
+            "............",
+            "..XXXXXX..R.",
+            "..X....X.R..",
+            "..X....RR...",
+            "..X...RR....",
+            "..X..RR.....",
+            "..X.RR.X....",
+            "..XRR..X....",
+            "..RR...X....",
+            ".RRXXXXX....",
+            "R...........",
+            "............"],
+        // Empty Ranks Coins: a coin over the empty-rank card outline.
+        "heartZeroRanksCoin": [
+            "............",
+            "..XXXXXX....",
+            "..X....X....",
+            "..X....X....",
+            "..X....X....",
+            "..XXXXXX....",
+            "......XXXX..",
+            ".....XX..XX.",
+            ".....XX..XX.",
+            "......XXXX..",
+            "............",
+            "............"],
+        // Most-Held Bury: the fat rank stack driving cards under (stack +
+        // down arrow into the ground line).
+        "mostHeldRankBury": [
+            "............",
+            "..XXXXXX....",
+            "..XXXXXX....",
+            "............",
+            "..XXXXXX....",
+            "..XXXXXX....",
+            "............",
+            ".....XX.....",
+            "...XXXXXX...",
+            "....XXXX....",
+            ".....XX.....",
+            "XXXXXXXXXXXX"],
+        // Most-Held Tell: the fat rank stack with the tell's direction chip.
+        "mostHeldRankTell": [
+            "............",
+            "..XXXXXX....",
+            "..XXXXXX....",
+            "............",
+            "..XXXXXX....",
+            "..XXXXXX....",
+            "............",
+            ".....XX.....",
+            "....XXXX....",
+            "...XXXXXX...",
+            ".....XX.....",
+            ".....XX....."],
+        // Pauper's Diamond: the ♦ over the equalised bars.
+        "pauperDiamondEqualize": [
+            "............",
+            ".....RR.....",
+            "....RRRR....",
+            "...RRRRRR...",
+            "....RRRR....",
+            ".....RR.....",
+            "............",
+            "..XXXXXXXX..",
+            "............",
+            "..XXXXXXXX..",
+            "............",
+            "............"],
+        // Rank Gap: two rank blocks and the missing neighbour between them —
+        // the gap IS the shield.
+        "rankGapSafe": [
+            "............",
+            ".XXX....XXX.",
+            ".XXX....XXX.",
+            ".XXX....XXX.",
+            ".XXX....XXX.",
+            ".XXX....XXX.",
+            "............",
+            "....XXXX....",
+            "....X..X....",
+            "....X..X....",
+            "....XXXX....",
+            "............"],
     ]
 
     /// The bases' own 12×12 symbols (same "X" = accent convention).
@@ -2837,12 +2984,66 @@ public enum ItemArt {
             ".X......X...",
             "............",
             "............"],
+
+        /* ── v6.99 authored-glyph sweep ─────────────────────────────────── */
+        // Bonus Reset: the banked bonus traded for sight (circular arrow).
+        "bonusResetPeek": [
+            "............",
+            "...XXXXXX...",
+            "..XX....XX..",
+            "..X......XX.",
+            "..X.....XXXX",
+            "..X......XX.",
+            "..X.........",
+            "..XX....XX..",
+            "...XXXXXX...",
+            "............",
+            "............",
+            "............"],
+        // Lone Eye: the empty-slot peek — one open eye.
+        "lonePeek": [
+            "............",
+            "............",
+            "...XXXXXX...",
+            "..XX....XX..",
+            ".XX..KK..XX.",
+            ".XX..KK..XX.",
+            "..XX....XX..",
+            "...XXXXXX...",
+            "............",
+            "............",
+            "............",
+            "............"],
+        // Missing Rank Dig: the empty-rank outline driving buries under
+        // every pile (outline + twin down arrows).
+        "missingRankDig": [
+            "............",
+            "..XXXXXX....",
+            "..X....X....",
+            "..X....X....",
+            "..XXXXXX....",
+            "............",
+            "..XX...XX...",
+            "..XX...XX...",
+            ".XXXX.XXXX..",
+            "..XX...XX...",
+            "XXXXXXXXXXXX",
+            "............"],
     ]
 
     /// 8×8 marks composited onto the Same-Power diamond's centre (in ink over
     /// the cleared "="), so the six powers no longer share one identical mark.
     /// Pixels must stay inside matrix rows 5–10 / cols 4–11 of the diamond.
     private static let samePowerMarks: [String: [String]] = [
+        "sameCleanseAll": [  // Cleanse All — every curse scrubbed (a burst of clean)
+            "........",
+            ".K.KK.K.",
+            "..KKKK..",
+            ".KKKKKK.",
+            ".KKKKKK.",
+            "..KKKK..",
+            ".K.KK.K.",
+            "........"],
         "linkBury": [    // Burrow — bury under every alive pile (down arrow into ground)
             "...KK...",
             "...KK...",

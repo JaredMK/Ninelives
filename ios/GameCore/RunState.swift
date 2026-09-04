@@ -427,6 +427,10 @@ public struct SamePowerResult: Sendable, Equatable {
     /// same durable-write contract as a Base's `valueApplied`: the flow
     /// writes them onto the campaign cards.
     public var rankApplied: [(cardId: Int, value: Int)] = []
+    /// LONG ODDS (v6.99): the deal-deck card the hit removed — the popup
+    /// names the power and SHOWS this card. nil on a miss (and for every
+    /// other power). Deal-scoped: the campaign copy is untouched.
+    public var purgedCardId: Int? = nil
 
     public static func == (a: SamePowerResult, b: SamePowerResult) -> Bool {
         a.power == b.power && a.label == b.label && a.hub == b.hub && a.effect == b.effect
@@ -435,5 +439,6 @@ public struct SamePowerResult: Sendable, Equatable {
             && a.stickersApplied.map(\.typeId) == b.stickersApplied.map(\.typeId)
             && a.rankApplied.map(\.cardId) == b.rankApplied.map(\.cardId)
             && a.rankApplied.map(\.value) == b.rankApplied.map(\.value)
+            && a.purgedCardId == b.purgedCardId
     }
 }

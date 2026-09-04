@@ -156,10 +156,26 @@ extension GameEngine {
     /// `chance` that the card blows the pile anyway. The guess stays counted
     /// as correct (it was); the pile still dies, past every save. The roll
     /// reports its HIT/MISS (v6.57).
-    func malfunctionTriggers(current: LiveCard, index: Int, col: Int?) -> Bool {
-        guard hasCurse(current, "malfunction") else { return false }
-        let t = stickerTypes.all().first { $0.behavior == "malfunction" }
-        return rollChance("sticker", t?.id ?? "malfunction", t?.label ?? "Malfunction",
-                          t?.num("chance", 0.1) ?? 0.1, index: index, col: col)
+    /// MALFUNCTION (v6.99): rolls when the CARRIER lands — the sticker
+    /// template's rule (an effect belongs to the card that wears it), not
+    /// the old landed-upon read. A curse a conversion appended DURING this
+    /// landing is dormant (the freshCurses ledger — Leech/Trapdoor's rule);
+    /// pre-existing duplicates each roll once.
+    func malfunctionTriggers(drawn: LiveCard, index: Int, col: Int?) -> Bool {
+        guard let t = stickerTypes.all().first(where: { $0.behavior == "malfunction" }) else { return false }
+        var fresh = run.freshCurses
+        var rolls = 0
+        for s in drawn.stickers where stickerTypes.get(s.type)?.behavior == "malfunction" {
+            if let at = fresh.firstIndex(where: { $0.cardId == drawn.id && $0.type == s.type }) {
+                fresh.remove(at: at)   // dormant on the landing that created it
+                continue
+            }
+            rolls += 1
+        }
+        for _ in 0..<rolls {
+            if rollChance("sticker", t.id, t.label, t.num("chance", 0.1),
+                          index: index, col: col) { return true }
+        }
+        return false
     }
 }

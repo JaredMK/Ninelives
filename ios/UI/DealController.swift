@@ -831,6 +831,27 @@ public final class DealController {
             // durable-write contract as a Base's valueApplied (Chorus, Rank
             // Setter) — without this they vanished when the deal ended.
             for r in res.rankApplied { _ = campaign.randomizeCard(r.cardId, to: r.value) }
+            // The histogram tracks the deal AS IT STANDS — a Rank Flood
+            // rewrite or a Long Odds purge changed it (v6.99, the Chorus
+            // staleness fix's twin).
+            if !res.rankApplied.isEmpty || res.purgedCardId != nil { noteDeckCompositionChanged() }
+            // LONG ODDS (v6.99): a hit names itself and SHOWS the purged
+            // card — the deal-scoped removal was invisible beyond a log line.
+            if res.effect == "linkPurge", let pid = res.purgedCardId {
+                let spec = isCampaign ? campaign.findById(pid) : nil
+                animQueue.add(priority: 1) { [weak self] done in
+                    guard let self else { done(); return }
+                    if let spec {
+                        self.scene.showHelp(title: res.label.uppercased(),
+                                            body: "\(CardInfo.title(for: spec)) purged from the deck",
+                                            cardImage: CardArt.image(CardArt.Face(spec), scale: .half))
+                    } else {
+                        self.scene.showHelp(title: res.label.uppercased(),
+                                            body: "A card was purged from the deck")
+                    }
+                    done()
+                }
+            }
             // A coin-granting power (linkCoins: +value per alive pile) carries
             // its total in res.amount — float the grant on the hub so it pops
             // like every other coin source (v6.57 resource pops).
@@ -1195,6 +1216,13 @@ public final class DealController {
             // SACRIFICE (v6.76): the purged top card leaves the campaign deck
             // permanently — the pile's death above was only the board half.
             if let purged = res.purgedCardId { _ = campaign.removeDeckCard(purged) }
+            // CHORUS / RANK SETTER / SUIT SETTER / SACRIFICE (v6.99, bug 1):
+            // the durable writes above changed the deck's composition — the
+            // histogram refreshes NOW, not on the next engine action.
+            if !(res.valueApplied ?? []).isEmpty || !(res.suitApplied ?? []).isEmpty
+                || res.purgedCardId != nil {
+                noteDeckCompositionChanged()
+            }
             // PURGE COUPON (v6.76): the climb-permanent Purge price cut — the
             // campaign owns all pricing; the floor re-derives from the def.
             if let cut = res.purgePriceCut {
@@ -1343,8 +1371,9 @@ public final class DealController {
     /// SHUFFLER (v6.91): the piles the pending offer would shuffle — every
     /// OTHER alive pile in the pillar's column.
     public func shufflerTargets(landing index: Int, col: Int) -> [Int] {
+        // v6.99: the landing pile shuffles too — highlight the WHOLE column.
         guard let engine else { return [] }
-        return pilesInColumn(col).filter { $0 != index && engine.board.isActive($0) }
+        return pilesInColumn(col).filter { engine.board.isActive($0) }
     }
 
     public func rippleTargets(for index: Int) -> [Int] {
@@ -2163,8 +2192,26 @@ public final class DealController {
         scene.syncAssist(assistGate.allows(assistOn) ? engine.assistRecommendations() : nil)
         scene.syncPillarBadges(pillarBadges())
         scene.syncBaseBadges(baseBadges())
-        scene.syncBaseLights(baseLights())
+        let lights = baseLights()
+        // v6.99 (item 15): the LED transitions get their own cues — armed
+        // (amber→green), slipped (green→amber), and dark (green→red). Only
+        // for columns SEEN before this refresh: the deal-boot sync stays
+        // silent, as does a redeal's rebuild (lastBaseLights clears with it).
+        for (c, now) in lights {
+            guard let was = lastBaseLights[c], was != now else { continue }
+            switch (was, now) {
+            case (.idle, .ready):  Sound.shared.baseCharged()
+            case (.ready, .idle):  Sound.shared.baseUncharged()
+            case (.ready, .spent): Sound.shared.baseSpent()
+            default: break
+            }
+        }
+        lastBaseLights = lights
+        scene.syncBaseLights(lights)
     }
+
+    /// The previous refresh's lights — the transition cues' memory (v6.99).
+    private var lastBaseLights: [Int: DealScene.BaseLight] = [:]
 
     /// Each Base plaque's status light. Bases are the one item the player
     /// actually FIRES, so they are where a three-state light means something:

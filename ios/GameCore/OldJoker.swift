@@ -91,7 +91,11 @@ public enum OldJoker {
     /// One equipped thing he can point at: a pillar/base in a column slot, or
     /// a sticker sitting in the inventory.
     public struct Holding: Equatable {
-        public enum Kind: String { case pillar, base, sticker }
+        /// v6.99: the thirst coat pays in the FULL variety — samepower, pack
+        /// and card joined pillar/base/sticker. The player-side holdings
+        /// (buyout, refund, blind swap) still only ever produce the first
+        /// three; the new kinds exist for the gift shelf.
+        public enum Kind: String { case pillar, base, sticker, samepower, pack, card }
         public var kind: Kind
         public var id: String
         /// Column slot for pillars/bases; nil for stickers.
@@ -453,6 +457,9 @@ extension CampaignState {
         case .pillar: return data.pillarTypes.get(h.id)
         case .base: return data.baseTypes.get(h.id)
         case .sticker: return data.stickerTypes.get(h.id)
+        case .samepower: return data.samePowerTypes.get(h.id)
+        case .pack: return data.packTypes.get(h.id)
+        case .card: return nil   // a minted playing card has no registry def
         }
     }
 
@@ -464,7 +471,13 @@ extension CampaignState {
     /// fields duplicated inside the refund config; three copies of one table
     /// (UI hardcode, refund config, sell table) are now exactly one.
     public func jokerRefundValue(_ h: OldJoker.Holding) -> Int {
-        sellValue(holdingDef(h))
+        // A gifted CARD has no registry def or tier — it values as COMMON
+        // goods on the sell table (sellValue's tier default), the same
+        // buy≈3×sell ratio every other class follows. Pricing it at the
+        // store's buy price made it the pool's dearest item and the rich
+        // coat's floor then offered nothing else.
+        if h.kind == .card { return sellValue(nil) }
+        return sellValue(holdingDef(h))
     }
 
     /// The next STORE node reachable from here that is still before this

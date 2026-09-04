@@ -1473,6 +1473,52 @@ public final class DealScene: SKScene {
         }
     }
 
+    /// LONG ODDS (v6.99): the named popup with the purged card's face beside
+    /// the text — the plain body panel, grown to seat the card art on the
+    /// right. Same receipt/dismiss contract as every other help.
+    public func showHelp(title: String, body: String, cardImage: UIImage) {
+        helpPanel.removeAllChildren()
+        helpPanel.isHidden = false
+        helpReceiptText = title + "|" + body
+        let w = size.width - 16
+        let tex = SKTexture(image: cardImage)
+        tex.filteringMode = .nearest
+        let cardW = tex.size().width, cardH = tex.size().height
+        let textW = w - 16 - cardW - 10
+        let maxLines = 12
+        var lines: [String] = []
+        for para in body.split(separator: "\n", omittingEmptySubsequences: true) {
+            for line in DealScene.wrap(String(para), maxWidth: textW, size: helpBodySize, maxLines: maxLines - lines.count) {
+                lines.append(line)
+            }
+            if lines.count >= maxLines { break }
+        }
+        let lineH: CGFloat = 22
+        let h = max(58, max(34 + CGFloat(lines.count) * lineH + 10, cardH + 40))
+        let bg = PixelTexture.panelNode(size: CGSize(width: w, height: h), face: CRT.feltMid, border: CRT.phosphor)
+        bg.zPosition = 0
+        helpPanel.addChild(bg)
+        helpPanel.position = deckPanel.position
+        let t = PixelTexture.label(title, size: 20, color: CRT.phosphor, glow: true)
+        t.anchorPoint = CGPoint(x: 0, y: 1)
+        t.zPosition = 1
+        t.position = CGPoint(x: 8, y: -6)
+        helpPanel.addChild(t)
+        for (i, line) in lines.enumerated() {
+            let l = PixelTexture.label(line, size: helpBodySize, color: CRT.cardFace)
+            l.anchorPoint = CGPoint(x: 0, y: 1)
+            l.zPosition = 1
+            l.position = CGPoint(x: 8, y: -34 - CGFloat(i) * lineH)
+            helpPanel.addChild(l)
+        }
+        let card = SKSpriteNode(texture: tex)
+        card.size = tex.size()
+        card.anchorPoint = CGPoint(x: 1, y: 1)
+        card.zPosition = 1
+        card.position = CGPoint(x: w - 8, y: -30)
+        helpPanel.addChild(card)
+    }
+
     public func hideHelp() { helpPanel.isHidden = true; helpPanel.removeAllChildren(); helpReceiptText = "" }
     public var isHelpVisible: Bool { !helpPanel.isHidden }
 

@@ -147,8 +147,10 @@ final class FatalLandingTests: XCTestCase {
         // The 10% roll is seed-deterministic — walk seeds until it blows.
         var fired = false
         for seed: UInt32 in 1...200 {
-            let e = IV.engine(tops: [IV.spec(1, 5, "♠", ["malfunction"]), IV.spec(2, 6), IV.spec(3, 6)],
-                              deckOrder: [IV.spec(50, 9, "♥", ["spoiler"]), IV.spec(51, 3)],
+            // v6.99: malfunction rides the CARRIER now — same card as the
+            // Spoiler, so the kill and the touch curse share one landing.
+            let e = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+                              deckOrder: [IV.spec(50, 9, "♥", ["spoiler", "malfunction"]), IV.spec(51, 3)],
                               seed: seed)
             e.run.bonusCoins = 4
             e.guess(0, .higher)                   // 9 on 5 → correct; may malfunction

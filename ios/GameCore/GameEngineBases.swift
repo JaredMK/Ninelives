@@ -897,6 +897,7 @@ extension GameEngine {
             if rollChance("samePower", def.id, def.label, odds, index: hub),
                let gone = deck.removeRandomRemaining(rng) {
                 result.amount = 1
+                result.purgedCardId = gone.id   // v6.99: the popup shows the card
                 logLine("\(def.label): purged \(cardName(gone)) from the deck")
                 recT("samePower", def.id, def.label, ["purged": 1])
             } else {

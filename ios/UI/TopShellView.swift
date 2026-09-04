@@ -117,7 +117,23 @@ public final class TopShellView: UIView {
 
     public var isHelpVisible: Bool { !bandHelp.isHidden }
 
+    /// v6.99 (bug 6): the tap-shown help had no way OUT except tapping
+    /// another chip — a transparent catcher under the shell turns any
+    /// outside tap into a dismiss (and swallows that one tap, the standard
+    /// scrim rule). Removed the moment the help hides.
+    private var helpCatcher: UIView?
+
+    @objc private func outsideHelpTapped() { hideHelp() }
+
     public func showHelp(title: String, body: String) {
+        if helpCatcher == nil, let host = superview {
+            let c = UIView(frame: host.bounds)
+            c.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            c.backgroundColor = .clear
+            c.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(outsideHelpTapped)))
+            host.insertSubview(c, belowSubview: self)
+            helpCatcher = c
+        }
         if bandHelp.superview == nil {
             bandHelp.isUserInteractionEnabled = false
             // Help must WRAP, not clip — a long node or item description was
@@ -137,6 +153,8 @@ public final class TopShellView: UIView {
     }
 
     public func hideHelp() {
+        helpCatcher?.removeFromSuperview()
+        helpCatcher = nil
         guard !bandHelp.isHidden else { return }
         bandHelp.isHidden = true
         bandArt.isHidden = false
@@ -233,10 +251,32 @@ public final class TopShellView: UIView {
 
     /// The four-suit phase tracker (♥ pre-held, ♦♣♠ by phase) — alt decks get
     /// the numbered stage squares instead.
+    /// The endless ∞ mark (v6.99): 12×6 pixel rows — the game fonts carry no
+    /// reliable ∞ cut, and the tracker is pixel art anyway.
+    private static let infinityRows = [
+        ".XX....XX...",
+        "X..X..X..X..",
+        "X...XX...X..",
+        "X...XX...X..",
+        "X..X..X..X..",
+        ".XX....XX...",
+    ]
+
     static func trackerImage(campaign: CampaignState) -> UIImage {
         let pi = campaign.phaseIndex
         let fmt = UIGraphicsImageRendererFormat()
         fmt.scale = UIScreen.main.scale
+        // ENDLESS (v6.99): past the last stage the 1/2/3 squares (and the
+        // suit track) hand over to one glowing ∞ — the climb has no next
+        // stage to count.
+        if campaign.runWonBanked || pi >= campaign.phasesTotal() {
+            return UIGraphicsImageRenderer(size: CGSize(width: 60, height: 30), format: fmt).image { ctx in
+                ctx.cgContext.interpolationQuality = .none
+                let img = PixelGlyph.image(infinityRows.map { $0 }, color: CRT.gold,
+                                           scale: 3, shadow: false)
+                img.draw(at: CGPoint(x: 0, y: 15 - img.size.height / 2))
+            }
+        }
         if campaign.rules().altSuits {
             let total = campaign.phasesTotal()
             let step: CGFloat = 29

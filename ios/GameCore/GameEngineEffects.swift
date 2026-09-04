@@ -265,10 +265,12 @@ extension GameEngine {
             }
 
         case "shuffler" where isDiamond:
-            // SHUFFLER (v6.91): the card LANDS first, then the shuffle is
-            // OFFERED — the player can decline (or tap away). `target`
-            // carries the column for the resolve.
-            if colAlivePiles(col).contains(where: { $0 != index }) {
+            // SHUFFLER (v6.91 offer; v6.99 scope): the card LANDS first, then
+            // the shuffle is OFFERED — the player can decline (or tap away).
+            // It now shuffles EVERY alive pile in the column, the landing
+            // pile included. Offered only when some pile actually has an
+            // order to hide (2+ cards) — an all-singles column is a no-op.
+            if colAlivePiles(col).contains(where: { board.piles[$0].cards.count > 1 }) {
                 run.pendingActions.append(PendingAction(kind: "pillarShuffle", index: index, target: col))
             }
 
@@ -943,6 +945,15 @@ extension GameEngine {
         maybeExpansionStickers(index, current, drawn, col)
         maybeStickerTribute(index, drawn)
         maybeStickerActions(index, drawn)
+        // CROWD FAVORITE (v6.99): the locked rank PAID only on a correct
+        // guess; the spec is "whenever its rank lands in the pile" — and a
+        // Same-Charge-saved landing is a real landing (the card became the
+        // pile's top). The other landing pillars stay correct-only pending
+        // the surviving-landing sweep report (v6.99 batch, item 3).
+        if let col, let pillar = resolvePillarDef(col), pillar.effect == "rankCoin",
+           drawn.value == run.pillarRankVariants[pillar.id] {
+            payPillar(col, "rankCoin", pillar.label, pillar.num("value", 2) == 0 ? 2 : pillar.value)
+        }
     }
 
     /// Post-landing sticker ACTIONS. Shuffle stays an OPTIONAL offer (queued and

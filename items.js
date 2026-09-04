@@ -490,9 +490,11 @@ const NINELIVES_ITEMS = {
     { id: "queensEye", label: "Queen's Eye", icon: "👁️",
       kind: "live", effect: "queensEye", tier: "uncommon", price: 6,
       description: "When a royal ♠ (J/Q/K) lands in this column → peek next card" },
+    // v6.99: shuffles EVERY pile in the column, the landing pile included
+    // (was "the other piles"); still an offer — tap-away declines.
     { id: "royalCourt", label: "Shuffler", icon: "👑",
       kind: "guess", effect: "shuffler", tier: "uncommon", price: 6,
-      description: "When a ♦ lands in this column → optionally shuffle this column's other piles" },
+      description: "When a ♦ lands in this column → optionally shuffle this column's piles" },
     // value = coins per buried card in the largest ♥-topped alive pile.
     { id: "excavator", inactive: true, unlock: { type: "behavior", stat: "cardsBuried", count: 60 }, label: "Excavator", icon: "⛏️",
       kind: "scoring", effect: "excavator", value: 1, tier: "uncommon", price: 3,
@@ -637,7 +639,7 @@ const NINELIVES_ITEMS = {
     // TUNE: price 7 proposed (R4).
     { id: "sameTolRoyal", unlock: { type: "behavior", stat: "samesCalled", count: 40 }, label: "Royal Pair", icon: "🤴",
       kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "royalPair", tier: "uncommon", price: 6,
-      description: "A royal landing on a royal survives a Same call in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)" },
+      description: "A royal landing on a royal survives a Same call in this column" },
     // TUNE: price 7 proposed (R4).
     { id: "sameTolSum10", inactive: true, label: "Perfect Ten", icon: "🔟",
       kind: "guess", effect: "sameTolerance", family: "sameTolerance", tol: "sum10", tier: "uncommon", price: 7,
@@ -726,7 +728,7 @@ const NINELIVES_ITEMS = {
     // digCount = cards buried per qualifying ♣ landing while under the
     // purse ceiling; digCountBroke REPLACES it at exactly 0 coins (v6.98 —
     // the two-tier Pauper bench: broke is good, flat broke is better).
-    { id: "pauperClub", label: "Pauper's Club", icon: "🍀",
+    { id: "pauperClub", label: "Pauper's Fattening", icon: "🍀",
       kind: "live", effect: "pauperClubBury", purseBelow: 10, digCount: 1, digCountBroke: 3, tier: "uncommon", price: 6,
       description: "If purse <10 coins → when a ♣ lands in this column bury 1\nIf 0 coins → bury 3" },
 

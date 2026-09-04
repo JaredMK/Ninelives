@@ -809,12 +809,13 @@ public final class GameEngine {
             run.compoundUpdates[current.id] = 0
         }
 
-        // MALFUNCTION: guessing correctly against the cursed top rolls the
-        // card blowing the pile anyway. The guess stays correct in the
-        // tallies; the death bypasses every save (nothing malfunctions
+        // MALFUNCTION (v6.99): the CARRIER landing correctly rolls itself
+        // blowing the pile — the sticker template's carrier-lands rule (it
+        // fired on the landed-upon top before). The guess stays correct in
+        // the tallies; the death bypasses every save (nothing malfunctions
         // politely). Rolled BEFORE the landing branch so the branch order
         // stays legible. The roll reports its HIT/MISS (v6.57).
-        let malfunctioned = correct && malfunctionTriggers(current: current, index: index, col: col)
+        let malfunctioned = correct && malfunctionTriggers(drawn: drawn, index: index, col: col)
 
         // JAMMER feedback: the landing pile's column has a pillar the curse
         // is holding down — say so once per guess (the gate itself lives in
@@ -830,9 +831,9 @@ public final class GameEngine {
             curseTouch(index: index, current: current, drawn: drawn)
             board.kill(index)
             let t = stickerTypes.all().first { $0.behavior == "malfunction" }
-            logLine("MALFUNCTION: \(cardName(current)) blew the pile on a correct guess")
+            logLine("MALFUNCTION: \(cardName(drawn)) blew the pile as it landed")
             recT("sticker", "malfunction", t?.label ?? "Malfunction", ["kills": 1])
-            emit(.malfunction(index: index, cardLabel: cardName(current)))
+            emit(.malfunction(index: index, cardLabel: cardName(drawn)))
             emit(.pileKilled(index: index))
             emit(.resolved(index: index, guess: g, current: current, drawn: drawn, correct: false))
         } else if correct {
@@ -1170,11 +1171,12 @@ public final class GameEngine {
         logBegin((a.kind == "shuffle" ? "Shuffle" : a.kind == "pillarShuffle" ? "Shuffler" : a.kind == "suitRipple" ? "Ripple" : a.kind == "pauperPurge" ? "Pauper's Diamond" : "Donate") + (accept ? " — accepted" : " — declined"))
         if accept {
             if a.kind == "pillarShuffle" {
-                // SHUFFLER (v6.91): the accepted offer — every OTHER alive
-                // pile in the pillar's column, the old auto-fire's exact set.
+                // SHUFFLER (v6.99): the accepted offer — EVERY alive pile in
+                // the pillar's column, the landing pile included (v6.91
+                // excluded the trigger; the spec now shuffles it too).
                 var n = 0
                 if let col = a.target {
-                    for i in colAlivePiles(col) where i != a.index { board.shufflePile(i, rng); n += 1 }
+                    for i in colAlivePiles(col) { board.shufflePile(i, rng); n += 1 }
                     if n > 0 {
                         let pdef = resolvePillarDef(col)
                         firePillar(col, "shuffler", pdef?.label ?? "Shuffler", 0)

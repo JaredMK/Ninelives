@@ -1393,6 +1393,10 @@ public final class CampaignState {
     // bookkeeping still pivot on it.
     public func unbankedCardsFlipped() -> Int { max(0, totalCardsFlipped - cardsFlippedBanked) }
     public func addCardsFlipped(_ n: Int) { totalCardsFlipped += n }
+    /// v6.99 (bug 8): a WON deal folds into the climb's deal count — the web's
+    /// `recordRun` half. The iOS port declared/serialized/reset the counter
+    /// but never bumped it, so Pinky's home screen always read "0 deals".
+    public func noteDealCompleted() { runsCompleted += 1 }
     public func addRunGuesses(correct: Int, total: Int) {
         allGuessesCorrect += correct
         allGuessesTotal += total
@@ -1973,7 +1977,13 @@ public final class CampaignState {
     ///
     /// The Purge slot is deliberately absent: this is him giving, not a shop.
     public func openGiftShelf(_ gifts: [OldJoker.Holding]) {
-        let slots: [StoreSlot?] = gifts.map { StoreSlot(kind: $0.kind.rawValue, id: $0.id) }
+        // v6.99: a CARD gift mints its playing card at shelf time (the store
+        // card slot's own generator + sticker odds, off the action stream —
+        // the persisted offer carries the spec, so a reload replays it).
+        let slots: [StoreSlot?] = gifts.map { g in
+            if g.kind == .card { return StoreSlot(kind: "card", id: "card", card: genStoreCard(actRng())) }
+            return StoreSlot(kind: g.kind.rawValue, id: g.id)
+        }
         storeOffer = StoreOffer(slots: slots, rerollCost: .infinity)   // never rerollable
         freeShopPending = true
         // A rank-variant pillar in his coat locks its rank exactly like a

@@ -78,8 +78,9 @@ final class ProbabilityFeedTests: XCTestCase {
     // MARK: - Malfunction (cursed sticker, chance a correct guess kills anyway)
 
     private func malfunctionEngine() -> GameEngine {
-        IV.engine(tops: [IV.spec(1, 5, "♠", ["malfunction"]), IV.spec(2, 6), IV.spec(3, 6)],
-                  deckOrder: [IV.spec(50, 9, "♥"), IV.spec(51, 3)])
+        // v6.99: the curse rides the CARRIER (the drawn card).
+        IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6), IV.spec(3, 6)],
+                  deckOrder: [IV.spec(50, 9, "♥", ["malfunction"]), IV.spec(51, 3)])
     }
 
     func testMalfunctionHitAndMissBothReport() {

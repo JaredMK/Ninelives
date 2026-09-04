@@ -1,6 +1,6 @@
 {
- "version": "v6.98",
- "generatedAt": "2026-09-03 04:44",
+ "version": "v6.99",
+ "generatedAt": "2026-09-04 00:50",
  "rows": [
   {
    "cls": "Stickers",
@@ -1081,7 +1081,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a ♦ lands in this column → optionally shuffle this column's other piles",
+   "description": "When a ♦ lands in this column → optionally shuffle this column's piles",
    "flags": "",
    "flagNotes": ""
   },
@@ -1443,7 +1443,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "A royal landing on a royal survives a Same call in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)",
+   "description": "A royal landing on a royal survives a Same call in this column",
    "flags": "",
    "flagNotes": ""
   },
@@ -1648,7 +1648,7 @@
    ],
    "effectKey": "pauperClubBury",
    "id": "pauperClub",
-   "label": "Pauper's Club",
+   "label": "Pauper's Fattening",
    "tier": "uncommon",
    "price": 6,
    "unlockType": "",

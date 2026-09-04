@@ -229,9 +229,11 @@ final class CurseTests: XCTestCase {
         // chance 0.1 — find a seed whose first rng draw triggers it, then
         // assert the pile dies on a CORRECT guess and the guess stays counted.
         for seed: UInt32 in 1...2000 {
+            // v6.99: the curse rides the CARRIER — the drawn card blows the
+            // pile it lands on (it fired on the landed-upon top before).
             let e = engine(deck: [
-                spec(1, 5, "♠", ["malfunction"]), spec(2, 5), spec(3, 5),
-                spec(4, 9),
+                spec(1, 5, "♠"), spec(2, 5), spec(3, 5),
+                spec(4, 9, "♠", ["malfunction"]),
             ])
             e.rng.state = seed
             var sawMalfunction = false

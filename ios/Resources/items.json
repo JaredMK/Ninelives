@@ -1383,7 +1383,7 @@
       "effect": "shuffler",
       "tier": "uncommon",
       "price": 6,
-      "description": "When a ♦ lands in this column → optionally shuffle this column's other piles"
+      "description": "When a ♦ lands in this column → optionally shuffle this column's piles"
     },
     {
       "id": "excavator",
@@ -1734,7 +1734,7 @@
       "tol": "royalPair",
       "tier": "uncommon",
       "price": 6,
-      "description": "A royal landing on a royal survives a Same call in this column — a survived Same counts as a full correct Same (charges the Same Shield, fires your Same-Power)"
+      "description": "A royal landing on a royal survives a Same call in this column"
     },
     {
       "id": "sameTolSum10",
@@ -1849,7 +1849,7 @@
     },
     {
       "id": "pauperClub",
-      "label": "Pauper's Club",
+      "label": "Pauper's Fattening",
       "icon": "🍀",
       "kind": "live",
       "effect": "pauperClubBury",

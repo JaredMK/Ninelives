@@ -817,6 +817,9 @@ public final class GameFlowController: UIViewController {
 
         campaign.addCardsFlipped(o.cardsDrawn)
         campaign.addRunGuesses(correct: o.correctGuesses, total: o.totalGuesses)
+        // v6.99 (bug 8): the climb's deal counter — WON deals only, the web's
+        // recordRun semantics (a lost deal ends the climb anyway).
+        if o.won { campaign.noteDealCompleted() }
         if !exhibition {
             var s = campaign.stats.get()
             s.lifetimeCardsDrawn += o.cardsDrawn

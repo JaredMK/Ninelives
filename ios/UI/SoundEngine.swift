@@ -951,6 +951,39 @@ public final class Sound {
         ])
     }
 
+    /// A BASE LED going AMBER→GREEN (v6.99): the arm click — a small bright
+    /// upward two-note, the "you can fire this now" wink. Kin to pillarFire
+    /// but shorter and thinner: it marks a STATE, not an action.
+    public func baseCharged() {
+        play("baseCharged", [
+            Voice(freq: 392, dur: 0.06, type: .triangle, gain: 0.026, glideTo: 523,
+                  attack: 0.005, release: 0.03, cutoff: 2600),
+            Voice(freq: 1046, dur: 0.07, type: .sine, gain: 0.016, at: 0.05,
+                  attack: 0.006, release: 0.035, cutoff: 3400),
+        ])
+    }
+
+    /// GREEN→AMBER (v6.99): the arm slipping — the charged cue's mirror, a
+    /// soft downward slide. Quiet: conditions lapse often mid-deal.
+    public func baseUncharged() {
+        play("baseUncharged", [
+            Voice(freq: 523, dur: 0.07, type: .triangle, gain: 0.022, glideTo: 392,
+                  attack: 0.006, release: 0.04, cutoff: 1900),
+        ])
+    }
+
+    /// GREEN→RED (v6.99): the light going dark — a damp tick and a low drop.
+    /// Deliberately small: it lands on the same tap as baseFire's flourish
+    /// and must read as the LED, not a second event.
+    public func baseSpent() {
+        play("baseSpent", [
+            Voice(freq: 0, dur: 0.04, type: .noise, gain: 0.018, attack: 0.002, release: 0.02,
+                  cutoff: 1200, cutoffTo: 500, hpf: 200, seed: 0x1ED5),
+            Voice(freq: 330, dur: 0.09, type: .triangle, gain: 0.024, at: 0.01, glideTo: 220,
+                  attack: 0.005, release: 0.045, cutoff: 1500),
+        ])
+    }
+
     /// A CHARGED BASE PLAQUE tapped: the mechanical arm-and-fire clunk.
     public func plaqueFire() {
         play("plaqueFire", clickLayer(gain: 0.026, bright: 0.75, seed: 83, thump: 180) + [

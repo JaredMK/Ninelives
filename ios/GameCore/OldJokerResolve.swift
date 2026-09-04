@@ -342,6 +342,21 @@ extension CampaignState {
                 pool.append((h, jokerRefundValue(h)))
             }
         }
+        // v6.99: the FULL variety — the debt can also settle in Same-Powers
+        // (never the one equipped), packs, and a plain playing card, each at
+        // its own reward value (sell table; the card at the store's card
+        // price knob). The coat was pillar/base/sticker only before.
+        for d in data.items.samePowers where !d.inactive && itemUnlocks.isUnlocked(d)
+                && !isEquipped(kind: "samepower", id: d.id) {
+            let h = OldJoker.Holding(kind: .samepower, id: d.id)
+            pool.append((h, jokerRefundValue(h)))
+        }
+        for d in data.items.packs where !d.inactive && itemUnlocks.isUnlocked(d) {
+            let h = OldJoker.Holding(kind: .pack, id: d.id)
+            pool.append((h, jokerRefundValue(h)))
+        }
+        let cardGift = OldJoker.Holding(kind: .card, id: "card")
+        pool.append((cardGift, jokerRefundValue(cardGift)))
         guard !pool.isEmpty else { return [] }
 
         // THE SHELF IS 1–6 ITEMS, never more. A bigger debt buys a WIDER shelf
@@ -422,6 +437,10 @@ extension CampaignState {
             stickerInventory[h.id]! -= 1
             if stickerInventory[h.id] == 0 { stickerInventory[h.id] = nil }
             return true
+        case .samepower, .pack, .card:
+            // The v6.99 gift-only kinds: the player never HOLDS these as a
+            // named equipped holding he could take — nothing to remove.
+            return false
         }
     }
 
@@ -432,6 +451,12 @@ extension CampaignState {
         case .sticker:
             stickerInventory[id, default: 0] += 1
             PlacementLog.noteOrigin(id, "joker")
+        case .samepower:
+            samePowerInventory[id, default: 0] += 1
+        case .pack, .card:
+            // Gift-only kinds resolve through the gift SHELF's buy flow
+            // (pack reveal, card swap) — never a direct placement.
+            break
         }
     }
 

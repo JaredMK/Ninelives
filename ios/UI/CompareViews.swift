@@ -97,7 +97,11 @@ final class CompareSideView: UIView {
         let nameH = min(30, max(14, Self.measure(nameL, width: w - 8)))
         nameL.frame = CGRect(x: 4, y: y, width: w - 8, height: nameH)
         y += nameH + 3
-        let descH = min(62, Self.measure(descL, width: w - 8))
+        // v6.99: UNCLAMPED — the 62pt cap clipped the two-row v6.98 texts
+        // mid-line in the Old Joker's trades (read as "doesn't wrap"). Both
+        // hosts (store detail, the Joker modal) size rows from this return,
+        // and the Joker modal scrolls.
+        let descH = Self.measure(descL, width: w - 8)
         descL.frame = CGRect(x: 4, y: y, width: w - 8, height: descH)
         y += descH + 8
         return y
