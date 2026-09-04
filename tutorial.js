@@ -101,7 +101,7 @@ const NINELIVES_TUTORIAL = {
       { wait: 4, orWrong: true,
         text: "If you make a wrong guess, the *pile is killed*. Your goal is to get through the *entire deck* before all your piles are killed." },
       { wait: 2, anchor: "dealHistogram",
-        text: "This graph tells you how many cards of each rank *remain*. You can *hold* on a rank for more information." },
+        text: "This graph tells you how many cards of each rank *remain*. You can *tap* on a rank for more information." },
       { wait: 2, anchor: "sameShield",
         text: "You can make a *Same* guess too! A correct Same guess charges this *Same Shield*, protecting a pile from the next wrong guess." },
       { wait: 2, advance: "swipe",

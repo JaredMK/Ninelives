@@ -35,7 +35,7 @@
       {
         "wait": 2,
         "anchor": "dealHistogram",
-        "text": "This graph tells you how many cards of each rank *remain*. You can *hold* on a rank for more information."
+        "text": "This graph tells you how many cards of each rank *remain*. You can *tap* on a rank for more information."
       },
       {
         "wait": 2,
