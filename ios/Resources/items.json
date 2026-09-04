@@ -4,7 +4,7 @@
     "slots": 6,
     "typeCap": 3,
     "reroll": {
-      "baseCost": 5,
+      "baseCost": 3,
       "step": 1
     },
     "classWeights": {

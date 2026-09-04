@@ -34,13 +34,11 @@ final class StoreDetailView: UIView {
     private let cmpArrow = UILabel()
     private let questionLabel = UILabel()
     private let buyButton = PixelButtonView("BUY", role: .gold, fontSize: 14)
-    private let sellButton = PixelButtonView("SELL", role: .danger, fontSize: 16)
     private let closeButton = PixelButtonView("✕", role: .plain, fontSize: 16)
 
     var onClose: (() -> Void)?
     /// Buy confirmed; the chosen column (nil for kinds without placement).
     var onBuy: ((Int?) -> Void)?
-    var onSell: (() -> Void)?
 
     private var kind: String
     private var itemId: String
@@ -97,7 +95,8 @@ final class StoreDetailView: UIView {
         super.init(frame: .zero)
         common()
         refresh()
-        sellButton.isHidden = false
+        // v7.02: no SELL — the equipped detail is read-only (close to
+        // dismiss; replacing an item in the store discards this one).
         buyButton.isHidden = true
     }
 
@@ -117,7 +116,6 @@ final class StoreDetailView: UIView {
         common()
         refresh()
         buyButton.isHidden = true
-        sellButton.isHidden = true
     }
 
     /// INSPECT for an equipped/owned ITEM (pillar / base / Same-Power).
@@ -134,7 +132,6 @@ final class StoreDetailView: UIView {
         common()
         refresh()
         buyButton.isHidden = true
-        sellButton.isHidden = true
     }
 
     /// Mystery Same-Power REVEAL: the just-rolled power over the equipped→new
@@ -215,9 +212,6 @@ final class StoreDetailView: UIView {
         discardButton.isHidden = true
         discardButton.onTap = { [weak self] in self?.onDiscard?() }
         panel.addSubview(discardButton)
-        sellButton.isHidden = true
-        sellButton.onTap = { [weak self] in self?.onSell?() }
-        panel.addSubview(sellButton)
         closeButton.onTap = { [weak self] in self?.onClose?() }
         panel.addSubview(closeButton)
     }
@@ -488,9 +482,6 @@ final class StoreDetailView: UIView {
     }
 
     /// The equipped view's sell price rides its own button.
-    func setSellValue(_ v: Int) {
-        sellButton.setTitle("SELL FOR ◉\(v)")
-    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -576,10 +567,6 @@ final class StoreDetailView: UIView {
             discardButton.frame = CGRect(x: m, y: y, width: bw, height: 46)
             keepButton.frame = CGRect(x: m + bw + gap, y: y, width: bw, height: 46)
             y += 54
-        }
-        if !sellButton.isHidden {
-            sellButton.frame = CGRect(x: m, y: y, width: cw, height: 42)
-            y += 50
         }
         let h = y + 8
         // Centred, but never under the notch/Dynamic Island or into the

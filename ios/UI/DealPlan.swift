@@ -27,8 +27,8 @@ public struct DealPlan {
 
 public enum DealPlanner {
 
-    public static let redealBaseCost = 5.0
-    public static let redealStep = 1.0
+    public static let redealBaseCost = 3.0   // v7.02 (was 5)
+    public static let redealStep = 1.0       // v7.02: NOT tied to the base
 
     public struct AmbushSpec {
         public var cards: Int

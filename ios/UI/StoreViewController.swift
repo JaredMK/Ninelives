@@ -580,11 +580,8 @@ public final class StoreViewController: UIViewController {
         Sound.shared.tap()
         let d = StoreDetailView(campaign: campaign, equippedKind: kind, id: id, col: col)
         d.onClose = { [weak self] in self?.closeDetail() }
-        d.onSell = { [weak self] in self?.sellEquipped(kind: kind, id: id, col: col) }
-        let data = GameData.shared
-        let def = kind == "pillar" ? data.pillarTypes.get(id)
-            : kind == "base" ? data.baseTypes.get(id) : data.samePowerTypes.get(id)
-        d.setSellValue(sellValue(def))
+        // v7.02: selling removed — the equipped detail is now read-only
+        // (tap-away / ✕ close it). Replacing an item DISCARDS the old one.
         d.frame = view.bounds
         view.insertSubview(d, belowSubview: crt)
         detail = d
@@ -593,45 +590,6 @@ public final class StoreViewController: UIViewController {
     private func closeDetail() {
         detail?.removeFromSuperview()
         detail = nil
-    }
-
-    /// v6.50: the sell table lives in items.js (`store.sell`) — the UI reads
-    /// it through the campaign, never hardcodes it (the same bypass class as
-    /// the freebie price bug).
-    private func sellValue(_ def: ItemDef?) -> Int { campaign.sellValue(def) }
-
-    private func sellEquipped(kind: String, id: String, col: Int?) {
-        let data = GameData.shared
-        let def = kind == "pillar" ? data.pillarTypes.get(id)
-            : kind == "base" ? data.baseTypes.get(id)
-            : data.samePowerTypes.get(id)
-        guard let def else { return }
-        let value = sellValue(def)
-        prompt.show("Sell \(def.label) for ◉ \(value)?", help: "It won't return to your inventory.", actions: [
-            .init("Cancel", role: .plain) { [weak self] in self?.prompt.hide() },
-            .init("Sell", role: .danger) { [weak self] in
-                guard let self else { return }
-                self.prompt.hide()
-                var ok = false
-                if kind == "samepower", self.campaign.getSamePower() == id {
-                    _ = self.campaign.unequipSamePower()
-                    ok = self.campaign.discardSamePowerFromInventory(id)
-                } else if kind == "pillar", let c = col, self.campaign.columnPillar(c) == id {
-                    // Sell-and-destroy: empty the slot, never back to inventory.
-                    self.campaign.setColumnPillar(col: c, typeId: nil)
-                    ok = true
-                } else if kind == "base", let c = col, self.campaign.columnBase(c) == id {
-                    self.campaign.setColumnBase(col: c, typeId: nil)
-                    ok = true
-                }
-                guard ok else { return }
-                _ = self.campaign.addCoins(value)
-                Haptics.sell()
-                self.setMessage("\(def.label) sold for \(value) coins.")
-                self.closeDetail()
-                self.render()
-            },
-        ]) { [weak self] in self?.prompt.hide() }
     }
 
     private func buy(slot: Int, storeSlot s: StoreSlot, placeCol: Int?) {
@@ -752,9 +710,9 @@ public final class StoreViewController: UIViewController {
         if s.kind == "samepower" {
             let prev = campaign.getSamePower()
             _ = campaign.equipSamePower(s.id)
+            // v7.02: a displaced Same-Power is simply DISCARDED — no coins.
             if let prev, prev != s.id {
                 _ = campaign.discardSamePowerFromInventory(prev)
-                _ = campaign.addCoins(sellValue(data.samePowerTypes.get(prev)))
             }
         } else {
             // A displaced occupant is sold (coins back) and DESTROYED —
@@ -762,11 +720,10 @@ public final class StoreViewController: UIViewController {
             let old = s.kind == "pillar" ? campaign.columnPillar(col) : campaign.columnBase(col)
             if s.kind == "pillar" { _ = campaign.placePillar(s.id, col: col) }
             else { _ = campaign.placeBase(s.id, col: col) }
+            // v7.02: a displaced occupant is DISCARDED — no coins back.
             if let old, old != s.id {
-                let reg = s.kind == "pillar" ? data.pillarTypes : data.baseTypes
                 if s.kind == "pillar" { _ = campaign.discardPillarFromInventory(old) }
                 else { _ = campaign.discardBaseFromInventory(old) }
-                _ = campaign.addCoins(sellValue(reg.get(old)))
             }
         }
         Haptics.purchase()
@@ -816,9 +773,9 @@ public final class StoreViewController: UIViewController {
             // power is SOLD BACK (coins in, card destroyed).
             let prev = self.campaign.getSamePower()
             _ = self.campaign.equipSamePower(def.id)
+            // v7.02: the displaced power is DISCARDED — no coins back.
             if let prev, prev != def.id {
                 _ = self.campaign.discardSamePowerFromInventory(prev)
-                _ = self.campaign.addCoins(self.sellValue(GameData.shared.samePowerTypes.get(prev)))
             }
             self.setMessage("\(def.label) equipped as your Same-Power.")
             self.closeDetail()

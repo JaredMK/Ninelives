@@ -1506,8 +1506,12 @@ public final class CampaignState {
         columnPillars.compactMap { $0.flatMap { data.pillarTypes.get($0) } }
     }
 
-    /// The store's SELL value for an item — items.js `store.sell` by tier
-    /// (v6.50: the UI used to hardcode these; the data file is the source).
+    /// Per-tier item VALUE from items.js `store.sell`. v7.02: selling for
+    /// coins was removed (equipped items are discarded, never sold), so this
+    /// is no longer a player-facing sell price — its ONLY remaining consumer
+    /// is the Old Joker's thirst-coat gift valuation (`jokerRefundValue`),
+    /// which needs a per-tier worth to fit gifts to a budget. `store.sell`
+    /// stays as that internal basis; it is NOT dead config.
     public func sellValue(_ def: ItemDef?) -> Int {
         let table = data.items.store.raw["sell"]?.asObject ?? [:]
         let fallback: [String: Double] = ["common": 1, "uncommon": 2, "rare": 3]

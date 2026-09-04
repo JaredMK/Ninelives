@@ -105,7 +105,7 @@ const NINELIVES_ITEMS = {
   store: {
     slots: 6,
     typeCap: 3,
-    reroll: { baseCost: 5, step: 1 },
+    reroll: { baseCost: 3, step: 1 },
     classWeights: { sticker: 40, pillar: 20, base: 15, card: 10, pack: 10, samepower: 5 },
     tierWeights: { common: 100, uncommon: 50, rare: 20 },
     // MYSTERY SAME-POWER: the samepower class no longer rolls a concrete
@@ -142,9 +142,11 @@ const NINELIVES_ITEMS = {
       id: "removal", label: "Purge", icon: "∅", price: 3, priceStep: 1,
       description: "Permanently purge a card from your deck — the price climbs each use",
     },
-    // SELL values by tier — what the store pays when an equipped item is
-    // sold. THE one source: the UI must read these, never hardcode them
-    // (the Old Joker's refund multiplies these same bases by minMult..maxMult).
+    // ITEM VALUE by tier. v7.02: selling equipped items for coins was
+    // removed — this is no longer a store sell price. Its one remaining use
+    // is the Old Joker's thirst-coat, which values the gifts it hands out
+    // against its budget by these tiers. (His Refund/Buyout OFFERS price off
+    // the item's `price`, not this table.) Kept as the coat's internal basis.
     sell: { common: 1, uncommon: 2, rare: 3 },
   },
 
