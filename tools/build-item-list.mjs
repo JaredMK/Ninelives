@@ -233,7 +233,7 @@ const OUTCOMES = {
   purgeDiscount: ["Store Economy", [], "cuts the Purge price"],
   freebie: ["Store Economy", [], "one free shelf item"],
   rareHunter: ["Store Economy", [], "rares twice as often"],
-  firstFree: ["Store Economy", [], "first restock + reshuffle free"],
+  firstFree: ["Store Economy", ["Coin Gain"], "first restock + reshuffle free; +coins at deal end"],
 
   // Loadout & Meta.
   ditto: ["Loadout & Meta", [], "mirrors the centre pillar"],

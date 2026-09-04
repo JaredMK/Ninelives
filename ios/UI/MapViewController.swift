@@ -71,11 +71,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
     private var scrollLock: CGFloat = 0
     private var traveling = false
     private var layoutX: [Int: CGFloat] = [:]   // buildMapLayout cache
-    /// ONE HINT PER CLIMB (v6.74): the egg line is rolled from the run seed,
-    /// so every rubber-band peek in a climb shows the SAME line and a new
-    /// climb deals a new one. `lastShownHintIndex` stays static so the new
-    /// climb's roll never repeats the line the previous climb showed.
-    private static var lastShownHintIndex: Int?
+    /// ONE HINT PER CLIMB (v7.05): a persisted round-robin cursor
+    /// (saveStore `mapHintCursor`/`mapHintSeed`) advances one line per climb,
+    /// so the egg cycles through every hint before repeating, and stays put
+    /// for the whole climb. See rollEggHint.
     /// The hint currently loaded into the egg label.
     private var eggHintIndex = -1
     /// True once the current rubber-band peek has fully shown the egg.
@@ -226,19 +225,27 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
                                 y: height + 16, width: eggW, height: eggH)
     }
 
-    /// Load this climb's egg hint: seeded by `runSeed`, so it is stable for
-    /// the whole climb (every peek shows the same line) and a fresh climb —
-    /// a fresh seed — deals a fresh one. The +1 bump off the last climb's
-    /// line keeps "new climb → new hint" when the raw seeds collide.
+    /// Load this climb's egg hint. ONE per climb, stable for the whole climb
+    /// (every rubber-band peek shows the same line), and a fresh climb
+    /// advances a persisted ROUND-ROBIN cursor so every hint is shown in turn
+    /// before any repeats — v7.05: the old `runSeed % count` clustered to the
+    /// same value across climbs, so the anti-repeat bump only ever toggled
+    /// between two lines. The cursor is keyed to the run seed so re-showing
+    /// the map mid-climb never advances it; only a NEW seed does.
     private func rollEggHint() {
         let hints = GameData.shared.tutorial.mapHints
         guard !hints.isEmpty else { eggLabel.text = ""; return }
-        var idx = Int(campaign.runSeed % UInt32(hints.count))
-        if hints.count > 1, idx == MapViewController.lastShownHintIndex {
-            idx = (idx + 1) % hints.count
+        let seedKey = String(campaign.runSeed)
+        var cursor = Int(campaign.saveStore.pref("mapHintCursor") ?? "") ?? -1
+        if campaign.saveStore.pref("mapHintSeed") != seedKey {
+            // A new climb — step to the next line and remember it for the run.
+            cursor = (cursor + 1) % hints.count
+            campaign.saveStore.setPref("mapHintCursor", String(cursor))
+            campaign.saveStore.setPref("mapHintSeed", seedKey)
         }
-        eggHintIndex = idx
-        eggLabel.text = hints[idx]
+        if cursor < 0 || cursor >= hints.count { cursor = 0 }
+        eggHintIndex = cursor
+        eggLabel.text = hints[cursor]
         frameEggLabel()
     }
 
@@ -722,9 +729,8 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         // UNLOCK2: finding the tip counts — but ONCE per climb, so the gate
         // rewards looking again on a new run rather than one long rubber-band.
         if eggLabel.alpha >= 1 {
-            // ONE HINT PER CLIMB (v6.74): remember the shown line so the NEXT
-            // climb's seeded roll never repeats it back-to-back.
-            MapViewController.lastShownHintIndex = eggHintIndex
+            // ONE HINT PER CLIMB (v7.05): the round-robin cursor in
+            // rollEggHint owns the sequencing now — nothing to remember here.
             eggShownThisPeek = true
             if !tipCountedThisRun {
                 tipCountedThisRun = true

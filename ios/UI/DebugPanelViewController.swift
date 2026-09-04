@@ -396,10 +396,10 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
             },
             // EVENT FEED (v7.01): the in-deal one-liner feed + its LOG
             // scrollback chip. Applies from the NEXT deal boot.
-            Btn("event feed: \(flow.campaign.saveStore.pref("eventFeed") == "1" ? "on" : "off")",
-                role: flow.campaign.saveStore.pref("eventFeed") == "1" ? .charged : .plain) { [weak self] in
+            Btn("event feed: \(flow.campaign.saveStore.pref("eventFeed") != "0" ? "on" : "off")",
+                role: flow.campaign.saveStore.pref("eventFeed") != "0" ? .charged : .plain) { [weak self] in
                 guard let self else { return }
-                let on = self.flow.campaign.saveStore.pref("eventFeed") == "1"
+                let on = self.flow.campaign.saveStore.pref("eventFeed") != "0"
                 self.flow.campaign.saveStore.setPref("eventFeed", on ? "0" : "1")
                 self.note("event feed \(on ? "off" : "on") — applies from the next deal")
                 self.build()

@@ -1807,9 +1807,10 @@
       "icon": "🆓",
       "kind": "meta",
       "effect": "firstFree",
+      "value": 2,
       "tier": "uncommon",
       "price": 6,
-      "description": "First restock of each store and first reshuffle of each deal are free"
+      "description": "First restock of each store and first reshuffle of each deal are free. +2 coins at end of deal"
     },
     {
       "id": "eightPeek",

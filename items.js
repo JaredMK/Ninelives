@@ -702,11 +702,11 @@ const NINELIVES_ITEMS = {
       kind: "meta", effect: "purgeHalve", value: 3, tier: "uncommon", price: 6,
       description: "On purchase → halve the store's Purge price (minimum 3, no effect during deal)" },
     // ON THE HOUSE: covers the FIRST restock per store visit AND the FIRST
-    // reshuffle per deal. No knobs — the two freebies are the mechanic.
-    // TUNE: price 7 proposed (R4).
+    // reshuffle per deal, and pays `value` coins at each cleared deal's end
+    // (v7.05 — the coin leg is new; a flat deal-end bonus, no condition).
     { id: "firstFree", label: "On the House", icon: "🆓",
-      kind: "meta", effect: "firstFree", tier: "uncommon", price: 6,
-      description: "First restock of each store and first reshuffle of each deal are free" },
+      kind: "meta", effect: "firstFree", value: 2, tier: "uncommon", price: 6,
+      description: "First restock of each store and first reshuffle of each deal are free. +2 coins at end of deal" },
     // EIGHT BALL (v6.97): a TELL trigger on an 8 landing — the tell arms on
     // the landing pile, reading the next draw's direction. No knobs. The peek
     // retired with the old `eightPeek` effect key (the item id is STABLE —

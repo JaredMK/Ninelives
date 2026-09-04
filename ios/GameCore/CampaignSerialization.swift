@@ -50,6 +50,7 @@ extension CampaignState {
             "cardsFlippedBanked": .number(Double(cardsFlippedBanked)),
             "runScore": .number(Double(runScore)),
             "scoreBanked": .number(Double(scoreBanked)),
+            "hudBestScore": .number(Double(hudBestScore)),   // v7.05: frozen toolbar HI, survives a mid-climb resume
             "endless": .bool(endless),
             "sameCharge": .bool(sameCharge),
             "removalsBought": .number(Double(removalsBought)),
@@ -271,6 +272,7 @@ extension CampaignState {
         cardsFlippedBanked = Int(s["cardsFlippedBanked"]?.asNumber ?? 0)
         runScore = Int(s["runScore"]?.asNumber ?? 0)
         scoreBanked = Int(s["scoreBanked"]?.asNumber ?? 0)
+        hudBestScore = Int(s["hudBestScore"]?.asNumber ?? 0)
         endless = s["endless"]?.asBool ?? false
         sameCharge = s["sameCharge"]?.asBool ?? false
         // Absent in pre-v5.82 saves — an old climb simply restarts the ladder.

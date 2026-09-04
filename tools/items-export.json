@@ -1,6 +1,6 @@
 {
- "version": "v7.04",
- "generatedAt": "2026-09-04 13:02",
+ "version": "v7.05",
+ "generatedAt": "2026-09-04 19:46",
  "rows": [
   {
    "cls": "Stickers",
@@ -1571,8 +1571,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Store Economy",
-   "outcomeDetail": "first restock + reshuffle free",
-   "outcomeAlso": [],
+   "outcomeDetail": "first restock + reshuffle free; +coins at deal end",
+   "outcomeAlso": [
+    "Coin Gain"
+   ],
    "effectKey": "firstFree",
    "id": "firstFree",
    "label": "On the House",
@@ -1586,7 +1588,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "First restock of each store and first reshuffle of each deal are free",
+   "description": "First restock of each store and first reshuffle of each deal are free. +2 coins at end of deal",
    "flags": "",
    "flagNotes": ""
   },

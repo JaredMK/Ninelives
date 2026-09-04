@@ -217,8 +217,11 @@ public final class TopShellView: UIView {
         // …and the lifetime best beside it, so the record is visible at every
         // point of a climb, not just inside a deal. Gold and un-glowing — the
         // phosphor glow stays reserved for the ONE live value.
-        let best = campaign.stats.get()
-            .deckTierBest["\(campaign.deckId).\(campaign.difficultyTier)"] ?? 0
+        // v7.05: the FROZEN pre-climb best — the live deckTierBest folds this
+        // run's score in per cleared deal, so reading it made HI climb the
+        // instant the running score passed it. hudBestScore holds the value
+        // as it stood when the climb began; it moves only between climbs.
+        let best = campaign.hudBestScore
         if best > 0 {
             score.append(NSAttributedString(
                 string: "  HI ", attributes: [.font: CRT.Font.of(14), .foregroundColor: CRT.muted]))

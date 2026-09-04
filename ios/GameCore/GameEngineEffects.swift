@@ -1071,6 +1071,16 @@ extension GameEngine {
         let pillarsOnBoard = pillars.compactMap { $0 }.count
 
         for col in 0..<cols.count {
+            // ON THE HOUSE (v7.05): a flat deal-end coin bonus — meta kind, so
+            // it sits ahead of the scoring-only switch below. No survival
+            // condition; it pays for simply being equipped this cleared deal.
+            if let m = resolvePillarDef(col), m.effect == "firstFree" {
+                let amt = m.num("value", 2)
+                if amt > 0 {
+                    bonus += amt
+                    lines.append(PayoutLine(label: m.label, detail: "on the house", amount: amt, col: col))
+                }
+            }
             guard let t = resolvePillarDef(col), t.kind == "scoring" else { continue }
             switch t.effect {
             case "columnAllAlive":

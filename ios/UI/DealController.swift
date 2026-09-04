@@ -350,10 +350,11 @@ public final class DealController {
         // this closure — never a snapshot (captures the shared campaign, not self,
         // so no retain cycle).
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
-        // EVENT FEED (v7.01): armed by the debug-menu pref, campaign only;
-        // each deal starts its scrollback fresh.
+        // EVENT FEED (v7.05): ON BY DEFAULT for campaign deals — beta testers
+        // get it without opting in; the debug toggle sets "0" to turn it off.
+        // (Unset ⇒ on.)
         EventFeedLog.shared.enabled = isCampaign
-            && campaign.saveStore.pref("eventFeed") == "1"
+            && campaign.saveStore.pref("eventFeed") != "0"
         EventFeedLog.shared.reset()
         if isCampaign {
             // TELEMETRY (v7.00): deal_start — the deal's shape + the full
@@ -2431,8 +2432,7 @@ public final class DealController {
                       // piles×smallest projection for THIS deal has its own
                       // home in the reward line.
                       score: isZen ? currentScore() : campaign.getRunScore(),
-                      best: isZen ? 0
-                          : campaign.stats.get().deckTierBest["\(campaign.deckId).\(campaign.difficultyTier)"] ?? 0,
+                      best: isZen ? 0 : campaign.hudBestScore,   // v7.05: frozen at climb start, matches the shell toolbar
                       zen: isZen)          // web hides score/coins/Same in zen
         // Fold the held-back cards back in so the band reads as the whole deck.
         var histCounts = engine.deck.remainingCounts()

@@ -77,6 +77,12 @@ public final class CampaignState {
     public internal(set) var cardsFlippedBanked = 0
     public internal(set) var runScore = 0
     public internal(set) var scoreBanked = 0
+    /// HUD HIGH SCORE, FROZEN (v7.05): the deck+tier best AS IT STOOD when
+    /// this climb began. The toolbar shows THIS, not the live stat — the
+    /// live `deckTierBest` folds each cleared deal (so a hard-kill mid-endless
+    /// keeps the record), which made the top-bar HI climb the moment the
+    /// running score passed it. Frozen here, it only moves between climbs.
+    public internal(set) var hudBestScore = 0
     public internal(set) var endless = false
     public internal(set) var sameCharge = false
 
@@ -897,6 +903,9 @@ public final class CampaignState {
 
     /// Start a fresh run: the deck's 13 starting cards, phase 0, a new map.
     public func startNewRun() {
+        // Freeze the toolbar's HI at the pre-climb best — the live stat will
+        // fold this run's score in per cleared deal, but the display holds.
+        hudBestScore = stats.get().deckTierBest["\(deckId).\(difficultyTier)"] ?? 0
         phaseIndex = 0
         removalsBought = 0   // the removal price ladder is per climb
         purgeDiscount = 0
