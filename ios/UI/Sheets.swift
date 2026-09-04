@@ -9,6 +9,10 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
     let panel = UIView()
     private let headLabel = UILabel()
     private let closeButton = UIButton(type: .custom)
+    /// An OPTIONAL chrome button seated left of the ✕ (v7.02: the event-feed
+    /// LOG). Hidden until `setAccessory` names one.
+    private let accessoryButton = UIButton(type: .custom)
+    private var accessoryAction: (() -> Void)?
     let body = UIView()
     var onClose: (() -> Void)?
     private var bodyH: CGFloat = 300
@@ -39,6 +43,13 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
         closeButton.layer.borderColor = CRT.ink.cgColor
         closeButton.addAction(UIAction { [weak self] _ in self?.dismiss() }, for: .touchUpInside)
         panel.addSubview(closeButton)
+        accessoryButton.backgroundColor = CRT.feltDeep
+        accessoryButton.layer.borderWidth = CRT.px
+        accessoryButton.layer.borderColor = CRT.ink.cgColor
+        accessoryButton.isHidden = true
+        accessoryButton.addAction(UIAction { [weak self] _ in self?.accessoryAction?() },
+                                  for: .touchUpInside)
+        panel.addSubview(accessoryButton)
         panel.addSubview(body)
     }
 
@@ -47,6 +58,21 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
 
     func setBodyHeight(_ h: CGFloat) {
         bodyH = h
+        setNeedsLayout()
+    }
+
+    /// Name the top-right accessory (left of the ✕); nil hides it. The tap
+    /// runs `action` and leaves the sheet up.
+    func setAccessory(_ title: String?, action: (() -> Void)? = nil) {
+        if let title {
+            accessoryButton.setAttributedTitle(
+                CRTKit.attributed(title, size: 13, color: CRT.cardFace, display: true), for: .normal)
+            accessoryButton.isHidden = false
+            accessoryAction = action
+        } else {
+            accessoryButton.isHidden = true
+            accessoryAction = nil
+        }
         setNeedsLayout()
     }
 
@@ -114,6 +140,9 @@ class SheetView: UIView, UIGestureRecognizerDelegate {
                              width: w, height: panelH + CRT.px)
         headLabel.frame = CGRect(x: 16, y: 14, width: w - 70, height: 30)
         closeButton.frame = CGRect(x: w - 46, y: 12, width: 30, height: 30)
+        // The accessory (LOG) seats to the ✕'s LEFT — wide enough for its
+        // display-face label, same height as the close square.
+        accessoryButton.frame = CGRect(x: w - 46 - 8 - 52, y: 12, width: 52, height: 30)
         body.frame = CGRect(x: 16, y: 56, width: w - 32, height: panelH - 56 - 16 - safeBottom)
     }
 }

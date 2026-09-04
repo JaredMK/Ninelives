@@ -218,18 +218,6 @@ public final class DealViewController: UIViewController {
             view.addSubview(promptBar)
             promptBar.frame = view.bounds
             promptBar.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            // EVENT FEED scrollback (v7.01, debug-toggleable): a small LOG
-            // chip top-right — tap to re-read the deal's feed lines. Only
-            // exists while the debug toggle has the feed on.
-            if EventFeedLog.shared.enabled {
-                let b = PixelButtonView("LOG", role: .plain, fontSize: 14)
-                b.frame = CGRect(x: view.bounds.width - 62,
-                                 y: view.safeAreaInsets.top + 2, width: 54, height: 26)
-                b.autoresizingMask = [.flexibleLeftMargin, .flexibleBottomMargin]
-                b.onTap = { [weak self] in self?.showFeedScrollback() }
-                view.addSubview(b)
-                feedLogButton = b
-            }
             if UserDefaults.standard.bool(forKey: "guessReceipt") {
                 guessReceiptLabel.text = "guesses:0"
                 guessReceiptLabel.frame = CGRect(x: view.bounds.width - 128,
@@ -506,58 +494,6 @@ public final class DealViewController: UIViewController {
                     },
                 ])
         }
-    }
-
-    private var feedLogButton: PixelButtonView?
-    private var feedScrollback: UIView?
-
-    /// EVENT FEED scrollback (v7.01): the current deal's lines in one
-    /// scrollable panel — tap anywhere outside to dismiss.
-    private func showFeedScrollback() {
-        feedScrollback?.removeFromSuperview()
-        let scrim = UIView(frame: view.bounds)
-        scrim.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        scrim.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        scrim.addGestureRecognizer(UITapGestureRecognizer(target: self,
-                                                          action: #selector(dismissFeedScrollback)))
-        let panel = PixelPanelView(face: CRT.feltMid, border: CRT.gold)
-        let w = min(view.bounds.width - 32, 360)
-        let h = min(view.bounds.height * 0.55, 420)
-        panel.frame = CGRect(x: (view.bounds.width - w) / 2,
-                             y: view.safeAreaInsets.top + 44, width: w, height: h)
-        let title = CRTKit.label("DEAL EVENTS", size: 16, color: CRT.gold, display: true)
-        title.frame = CGRect(x: 12, y: 8, width: w - 24, height: 20)
-        panel.addSubview(title)
-        let scroll = UIScrollView(frame: CGRect(x: 8, y: 34, width: w - 16, height: h - 42))
-        var y: CGFloat = 0
-        let lines = EventFeedLog.shared.lines
-        if lines.isEmpty {
-            let empty = CRTKit.label("Nothing yet this deal", size: 14, color: CRT.muted)
-            empty.frame = CGRect(x: 4, y: 0, width: w - 32, height: 18)
-            scroll.addSubview(empty)
-            y = 20
-        }
-        for line in lines {
-            let l = CRTKit.label(line, size: 14, color: CRT.cardFace)
-            let lh = ceil(l.sizeThatFits(CGSize(width: w - 32, height: 60)).height)
-            l.frame = CGRect(x: 4, y: y, width: w - 32, height: lh)
-            scroll.addSubview(l)
-            y += lh + 4
-        }
-        scroll.contentSize = CGSize(width: w - 16, height: y)
-        panel.addSubview(scroll)
-        scrim.addSubview(panel)
-        view.addSubview(scrim)
-        scroll.flashScrollIndicators()
-        if y > scroll.bounds.height {
-            scroll.setContentOffset(CGPoint(x: 0, y: y - scroll.bounds.height), animated: false)
-        }
-        feedScrollback = scrim
-    }
-
-    @objc private func dismissFeedScrollback() {
-        feedScrollback?.removeFromSuperview()
-        feedScrollback = nil
     }
 
     /// What an armed target tap is picking: a pile on the board, or one of the

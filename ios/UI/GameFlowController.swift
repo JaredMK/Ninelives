@@ -1538,7 +1538,63 @@ public final class GameFlowController: UIViewController {
             return items
         }
         sheet.setItems(makeItems())
+        // EVENT FEED (v7.02): the LOG moved off the deal screen (it overlapped
+        // the coins) — it rides the pause sheet's top-right, next to the ✕,
+        // only while the debug toggle has the feed on.
+        if EventFeedLog.shared.enabled {
+            sheet.setAccessory("LOG") { [weak self] in self?.showEventLog() }
+        }
         sheet.present(in: view, below: crt)
+    }
+
+    /// EVENT FEED scrollback (v7.02): the current deal's lines in one
+    /// scrollable panel, presented over the flow view (above the pause
+    /// sheet). Tap outside to dismiss.
+    private weak var eventLogScrim: UIView?
+    func showEventLog() {
+        eventLogScrim?.removeFromSuperview()
+        let scrim = UIView(frame: view.bounds)
+        scrim.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        scrim.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        scrim.addGestureRecognizer(UITapGestureRecognizer(target: self,
+                                                          action: #selector(dismissEventLog)))
+        let panel = PixelPanelView(face: CRT.feltMid, border: CRT.gold)
+        let w = min(view.bounds.width - 32, 360)
+        let h = min(view.bounds.height * 0.6, 440)
+        panel.frame = CGRect(x: (view.bounds.width - w) / 2,
+                             y: view.safeAreaInsets.top + 44, width: w, height: h)
+        let title = CRTKit.label("DEAL EVENTS", size: 16, color: CRT.gold, display: true)
+        title.frame = CGRect(x: 12, y: 8, width: w - 24, height: 20)
+        panel.addSubview(title)
+        let scroll = UIScrollView(frame: CGRect(x: 8, y: 34, width: w - 16, height: h - 42))
+        var y: CGFloat = 0
+        let lines = EventFeedLog.shared.lines
+        if lines.isEmpty {
+            let empty = CRTKit.label("Nothing yet this deal", size: 14, color: CRT.muted)
+            empty.frame = CGRect(x: 4, y: 0, width: w - 32, height: 18)
+            scroll.addSubview(empty)
+            y = 20
+        }
+        for line in lines {
+            let l = CRTKit.label(line, size: 14, color: CRT.cardFace)
+            let lh = ceil(l.sizeThatFits(CGSize(width: w - 32, height: 60)).height)
+            l.frame = CGRect(x: 4, y: y, width: w - 32, height: lh)
+            scroll.addSubview(l)
+            y += lh + 4
+        }
+        scroll.contentSize = CGSize(width: w - 16, height: y)
+        panel.addSubview(scroll)
+        scrim.addSubview(panel)
+        view.addSubview(scrim)
+        scroll.flashScrollIndicators()
+        if y > scroll.bounds.height {
+            scroll.setContentOffset(CGPoint(x: 0, y: y - scroll.bounds.height), animated: false)
+        }
+        eventLogScrim = scrim
+    }
+
+    @objc private func dismissEventLog() {
+        eventLogScrim?.removeFromSuperview()
     }
 
     /// The paged How-to-Play sheet (web `showManual`) over whatever's showing.
