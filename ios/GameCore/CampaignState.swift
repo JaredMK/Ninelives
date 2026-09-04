@@ -1925,6 +1925,14 @@ public final class CampaignState {
                 "purge_price": String(Int(removalPrice())),
                 "reroll_cost": String(Int(offer.rerollCost)),
             ])
+            // ITEM OFFERED (v7.00): one countable signal per rolled slot —
+            // the "times offered" denominator, without parsing the blob.
+            // The Purge slot is a service, not an item — skipped.
+            TelemetryCore.shared.recordItemsOffered(
+                offer.slots.enumerated().compactMap { i, s in
+                    guard let s, s.kind != "removal" else { return nil }
+                    return (kind: s.kind, id: s.id, price: Int(priceOfMixed(i)))
+                })
         }
         DebugEventLog.shared.add("store: opened for node \(storeOffer!.offerNode.map(String.init) ?? "?")"
                                  + (storePriceModActive.map { " · price twist ACTIVE (\($0))" } ?? ""))
@@ -2068,6 +2076,14 @@ public final class CampaignState {
             ? data.items.store.reroll.baseCost + step
             : offer.rerollCost + step
         storeOffer = offer
+        // ITEM OFFERED (v7.00): the restocked shelf counts as offered too —
+        // openStore alone under-counted every rerolled slot (priced off the
+        // just-assigned offer, so twists apply exactly as the shelf shows).
+        TelemetryCore.shared.recordItemsOffered(
+            offer.slots.enumerated().compactMap { i, s in
+                guard let s, s.kind != "removal" else { return nil }
+                return (kind: s.kind, id: s.id, price: Int(priceOfMixed(i)))
+            })
         return true
     }
 

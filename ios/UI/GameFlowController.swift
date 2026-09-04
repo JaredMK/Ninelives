@@ -1624,6 +1624,9 @@ public final class GameFlowController: UIViewController {
     }
 
     private func onZenEnd(_ o: DealOutcome) {
+        // ZEN COMPLETION (v7.00): the win/loss + duration signal, recorded
+        // while the zen envelope is still up; zenEnded() then clears it.
+        if let d = zenDiff { Telemetry.zenFinished(won: o.won, diff: d) }
         Telemetry.zenEnded()
         guard let d = zenDiff else { return }
         var e = campaign.zenStats.get(d)

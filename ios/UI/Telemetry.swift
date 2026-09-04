@@ -50,6 +50,10 @@ enum Telemetry {
 
     private static var sessionStart: Date?
     private static var runStart: Date?
+    private static var zenStart: Date?
+    /// The live deal's configuration, stashed at deal_start so deal_end can
+    /// repeat it (v7.00 — "players die on 4-pile 15-card deals").
+    private static var dealCards = 0, dealPiles = 0, dealRating = 0
     private(set) static var dealsThisRun = 0
     private static var lastPhaseSeen = 0
 
@@ -122,7 +126,17 @@ enum Telemetry {
         let core = TelemetryCore.shared
         core.context.mode = "zen"
         core.context.deck = campaign.deckId
+        zenStart = Date()
         core.record("mode_start", ["picked_mode": "zen", "zen_diff": diff])
+    }
+
+    /// ZEN COMPLETION (v7.00): win/loss + difficulty + duration — the games-
+    /// played half was always mode_start; this is the other half.
+    static func zenFinished(won: Bool, diff: String) {
+        let secs = zenStart.map { Int(Date().timeIntervalSince($0)) }
+        zenStart = nil
+        TelemetryCore.shared.recordZenEnd(outcome: won ? "win" : "loss",
+                                          diff: diff, seconds: secs)
     }
 
     static func zenEnded() {
@@ -148,16 +162,15 @@ enum Telemetry {
     static func runEnded(campaign: CampaignState, outcome: String) {
         let core = TelemetryCore.shared
         guard core.context.runId != nil else { return }
-        var p: [String: String] = [
-            "outcome": outcome,
-            "stage_reached": String(campaign.phaseIndex + 1),
-            "score": String(campaign.getRunScore()),
-            "deals_played": String(dealsThisRun),
-        ]
-        if let began = runStart {
-            p["seconds"] = String(Int(Date().timeIntervalSince(began)))
-        }
-        core.record("run_end", p)
+        core.recordRunEnd(outcome: outcome,
+                          stageReached: campaign.phaseIndex + 1,
+                          score: campaign.getRunScore(),
+                          dealsPlayed: dealsThisRun,
+                          seconds: runStart.map { Int(Date().timeIntervalSince($0)) },
+                          pillars: campaign.columnPillars,
+                          bases: campaign.columnBases,
+                          samePower: campaign.getSamePower(),
+                          composition: composition(campaign))
         core.endRun()
         core.flush()
         runStart = nil
@@ -165,19 +178,28 @@ enum Telemetry {
 
     // MARK: - Deals + stages
 
+    /// DEAL START (v7.00): configuration + full loadout, one per deal (the
+    /// core dedupes redeal/resume re-boots). Replaces the v6.92 bare
+    /// `loadout` event — same csv columns, now joined to the deal's shape.
+    static func dealStarted(campaign: CampaignState, cards: Int, piles: Int, rating: Int) {
+        dealCards = cards; dealPiles = piles; dealRating = rating
+        TelemetryCore.shared.recordDealStart(number: dealsThisRun + 1,
+                                             stage: campaign.phaseIndex + 1,
+                                             cards: cards, piles: piles, rating: rating,
+                                             pillars: campaign.columnPillars,
+                                             bases: campaign.columnBases,
+                                             samePower: campaign.getSamePower())
+    }
+
     static func dealEnded(campaign: CampaignState, won: Bool, pilesAlive: Int,
                           stage: Int, nodeId: Int?, nodeType: String?) {
         dealsThisRun += 1
-        var p: [String: String] = [
-            "won": won ? "1" : "0",
-            "deal_number": String(dealsThisRun),
-            "stage": String(stage),
-            "piles_alive": String(pilesAlive),
-            "deck_size": String(campaign.deckSize()),
-        ]
-        if let nodeId { p["node_id"] = String(nodeId) }
-        if let nodeType { p["node_type"] = nodeType }
-        TelemetryCore.shared.record("deal_end", p)
+        TelemetryCore.shared.recordDealEnd(won: won, number: dealsThisRun,
+                                           stage: stage, pilesAlive: pilesAlive,
+                                           deckSize: campaign.deckSize(),
+                                           cards: dealCards, piles: dealPiles,
+                                           rating: dealRating,
+                                           nodeId: nodeId, nodeType: nodeType)
         if !won, firstTime("death") {
             TelemetryCore.shared.record("milestone_first_death")
         }
@@ -188,8 +210,9 @@ enum Telemetry {
         }
     }
 
-    /// suit counts · rank histogram · size · sticker/curse counts.
-    static func deckSnapshot(_ campaign: CampaignState, stage: Int) {
+    /// The shared composition read (v7.00): deck_snapshot and run_end both
+    /// render through TelemetryCore.CompositionSummary — one format.
+    static func composition(_ campaign: CampaignState) -> TelemetryCore.CompositionSummary {
         let deck = campaign.getRunDeck().filter { !$0.joker && !$0.blank }
         var suits: [String: Int] = [:]
         var ranks: [Int: Int] = [:]
@@ -202,22 +225,16 @@ enum Telemetry {
                 else { stickers += 1 }
             }
         }
-        TelemetryCore.shared.record("deck_snapshot", [
-            "stage": String(stage),
-            "deck_size": String(campaign.deckSize()),
-            "suits": ["♠", "♥", "♦", "♣"].map { "\($0)\(suits[$0] ?? 0)" }.joined(separator: "|"),
-            "ranks": (2...14).map { "\($0):\(ranks[$0] ?? 0)" }.joined(separator: "|"),
-            "sticker_count": String(stickers),
-            "curse_count": String(curses),
-        ])
+        return TelemetryCore.CompositionSummary(deckSize: campaign.deckSize(),
+                                                suits: suits, ranks: ranks,
+                                                stickers: stickers, curses: curses)
     }
 
-    static func loadout(_ campaign: CampaignState) {
-        TelemetryCore.shared.record("loadout", [
-            "pillars": campaign.columnPillars.map { $0 ?? "-" }.joined(separator: ","),
-            "bases": campaign.columnBases.map { $0 ?? "-" }.joined(separator: ","),
-            "same_power": campaign.getSamePower() ?? "-",
-        ])
+    /// suit counts · rank histogram · size · sticker/curse counts.
+    static func deckSnapshot(_ campaign: CampaignState, stage: Int) {
+        var p = composition(campaign).params
+        p["stage"] = String(stage)
+        TelemetryCore.shared.record("deck_snapshot", p)
     }
 
     // MARK: - Milestones

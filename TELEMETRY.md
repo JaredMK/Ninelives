@@ -1,4 +1,4 @@
-# Telemetry Schema — v6.92
+# Telemetry Schema — v7.00
 
 The remote-analytics contract for the TestFlight beta. **Extend this file
 first** when adding events — the vocabulary lives here, the code follows.
@@ -31,6 +31,7 @@ first** when adding events — the vocabulary lives here, the code follows.
 | `run_id` | UUID per climb/endless leg; `"none"` in menus and Zen |
 | `game_mode` | `climb` / `zen` / `endless` (absent in menus) |
 | `deck`, `tier`, `seed` | the run's identity (deck also set for Zen) |
+| `deal_number` | v7.00: stamped on every IN-DEAL signal (armed by `deal_start`, cleared at deal/run end) — `item_fired` joins `deal_start`'s loadout on (`run_id`, `deal_number`) with no per-event plumbing. An event carrying its own `deal_number` (e.g. `deal_end`) keeps it |
 | `build` | `BuildStamp.version` (e.g. `v6.92`), added at transport |
 | user id, app version, platform, `isTestFlight`… | TelemetryDeck's default payload (anonymous, salted-hashed id) |
 
@@ -42,14 +43,16 @@ first** when adding events — the vocabulary lives here, the code follows.
 | `session_start` | — | app launch + each foreground return |
 | `session_end` | `seconds` | app background (paired with the last start) |
 | `mode_start` | `picked_mode`, `zen_diff`? | every Zen game / climb start / endless entry |
+| `zen_end` | `outcome`: win·loss, `zen_diff`, `seconds` | v7.00: every finished Zen game (a mid-game quit emits nothing — navigational) |
 | `tutorial` | `phase`: started·step·completed·abandoned, `step`? | the deal tour's lifecycle |
 
 ### Run lifecycle
 | event | params | fires |
 |---|---|---|
 | `run_start` | (envelope) | climb start; endless entry starts its own run |
-| `run_end` | `outcome`: win·loss·abandon, `stage_reached`, `score`, `deals_played`, `seconds` | loss screen · Pinky's home (win) · a new climb over a live one (abandon — quitting to menu is navigational, the climb resumes) |
-| `deal_end` | `won`, `deal_number`, `stage`, `node_id`?, `node_type`?, `piles_alive`, `deck_size` | every campaign deal's fold |
+| `run_end` | `outcome`: win·loss·abandon, `stage_reached`, `score`, `deals_played`, `seconds`, **v7.00:** `pillars`/`bases` (csv by column, `-` = empty), `same_power`, and the full composition summary (`deck_size`, `suits`, `ranks`, `sticker_count`, `curse_count` — `deck_snapshot`'s exact format) | loss screen · Pinky's home (win) · a new climb over a live one (abandon — quitting to menu is navigational, the climb resumes) |
+| `deal_start` | v7.00: `stage`, `cards` (dealt), `piles` (starting), `rating` (1–3 stage-relative difficulty), `pillars`/`bases` (csv by column), `same_power` — the deal's SHAPE + the equipped loadout. One per deal number (redeal/resume re-boots dedupe). Replaces v6.92's bare `loadout` | every campaign deal boot |
+| `deal_end` | `won`, `deal_number`, `stage`, `node_id`?, `node_type`?, `piles_alive`, `deck_size`, **v7.00:** `cards`, `piles`, `rating` (the shape it started with — "players die on 4-pile 15-card deals") | every campaign deal's fold |
 | `milestone_first_store` / `_first_mystery` / `_first_death` | — | once per install |
 | `milestone_time_to_first_climb` | `seconds` since install | first climb ever |
 
@@ -57,6 +60,7 @@ first** when adding events — the vocabulary lives here, the code follows.
 | event | params | fires |
 |---|---|---|
 | `store_visit` | `shelf` (`kind:id:price\|…`), `purse`, `purge_price`, `reroll_cost` | each shelf roll (`openStore`) |
+| `item_offered` | `kind`, `item_id`, `price` | v7.00: one per rolled shelf slot — openStore AND every restock (the Purge slot excluded). The countable "times offered" denominator |
 | `item_bought` | `item_id`, `purse` (after) | every purchase (the one funnel, `recordBuy`) |
 | `item_skipped` | `item_id`, `kind` | per slot still on the shelf at exit |
 | `purge_used` | `price` | each Purge buy |
@@ -75,7 +79,6 @@ first** when adding events — the vocabulary lives here, the code follows.
 | event | params | fires |
 |---|---|---|
 | `deck_snapshot` | `stage`, `deck_size`, `suits` (`♠N\|…`), `ranks` (`2:N\|…14:N`), `sticker_count`, `curse_count` | run start + each stage rollover |
-| `loadout` | `pillars`, `bases`, `same_power` (csv ids) | each campaign deal start |
 | `sticker_placement` | the placement log's own record (debug builds; `PLACE\|` NDJSON — not remoted, by design: it carries the full eligible set) | — |
 | `conditional_outcome` | `sticker_id`, `outcome`: fired·converted | derived per conditional-sticker recT entry |
 | `item_fired` | `item_class`, `item_id`, `fx_*` (the recT impact dict) | every recT entry — pillars, bases, stickers, powers, missed rolls |
@@ -83,6 +86,24 @@ first** when adding events — the vocabulary lives here, the code follows.
 
 **Never logged:** per-guess higher/lower calls, settings changes (beyond the
 sharing switch's own effect of going silent), device identifiers, free text.
+
+## The questions the schema answers (v7.00 completeness pass)
+
+- **Deck/tier per run** — the envelope on `run_start` (and everything after).
+- **Win rate, overall / per deck / per tier** — `run_end.outcome` split by the
+  envelope. Use `run_start` as the denominator: a device wiped mid-climb never
+  emits its `run_end`, so start-vs-end also measures that leak.
+- **Where runs end** — `run_end.stage_reached` + `deals_played`, and the fatal
+  deal's own `deal_end` (`won=0`) now carries `cards`/`piles`/`rating`.
+- **Score distribution per deck/tier** — `run_end.score` × envelope.
+- **Per item** — offered: `item_offered`; bought: `item_bought`; skipped:
+  `item_skipped`; deals equipped: count `deal_start`s whose csv contains the
+  id; fired: `item_fired` (joins on `run_id` + `deal_number`); conditional
+  fired-vs-converted: `conditional_outcome`.
+- **Run timeline from run_id** — every in-run signal carries the envelope;
+  order by TelemetryDeck's `receivedAt` + `deal_number`.
+- **Zen** — played: `mode_start` (`picked_mode=zen`, `zen_diff`);
+  won/lost + duration: `zen_end`.
 
 ## Dashboard setup (TelemetryDeck)
 

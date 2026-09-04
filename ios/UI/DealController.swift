@@ -338,7 +338,13 @@ public final class DealController {
         // this closure — never a snapshot (captures the shared campaign, not self,
         // so no retain cycle).
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
-        if isCampaign { Telemetry.loadout(campaign) }
+        if isCampaign {
+            // TELEMETRY (v7.00): deal_start — the deal's shape + the full
+            // loadout (replaces the bare v6.92 `loadout`). The core dedupes
+            // the redeal/resume re-boots of the same deal number.
+            Telemetry.dealStarted(campaign: campaign, cards: p.deckForDeal.count,
+                                  piles: p.piles, rating: p.rating)
+        }
         // FULL-DECK composition hook (v6.78, web setCompositionHook parity):
         // campaign deals read composition off the LIVE owned deck — the deck
         // the histogram shows — even on subset deals. Zen keeps the deal-deck
