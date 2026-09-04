@@ -138,7 +138,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ninelives.shouldasaidsame
         DEVELOPMENT_TEAM: QZF43AV37Q   # JARED MATHEW KROSSER
         GENERATE_INFOPLIST_FILE: "NO"
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # iPhone only (1). iPad (2) is out of scope — the game is portrait-only
+        # and mobile-first, and an iPad target would force all four orientations
+        # for multitasking (the App Store rejection this setting fixes).
+        TARGETED_DEVICE_FAMILY: "1"
         # The app icon: App/Assets.xcassets/AppIcon.appiconset — every iPhone
         # and iPad size plus the 1024 marketing icon (13 PNGs). Regenerate the
         # whole set from Tools/render_icon.py, which owns the geometry.
