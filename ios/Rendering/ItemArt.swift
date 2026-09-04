@@ -957,17 +957,19 @@ public enum ItemArt {
             "KCCRCCK.KCKKKCK.",
             "KKKKKKK.KKKKKKK.",
             "................"],
+        // v7.01: Guard is suit-AGNOSTIC — the spade emblem retired for a
+        // plain banded shield.
         "suitImmunity": [
             "................",
             "..KKKKKKKKKKKK..",
             "..KCCCCCCCCCCK..",
             "..KCKKKKKKKKCK..",
-            "..KCKKKCCKKKCK..",
-            "..KCKKCCCCKKCK..",
-            "..KCKCCCCCCKCK..",
-            "..KCKCCCCCCKCK..",
-            "..KCKKKCCKKKCK..",
-            "..KCKKCCCCKKCK..",
+            "..KCKKKKKKKKCK..",
+            "..KCCCCCCCCCCK..",
+            "..KCCCCCCCCCCK..",
+            "..KCKKKKKKKKCK..",
+            "..KCKKKKKKKKCK..",
+            "..KCKKKKKKKKCK..",
             "...KCKKKKKKCK...",
             "....KCKKKKCK....",
             ".....KCKKCK.....",
@@ -2422,6 +2424,20 @@ public enum ItemArt {
 
         /* ── v6.99 authored-glyph sweep: every active item wears pixel art —
            no more family-matrix or first-letter fallbacks. ─────────────── */
+        // Streak Coin (v7.01): the streak steps rising to a coin.
+        "streakCoin": [
+            "............",
+            "........XXXX",
+            "........X..X",
+            "........XXXX",
+            "............",
+            "........XX..",
+            ".....XX.XX..",
+            ".....XX.XX..",
+            "..XX.XX.XX..",
+            "..XX.XX.XX..",
+            "XXXXXXXXXXXX",
+            "............"],
         // Crowd Favorite: the most-held rank pays (a podium: crowd bars, the
         // middle one tallest, a coin above it).
         "crowdFavorite": [

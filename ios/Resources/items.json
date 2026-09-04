@@ -474,10 +474,7 @@
       "behavior": "twinSpark",
       "tier": "uncommon",
       "price": 3,
-      "description": "If another pile shows this rank → peek next card\nOtherwise → this becomes a curse",
-      "suits": [
-        "♠"
-      ]
+      "description": "If another pile shows this rank → peek next card\nOtherwise → this becomes a curse"
     },
     {
       "id": "looseChange",
@@ -954,7 +951,7 @@
       "effect": "suitBounty",
       "suit": "♥",
       "value": 1,
-      "tier": "uncommon",
+      "tier": "common",
       "price": 6,
       "description": "When a ♥ lands in this column → +1 coin"
     },
@@ -984,10 +981,10 @@
       "icon": "🪦",
       "kind": "scoring",
       "effect": "columnNoneAlive",
-      "value": 3,
+      "value": 8,
       "tier": "uncommon",
       "price": 6,
-      "description": "At deal end if no pile in this column survived → +3 coins"
+      "description": "At deal end if no pile in this column survived → +8 coins"
     },
     {
       "id": "columnGuardian",
@@ -1084,6 +1081,18 @@
       "tier": "uncommon",
       "price": 6,
       "description": "From the 4th consecutive correct guess in this column → bury 1 card per guess — resets on a wrong guess or a guess in another column"
+    },
+    {
+      "id": "streakCoin",
+      "label": "Streak Coin",
+      "icon": "🪙",
+      "kind": "scoring",
+      "effect": "streakCoin",
+      "threshold": 4,
+      "value": 1,
+      "tier": "uncommon",
+      "price": 6,
+      "description": "From the 4th consecutive correct guess in this column → +1 coin per guess\nResets on a wrong guess or a guess in another column"
     },
     {
       "id": "fourthSeat",
@@ -1236,10 +1245,10 @@
       "icon": "🚪",
       "kind": "meta",
       "effect": "twoWard",
-      "chance": 0.3,
+      "chance": 0.5,
       "tier": "uncommon",
       "price": 6,
-      "description": "30% chance to turn away a Just a Two mystery — 100% if your full deck has no 2s (no effect during deal)"
+      "description": "50% chance to turn away a Just a Two mystery\n100% if your full deck has no 2s\nWhen a cursed card lands in this column → remove that curse from the card"
     },
     {
       "id": "queenFinder",
@@ -1252,10 +1261,11 @@
       "icon": "👑",
       "kind": "meta",
       "effect": "queenFinder",
-      "chance": 0.3,
+      "chance": 0.5,
+      "value": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "+30% chance to find a Beheaded Queen at a mystery stop — 100% if Queens are the most common rank in your full deck, ties don't count (no effect during deal)"
+      "description": "+50% chance to find a Beheaded Queen at a mystery node\n100% if Queens are your most-held rank\nWhen a Queen lands in this column → +1 coin"
     },
     {
       "id": "flypaper",
@@ -1287,7 +1297,7 @@
       "digCount": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "When a {rank} lands correctly in this column → bury 1 card under that pile"
+      "description": "When a {rank} lands in this column → bury 1 card under that pile"
     },
     {
       "id": "crowdFavorite",
@@ -1554,10 +1564,9 @@
       "icon": "🎴",
       "kind": "live",
       "effect": "mostHeldRankTell",
-      "missingForPeek": 3,
-      "tier": "uncommon",
+      "tier": "rare",
       "price": 6,
-      "description": "When your most-held rank ({rank}) lands in this column → it shows a tell\nIf 3+ ranks are missing → peek next card"
+      "description": "When your most-held rank ({rank}) lands in this column → it shows a tell"
     },
     {
       "id": "rankGapSafe",
@@ -1954,7 +1963,7 @@
       "effect": "spadePeek",
       "tier": "uncommon",
       "price": 6,
-      "description": "If every pile in this column has a ♠ top card → peek next card"
+      "description": "Peek the next X cards, where X is the number of piles in this column with a ♠ top card"
     },
     {
       "id": "shuffleColumn",
@@ -2167,7 +2176,7 @@
       "effect": "lastResort",
       "tier": "uncommon",
       "price": 6,
-      "description": "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys any nearby Base)"
+      "description": "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys itself and any adjacent Base)"
     },
     {
       "id": "emptyPurse",
@@ -2180,9 +2189,10 @@
       "icon": "👛",
       "kind": "active",
       "effect": "emptyPurse",
+      "perCoins": 5,
       "tier": "uncommon",
       "price": 6,
-      "description": "Spend all your coins → peek 1 card, +1 more per 10 coins spent"
+      "description": "Spend all your coins → bury 1 card per 5 coins spent, then peek the next card"
     },
     {
       "id": "sameTell",

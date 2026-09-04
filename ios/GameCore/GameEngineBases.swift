@@ -34,7 +34,8 @@ extension GameEngine {
         // Kamikaze needs >1 pile alive board-wide AND a ♠-top alive pile in its
         // OWN column (it auto-picks a random ♠ target there).
         case "kamikaze":          return board.aliveCount() > 1 && alive.contains { topIsSuit($0, "♠") }
-        case "spadePeek":         return !alive.isEmpty && alive.allSatisfy { topIsSuit($0, "♠") }
+        // v7.01: the all-♠ gate retired — one ♠ top is enough (X scales).
+        case "spadePeek":         return !deck.isEmpty && alive.contains { topIsSuit($0, "♠") }
         case "shuffleColumn":     return !alive.isEmpty
         case "reviveBase":        return !colDeadPiles(col).isEmpty
         case "randomSticker":     return alive.contains { !wildStickerPoolFor(board.top($0)).isEmpty }
@@ -124,8 +125,8 @@ extension GameEngine {
             // Coins: +coinPerPile per alive ♥-topped pile in the column.
             return Int(base.num("coinPerPile", 7) * Double(topCount("♥")))
         case "spadePeek":
-            // Always exactly one peek (all-♠ column is the GATE, not a scale).
-            return 1
+            // v7.01: X = the ♠-topped alive piles in this column.
+            return topCount("♠")
         case "suitDig":
             // Cards buried — only Club Dig ships in the roster.
             guard base.suit == "♣" else { return nil }
@@ -151,10 +152,10 @@ extension GameEngine {
             // The cut it would bank: perDiamond × ♦-topped alive piles.
             return topCount("♦") * base.int("perDiamond", 1)
         case "emptyPurse":
-            // Peeks the spend would buy: 1 + purse/10 (campaign-wired only —
-            // no purse provider, no number).
+            // v7.01: cards the spend would bury — purse ÷ perCoins
+            // (campaign-wired only — no purse provider, no number).
             guard let purse = purseCoinsProvider?() else { return nil }
-            return 1 + purse / 10
+            return purse / max(1, base.int("perCoins", 5))
         case "diamondBoost":
             // Total pile size it would add: value × ♦-topped alive piles.
             return topCount("♦") * base.int("value", 3)
@@ -241,7 +242,8 @@ extension GameEngine {
         case "suitDig":
             return "Needs a \(base.suit ?? "matching") on top of a pile in this column."
         case "spadePeek":
-            return "Fires only when EVERY pile in this column has a ♠ on top."
+            if deck.isEmpty { return "The deck is empty — nothing to peek." }
+            return "Needs a ♠ on top of a pile in this column."
         case "heartDemolish":
             return "No ♥-topped pile in this column."
         case "tax":
@@ -347,12 +349,13 @@ extension GameEngine {
             logLine("fired the equipped Same-Power on pile \(hub != nil ? String(hub! + 1) : "—")")
 
         case "spadePeek":
-            // Reworked (router batch 2): fires only when EVERY alive pile in
-            // this column wears a ♠ top (the availability gate) — one peek.
-            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
-            res.peekCount = 1
-            res.cards = deck.peek(1)
-            logLine("all-♠ column: peeking the next upcoming card")
+            // v7.01: peek X, where X = this column's ♠-topped alive piles
+            // (the all-♠ gate retired with the flat single peek).
+            let x = colAlivePiles(col).filter { matchesSuit(board.top($0), "♠") }.count
+            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, x)
+            res.peekCount = x
+            res.cards = deck.peek(x)
+            logLine("\(x) ♠ top\(x == 1 ? "" : "s"): peeking the next \(x) card\(x == 1 ? "" : "s")")
 
         case "lonePeek":
             // The Lone Eye: a plain single peek, gated (in availability) on
@@ -376,19 +379,30 @@ extension GameEngine {
             evaluateEnd()
 
         case "emptyPurse":
-            // EMPTY PURSE (v6.74 rework): 1 peek BASELINE + 1 more per 10
-            // coins in the purse when triggered — 0 coins still peeks 1.
-            // The purse lives with the campaign: the caller threads the
-            // count in (`purseCoins`) and drains exactly `res.purseSpent` on
-            // this result (coins are not engine state). Fires regardless of
-            // the purse's size.
+            // EMPTY PURSE (v7.01 rework): the spend BURIES — 1 card per
+            // `perCoins` spent, spread ROUND-ROBIN across this column's
+            // alive piles (deck-limited), then ONE peek regardless of the
+            // spend (0 coins still peeks). The purse lives with the
+            // campaign: the caller threads the count in (`purseCoins`) and
+            // drains exactly `res.purseSpent` on this result.
             let purse = max(0, purseCoins)
-            let peeks = 1 + purse / 10
-            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, peeks)
-            res.peekCount = peeks
+            let toBury = purse / max(1, base.int("perCoins", 5))
+            let targets = colAlivePiles(col)
+            var buried = 0
+            if !targets.isEmpty {
+                var t = 0
+                while buried < toBury && !deck.isEmpty {
+                    if buryTribute(targets[t % targets.count], 1, base.label) > 0 { buried += 1 }
+                    else { break }
+                    t += 1
+                }
+            }
+            run.kamikazeRevealLeft = max(run.kamikazeRevealLeft, 1)
+            res.peekCount = 1
+            res.buried = buried
             res.purseSpent = purse
-            res.cards = deck.peek(peeks)
-            logLine("\(base.label): \(purse) coins spent to peek \(peeks) card\(peeks == 1 ? "" : "s") ahead")
+            res.cards = deck.peek(1)
+            logLine("\(base.label): \(purse) coins spent — buried \(buried) card\(buried == 1 ? "" : "s"), peeking the next card")
 
         case "sameTell":
             // SAME TELL: one question, one answer. A rank match with a top

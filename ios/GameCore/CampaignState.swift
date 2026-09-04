@@ -1216,13 +1216,12 @@ public final class CampaignState {
         return rng.next() < def.num("chance", 0.3)
     }
 
-    /// QUEEN-FINDER's 100% branch: Queens STRICTLY the most common rank —
-    /// a tie doesn't count (the deck isn't hers until it is). Rank 12 = Q.
+    /// QUEEN-FINDER's 100% branch (v7.01): Queens are your MOST-HELD rank —
+    /// the SHARED most-held rule (mostCommonRank, ties → lowest), replacing
+    /// the old strictly-most-common read. A tie with a HIGHER rank now
+    /// counts (12 < 13); a tie with a lower one still doesn't. Rank 12 = Q.
     public func queensAreStrictlyMostCommon() -> Bool {
-        let counts = composition()
-        let q = counts[12] ?? 0
-        guard q > 0 else { return false }
-        return counts.allSatisfy { $0.key == 12 || $0.value < q }
+        mostCommonRank() == 12
     }
 
     /// The seeded outcome KEY for a mystery node — PURE (no state change). Same

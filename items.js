@@ -251,7 +251,7 @@ const NINELIVES_ITEMS = {
     { id: "quickBury", label: "Quick Bury",  icon: "⚡", kind: "behavior", behavior: "quickBury", tier: "uncommon", price: 3,
       description: "If another pile shows this suit → bury 1 card under this pile\nOtherwise → this becomes a curse" },
     { id: "twinSpark", unlock: { type: "behavior", stat: "zenGamesPlayed", count: 4 }, label: "Twin Spark",  icon: "✨", kind: "behavior", behavior: "twinSpark", tier: "uncommon", price: 3,
-      description: "If another pile shows this rank → peek next card\nOtherwise → this becomes a curse", suits: ["♠"]  },
+      description: "If another pile shows this rank → peek next card\nOtherwise → this becomes a curse" },
     // max = the top of the random 0–max coin roll.
     { id: "looseChange", inactive: true, unlock: { type: "milestone", stat: "bestCoinsInClimb", count: 60 }, label: "Loose Change", icon: "🪙", kind: "behavior", behavior: "looseChange", max: 3, tier: "uncommon", price: 2,
       description: "+0–3 coins (random)", suits: ["♥"] },
@@ -363,7 +363,7 @@ const NINELIVES_ITEMS = {
   pillars: [
     // +value per correct guess placing a matching-suit card in this column.
     { id: "heartBounty", label: "Heart Bonus", icon: "♥️",
-      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "uncommon", price: 6,
+      kind: "scoring", effect: "suitBounty", suit: "♥", value: 1, tier: "common", price: 6,
       description: "When a ♥ lands in this column → +1 coin" },
     { id: "columnTieSafe", unlock: { type: "behavior", stat: "samesCalled", count: 12 }, label: "Column Tie-Safe", icon: "🛡️",
       kind: "guess", effect: "columnTieSafe", tier: "uncommon", price: 6,
@@ -371,8 +371,8 @@ const NINELIVES_ITEMS = {
     // value = coins paid when the column is completely WIPED OUT at deal end
     // (the mirror of Guardian). Pays nothing if a single pile survives.
     { id: "lastLicks", unlock: { type: "behavior", stat: "pilesLost", count: 18 }, label: "Last Licks", icon: "🪦",
-      kind: "scoring", effect: "columnNoneAlive", value: 3, tier: "uncommon", price: 6,
-      description: "At deal end if no pile in this column survived → +3 coins" },
+      kind: "scoring", effect: "columnNoneAlive", value: 8, tier: "uncommon", price: 6,
+      description: "At deal end if no pile in this column survived → +8 coins" },
     { id: "columnGuardian", label: "Guardian", icon: "🏛️",
       kind: "scoring", effect: "columnAllAlive", value: 4, tier: "uncommon", price: 6,
       description: "At deal end if every pile in this column survived → +4 coins" },
@@ -397,6 +397,11 @@ const NINELIVES_ITEMS = {
     { id: "streakTribute", unlock: { type: "behavior", stat: "cardsBuried", count: 90 }, label: "Streak Bury", icon: "🔥",
       kind: "composition", effect: "streakTribute", threshold: 4, digCount: 1, tier: "uncommon", price: 6,
       description: "From the 4th consecutive correct guess in this column → bury 1 card per guess — resets on a wrong guess or a guess in another column" },
+    // STREAK COIN (v7.01): Streak Bury's coin twin — same threshold, same
+    // resets, `value` coins per in-streak guess.
+    { id: "streakCoin", label: "Streak Coin", icon: "🪙",
+      kind: "scoring", effect: "streakCoin", threshold: 4, value: 1, tier: "uncommon", price: 6,
+      description: "From the 4th consecutive correct guess in this column → +1 coin per guess\nResets on a wrong guess or a guess in another column" },
     // value = the CAP this column may be widened to. The board's normal 3-way
     // split runs first, then this column gains ONE seat, never past `value` —
     // so a 1-pile column opens with 2 and a column already at the cap is
@@ -446,18 +451,27 @@ const NINELIVES_ITEMS = {
     // node; CERTAIN when the deck holds no 2s at all (v6.87 — reads the
     // full deck at the node). He still appears, says "Ah, nothing for you
     // today.", and takes nothing. No in-deal effect; the engine never sees it.
+    // v7.01 HYBRID: the ward chance rises to 50% and a CURSED landing in
+    // the column loses its curses permanently (the Cleanse contract —
+    // .cursePeeled writes the campaign identity). A curse converted DURING
+    // the landing is dormant (freshCurses) and survives it.
     { id: "twoWard", unlock: { type: "behavior", stat: "jokersPlayed", count: 4 }, label: "Bouncer", icon: "🚪",
-      kind: "meta", effect: "twoWard", chance: 0.3, tier: "uncommon", price: 6,
-      description: "30% chance to turn away a Just a Two mystery — 100% if your full deck has no 2s (no effect during deal)" },
+      kind: "meta", effect: "twoWard", chance: 0.5, tier: "uncommon", price: 6,
+      description: "50% chance to turn away a Just a Two mystery\n100% if your full deck has no 2s\nWhen a cursed card lands in this column → remove that curse from the card" },
     // QUEEN-FINDER (v6.87): the Bouncer's twin on the QUEEN side of the
     // mystery split. Rolls ride their OWN salted substream (queenFinderSalt)
     // so the main mystery key stream never shifts; the 100% branch (Queens
     // STRICTLY the most common rank — a tie doesn't count) also outranks
     // the Old Joker's claim on the node. Cost/unlock proposed — STOP-FLAGGED
     // in the batch report.
+    // v7.01 HYBRID: the finder chance rises to 50%, the 100% branch reads
+    // the SHARED most-held rule (mostCommonRank, ties → lowest — the old
+    // strictly-most-common rule retired with the wording), and a Queen
+    // landing in the column pays `value` — the meta pillar earns its slot
+    // in-deal too. The "(no effect during deal)" suffix retired with it.
     { id: "queenFinder", unlock: { type: "behavior", stat: "jokersPlayed", count: 6 }, label: "Queen-Finder", icon: "👑",
-      kind: "meta", effect: "queenFinder", chance: 0.3, tier: "uncommon", price: 6,
-      description: "+30% chance to find a Beheaded Queen at a mystery stop — 100% if Queens are the most common rank in your full deck, ties don't count (no effect during deal)" },
+      kind: "meta", effect: "queenFinder", chance: 0.5, value: 1, tier: "uncommon", price: 6,
+      description: "+50% chance to find a Beheaded Queen at a mystery node\n100% if Queens are your most-held rank\nWhen a Queen lands in this column → +1 coin" },
     // FLYPAPER: sticky column — a small chance each landing picks up a
     // random sticker, permanently.
     { id: "flypaper", unlock: { type: "behavior", stat: "stickersApplied", count: 25 }, label: "Flypaper", icon: "🪤",
@@ -468,7 +482,7 @@ const NINELIVES_ITEMS = {
     // Favorite its most common (random tiebreak) — and holds all climb.
     { id: "underdog", unlock: { type: "behavior", stat: "cardsBuried", count: 40 }, label: "Underdog", icon: "🐜",
       kind: "composition", effect: "rankBury", digCount: 1, tier: "uncommon", price: 6,
-      description: "When a {rank} lands correctly in this column → bury 1 card under that pile" },
+      description: "When a {rank} lands in this column → bury 1 card under that pile" },
     { id: "crowdFavorite", unlock: { type: "milestone", stat: "dealsSurvived", count: 18 }, label: "Crowd Favorite", icon: "📣",
       kind: "live", effect: "rankCoin", value: 2, tier: "uncommon", price: 6,
       description: "When a {rank} lands correctly in this column → +2 coins" },
@@ -557,11 +571,11 @@ const NINELIVES_ITEMS = {
     { id: "mostHeldRankBury", unlock: { type: "behavior", stat: "removalsUsed", count: 45 }, label: "Most-Held Bury", icon: "🀄",
       kind: "composition", effect: "mostHeldRankBury", tier: "uncommon", price: 6,
       description: "When your most-held rank ({rank}) lands in this column → bury 1 card under that pile per rank with zero copies in your full deck" },
-    // Tell leg: the landing pile reads the next draw; a deck already missing
-    // 3+ ranks upgrades the same landing with a peek.
+    // Tell leg (v7.01: the 3+-missing peek clause retired — text and
+    // behavior; rare now).
     { id: "mostHeldRankTell", unlock: { type: "behavior", stat: "removalsUsed", count: 25 }, label: "Most-Held Tell", icon: "🎴",
-      kind: "live", effect: "mostHeldRankTell", missingForPeek: 3, tier: "uncommon", price: 6,
-      description: "When your most-held rank ({rank}) lands in this column → it shows a tell\nIf 3+ ranks are missing → peek next card" },
+      kind: "live", effect: "mostHeldRankTell", tier: "rare", price: 6,
+      description: "When your most-held rank ({rank}) lands in this column → it shows a tell" },
     // RANK GAP: a landing is safe when the full deck holds ZERO copies of a
     // NEIGHBOURING rank. EDGE RULE (v6.98, documented choice): the rank line
     // does NOT wrap and a non-existent neighbour is NOT "absent" — a 2
@@ -787,9 +801,10 @@ const NINELIVES_ITEMS = {
     { id: "kamikaze", unlock: { type: "milestone", stat: "dealsWonLegendary", count: 2 }, label: "Kamikaze", icon: "💥",
       kind: "active", effect: "kamikaze", peekCount: 2, tier: "uncommon", price: 6,
       description: "Kill a random ♠-topped pile in this column → peek the next 2 cards" },
+    // v7.01: the all-♠ gate retired — X scales with the ♠ tops instead.
     { id: "spadePeek", unlock: { type: "behavior", stat: "zenHardWon", count: 1 }, label: "Spade Peeker", icon: "🔦",
       kind: "active", effect: "spadePeek", tier: "uncommon", price: 6,
-      description: "If every pile in this column has a ♠ top card → peek next card" },
+      description: "Peek the next X cards, where X is the number of piles in this column with a ♠ top card" },
     { id: "shuffleColumn", label: "Upheaval", icon: "🌀",
       kind: "active", effect: "shuffleColumn", tier: "uncommon", price: 6,
       description: "Shuffle every pile in this column" },
@@ -847,12 +862,13 @@ const NINELIVES_ITEMS = {
     // boss deal. It blows itself up AND any base beside it on use.
     { id: "lastResort", unlock: { type: "behavior", stat: "pilesLost", count: 75 }, label: "Last Resort", icon: "🧨",
       kind: "active", effect: "lastResort", tier: "uncommon", price: 6,
-      description: "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys any nearby Base)" },
-    // EMPTY PURSE: every coin you hold, for peeks — 1 baseline + 1 more per
-    // 10 coins spent (v6.74 rework; was a flat single peek).
+      description: "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys itself and any adjacent Base)" },
+    // EMPTY PURSE (v7.01 rework): the spend BURIES now — 1 card per
+    // `perCoins` spent, spread round-robin across this column's alive piles
+    // (deck-limited), then one peek regardless of the spend.
     { id: "emptyPurse", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 150 }, label: "Empty Purse", icon: "👛",
-      kind: "active", effect: "emptyPurse", tier: "uncommon", price: 6,
-      description: "Spend all your coins → peek 1 card, +1 more per 10 coins spent" },
+      kind: "active", effect: "emptyPurse", perCoins: 5, tier: "uncommon", price: 6,
+      description: "Spend all your coins → bury 1 card per 5 coins spent, then peek the next card" },
     // SAME TELL: answers exactly one question — is the next card the same
     // rank as a top card ANYWHERE on the board? A match gets the = mark;
     // no match, no word. (v6.62: board-wide, was this-column-only.)

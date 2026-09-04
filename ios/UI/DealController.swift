@@ -278,7 +278,13 @@ public final class DealController {
                                  shopRolls: campaign.shopRolls,
                                  noStickers: campaign.rules().noStickers))
         engine.on { [weak self] in self?.handle($0) }
-        engine.telemetry = { TelemetryCore.shared.recordItemFire(klass: $0, id: $1, label: $2, values: $3) }
+        engine.telemetry = { [weak self] klass, id, label, values in
+            TelemetryCore.shared.recordItemFire(klass: klass, id: id, label: label, values: values)
+            // EVENT FEED (v7.01, debug-toggleable): the same recT entry, one
+            // more sink; the async flush coalesces a landing's burst.
+            EventFeedLog.shared.post(klass: klass, id: id, label: label, values: values)
+            self?.scheduleFeedFlush()
+        }
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
@@ -333,11 +339,22 @@ public final class DealController {
         // TELEMETRY (v6.92): the engine's one instrumentation stream (recT)
         // feeds the remote sink through its long-dormant hook — item_fired,
         // base_fired and conditional_outcome all derive from this line.
-        engine.telemetry = { TelemetryCore.shared.recordItemFire(klass: $0, id: $1, label: $2, values: $3) }
+        engine.telemetry = { [weak self] klass, id, label, values in
+            TelemetryCore.shared.recordItemFire(klass: klass, id: id, label: label, values: values)
+            // EVENT FEED (v7.01, debug-toggleable): the same recT entry, one
+            // more sink; the async flush coalesces a landing's burst.
+            EventFeedLog.shared.post(klass: klass, id: id, label: label, values: values)
+            self?.scheduleFeedFlush()
+        }
         // PAUPER family (v6.76): the engine reads the LIVE campaign purse through
         // this closure — never a snapshot (captures the shared campaign, not self,
         // so no retain cycle).
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
+        // EVENT FEED (v7.01): armed by the debug-menu pref, campaign only;
+        // each deal starts its scrollback fresh.
+        EventFeedLog.shared.enabled = isCampaign
+            && campaign.saveStore.pref("eventFeed") == "1"
+        EventFeedLog.shared.reset()
         if isCampaign {
             // TELEMETRY (v7.00): deal_start — the deal's shape + the full
             // loadout (replaces the bare v6.92 `loadout`). The core dedupes
@@ -2214,6 +2231,21 @@ public final class DealController {
         }
         lastBaseLights = lights
         scene.syncBaseLights(lights)
+    }
+
+    /// EVENT FEED (v7.01): one async flush per synchronous burst — the
+    /// guard flag folds a landing's many recT entries into one card.
+    private var feedFlushScheduled = false
+    private func scheduleFeedFlush() {
+        guard !feedFlushScheduled, EventFeedLog.shared.enabled else { return }
+        feedFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.feedFlushScheduled = false
+            let batch = EventFeedLog.shared.drainPending()
+            guard !batch.isEmpty else { return }
+            self.scene.showFeed(batch)
+        }
     }
 
     /// The previous refresh's lights — the transition cues' memory (v6.99).

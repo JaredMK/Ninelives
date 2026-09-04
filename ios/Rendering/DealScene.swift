@@ -51,6 +51,10 @@ public final class DealScene: SKScene {
 
     /// The hold-for-help panel; takes over the deck band's room, like the web.
     private let helpPanel = SKNode()
+    /// EVENT FEED (v7.01): the brief self-fading card over the deck band.
+    private let feedPanel = SKNode()
+    private var feedQueue: [[String]] = []
+    private var feedShowing = false
 
     // MARK: Board
     private var piles: [PileNode] = []
@@ -133,6 +137,8 @@ public final class DealScene: SKScene {
         helpPanel.zPosition = Layer.overlay
         helpPanel.isHidden = true
         addChild(helpPanel)
+        feedPanel.zPosition = Layer.overlay - 1   // hold-help always outranks it
+        addChild(feedPanel)
 
         crt = CRTOverlay(size: size)
         crt.position = CGPoint(x: size.width / 2, y: -size.height / 2)
@@ -1517,6 +1523,58 @@ public final class DealScene: SKScene {
         card.zPosition = 1
         card.position = CGPoint(x: w - 8, y: -30)
         helpPanel.addChild(card)
+    }
+
+    /// EVENT FEED (v7.01): one CARD per landing burst — up to four lines
+    /// (+N more), shown briefly over the band, then faded so the histogram
+    /// returns. Batches arriving while one shows QUEUE; nothing flashes over
+    /// anything. High-contrast, 14pt floor, top of the screen — the call
+    /// buttons live at the bottom and are never covered.
+    public func showFeed(_ lines: [String]) {
+        guard !lines.isEmpty else { return }
+        feedQueue.append(lines)
+        pumpFeed()
+    }
+
+    private func pumpFeed() {
+        guard !feedShowing, !feedQueue.isEmpty else { return }
+        feedShowing = true
+        var batch = feedQueue.removeFirst()
+        if batch.count > 4 {
+            let extra = batch.count - 3
+            batch = Array(batch.prefix(3)) + ["+\(extra) more…"]
+        }
+        feedPanel.removeAllChildren()
+        let w = size.width - 16
+        let lineH: CGFloat = 20
+        let h = 12 + CGFloat(batch.count) * lineH + 6
+        let bg = PixelTexture.panelNode(size: CGSize(width: w, height: h),
+                                        face: CRT.feltMid, border: CRT.gold)
+        bg.zPosition = 0
+        feedPanel.addChild(bg)
+        feedPanel.position = deckPanel.position
+        for (i, line) in batch.enumerated() {
+            let l = PixelTexture.label(line, size: 14, color: CRT.cardFace)
+            l.anchorPoint = CGPoint(x: 0, y: 1)
+            l.zPosition = 1
+            l.position = CGPoint(x: 8, y: -8 - CGFloat(i) * lineH)
+            feedPanel.addChild(l)
+        }
+        feedPanel.alpha = 0
+        feedPanel.isHidden = false
+        let hold = 1.3 + 0.4 * Double(batch.count)
+        feedPanel.run(.sequence([
+            .fadeIn(withDuration: 0.12),
+            .wait(forDuration: hold),
+            .fadeOut(withDuration: 0.35),
+            .run { [weak self] in
+                guard let self else { return }
+                self.feedPanel.removeAllChildren()
+                self.feedPanel.isHidden = true
+                self.feedShowing = false
+                self.pumpFeed()
+            },
+        ]))
     }
 
     public func hideHelp() { helpPanel.isHidden = true; helpPanel.removeAllChildren(); helpReceiptText = "" }

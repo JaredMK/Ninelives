@@ -164,7 +164,11 @@ enum PixelGlyph {
     /// take the surrounding run's ink. Nil for a non-suit string.
     static func suitImage(_ symbol: String, size: CGFloat, color: UIColor) -> UIImage? {
         guard let rows = suits[symbol] else { return nil }
-        let tint = CRT.forcedSuitColor(symbol) ?? color
+        // v7.01: text runs sit on dark chrome everywhere this substitution
+        // reaches — a Colorful ♣ stays cream here (the felt-collision fix);
+        // card faces draw their own pips and keep the green.
+        let tint = (CRT.colorfulCards && symbol == "♣") ? CRT.cardFace
+            : (CRT.forcedSuitColor(symbol) ?? color)
         return image(rows, color: tint, scale: max(1, (size / 12).rounded()), shadow: false)
     }
 

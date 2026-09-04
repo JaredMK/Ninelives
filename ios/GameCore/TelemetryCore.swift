@@ -64,7 +64,7 @@ public final class TelemetryCore {
     public static let conditionalStickers: Set<String> = [
         "tieSafe", "suitImmunity", "gainCoin", "heavy", "donate", "quickBury",
         "diamondSnob", "tell", "pillarScout", "baseScout",
-        "rechargeSameShield", "activateSamePower",
+        "rechargeSameShield", "activateSamePower", "twinSpark",
     ]
 
     // MARK: - Recording

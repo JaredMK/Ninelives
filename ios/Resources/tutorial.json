@@ -45,17 +45,7 @@
       {
         "wait": 2,
         "advance": "swipe",
-        "text": "You can also *swipe* on piles instead of tapping. It's faster!\nSwipe *up* to guess higher\nSwipe *down* to guess lower\nSwipe *to the side* to guess same"
-      },
-      {
-        "wait": 2,
-        "anchor": "pileCount",
-        "text": "This number tells you how many cards are in this pile."
-      },
-      {
-        "wait": 1,
-        "button": "Go",
-        "text": "Try to get through the *whole deck* before running out of piles. *Good luck!*"
+        "text": "You can also *swipe* on piles instead of tapping.\nSwipe *up* to guess higher\nSwipe *down* to guess lower\nSwipe *to the side* to guess same"
       }
     ],
     "zenEnd": [

@@ -136,6 +136,10 @@ public enum CRT {
     /// `onFelt` preserves the dark-surface split: ♠/♣ render cream, not ink,
     /// on felt (card faces keep ink).
     public static func suitColor(_ suit: String, onFelt: Bool = false) -> UIColor {
+        // v7.01: Colorful Cards' ♣ green vanishes into the green felt — in
+        // on-felt (text/chrome) contexts the club renders cream, exactly as
+        // ♠ always has. Card faces (onFelt false) keep the green identity.
+        if onFelt, colorfulCards, suit == "♣" { return cardFace }
         if let forced = forcedSuitColor(suit) { return forced }
         if suit == "★" { return gold }   // Joker
         return onFelt ? cardFace : ink   // ♠, and classic ♣

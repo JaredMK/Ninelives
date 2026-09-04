@@ -766,6 +766,12 @@ public final class GameEngine {
                     firePillar(col, "streakTribute", pillar.label, 0)
                     if nb > 0 { recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)]) }
                 }
+                // STREAK COIN (v7.01): Streak Bury's coin twin — `value` per
+                // in-streak correct guess, same threshold, same resets.
+                if let pillar, pillar.effect == "streakCoin", s >= pillar.int("threshold", 4) {
+                    payPillar(col, "streakCoin", pillar.label,
+                              pillar.num("value", 1) == 0 ? 1 : pillar.value)
+                }
             } else {
                 run.colStreak![col] = 0
             }

@@ -438,8 +438,9 @@ enum IVPillarsBases {
                     expect: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") }),
             ]
 
-        case "streakSize", "streakTribute":
+        case "streakSize", "streakTribute", "streakCoin":
             let isSize = def.effect == "streakSize"
+            let isCoin = def.effect == "streakCoin"
             let th = def.int("threshold", 3)
             func streakEngine() -> GameEngine {
                 var deck: [CardSpec] = []
@@ -456,6 +457,9 @@ enum IVPillarsBases {
                         if isSize {
                             XCTAssertEqual(e.board.pileSize(0), (1 + th) + 1,
                                            "\(c): streak \(th) adds +1 size to the column")
+                        } else if isCoin {
+                            XCTAssertEqual(e.run.bonusCoins, def.num("value", 1),
+                                           "\(c): the \(th)th in-streak guess pays (v7.01)")
                         } else {
                             XCTAssertGreaterThan(e.board.piles[0].cards.count, 1 + th,
                                                  "\(c): the streak buried extras")
@@ -467,6 +471,8 @@ enum IVPillarsBases {
                     expect: { e, _, c in
                         if isSize {
                             XCTAssertEqual(e.board.pileSize(0), 1 + (th - 1), "\(c): no bonus below \(th)")
+                        } else if isCoin {
+                            XCTAssertEqual(e.run.bonusCoins, 0, "\(c): no pay below \(th)")
                         } else {
                             XCTAssertEqual(e.board.piles[0].cards.count, 1 + (th - 1), "\(c)")
                         }
@@ -676,8 +682,55 @@ enum IVPillarsBases {
         // CampaignCheck.
 
         // ── campaign/store pillars (validated in the campaign checks) ───────
-        case "freebie", "purgeStepDiscount", "rareHunter", "twoWard", "queenFinder":
+        case "freebie", "purgeStepDiscount", "rareHunter":
             return []   // driver runs their CampaignCheck instead
+
+        // v7.01 HYBRIDS: the finder/ward halves stay campaign checks; the
+        // in-deal legs validate here.
+        case "queenFinder":
+            let qv = def.num("value", 1)
+            return [
+                IV.Scenario("trigger-queenLandsPays", allowed: [.guesses, .deck, .board, .coins],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 12, "♦"), IV.spec(51, 3)],
+                                       pillars: [def.id, nil, nil]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + qv,
+                                       "\(c): a Queen landing pays +\(jsNum(qv))")
+                    }),
+                IV.Scenario("mustNotFire-nonQueen", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 11, "♦"), IV.spec(51, 3)],
+                                       pillars: [def.id, nil, nil]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)")
+                    }),
+            ]
+        case "twoWard":
+            return [
+                IV.Scenario("trigger-cursedLandingCleansed", allowed: [.guesses, .deck, .board, .coins],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 9, "♦", ["leech"]), IV.spec(51, 3)],
+                                       pillars: [def.id, nil, nil]) },
+                    fire: { e in
+                        var peeled: [String] = []
+                        e.on { if case .cursePeeled(_, _, let types) = $0 { peeled = types } }
+                        e.guess(0, .higher)
+                        XCTAssertEqual(peeled, ["leech"], "the removal reports for the durable write")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertFalse(e.board.top(0)?.stickers.contains { $0.type == "leech" } ?? true,
+                                       "\(c): the landed card lost its curse (v7.01)")
+                    }),
+                IV.Scenario("mustNotFire-cleanLanding", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 9, "♦"), IV.spec(51, 3)],
+                                       pillars: [def.id, nil, nil]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { _, _, _ in }),
+            ]
 
         default:
             return nil
@@ -1709,16 +1762,17 @@ enum IVPillarsBases {
                 XCTAssertFalse(e.run.revealNextActive,
                                "\(c): one missing rank — under the 3+ bar, no peek")
             })
-        // 8×2 most-held; present 5–11 → 6 missing ranks ≥ 3.
+        // v7.01: even a rank-starved deck only TELLS — the 3+-missing peek
+        // retired with its clause.
         let sparseFillers = [IV.spec(51, 8, "♥"), IV.spec(52, 9, "♥"), IV.spec(53, 10, "♥"),
                              IV.spec(54, 11, "♥")]
-        let peek = IV.Scenario("trigger-threeMissingAlsoPeeks", allowed: [.guesses, .deck, .board],
+        let peek = IV.Scenario("edge-manyMissingStillOnlyTells", allowed: [.guesses, .deck, .board],
             build: { IV.engine(tops: tops, deckOrder: [IV.spec(50, 8, "♦")] + sparseFillers,
                                pillars: [def.id, nil, nil]) },
             fire: { $0.guess(0, .higher) },
             expect: { e, _, c in
-                XCTAssertTrue(e.run.tellPiles.contains(0), "\(c): the tell still arms")
-                XCTAssertTrue(e.run.revealNextActive, "\(c): 6 missing ranks ≥ 3 — the peek fires too")
+                XCTAssertTrue(e.run.tellPiles.contains(0), "\(c): the tell arms")
+                XCTAssertFalse(e.run.revealNextActive, "\(c): no peek — retired in v7.01")
             })
         let loneFillers = [IV.spec(51, 8, "♥"), IV.spec(52, 8, "♠"), IV.spec(53, 10, "♥"),
                            IV.spec(54, 11, "♥")]

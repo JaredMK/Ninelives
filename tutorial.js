@@ -105,11 +105,7 @@ const NINELIVES_TUTORIAL = {
       { wait: 2, anchor: "sameShield",
         text: "You can make a *Same* guess too! A correct Same guess charges this *Same Shield*, protecting a pile from the next wrong guess." },
       { wait: 2, advance: "swipe",
-        text: "You can also *swipe* on piles instead of tapping. It's faster!\nSwipe *up* to guess higher\nSwipe *down* to guess lower\nSwipe *to the side* to guess same" },
-      { wait: 2, anchor: "pileCount",
-        text: "This number tells you how many cards are in this pile." },
-      { wait: 1, button: "Go",
-        text: "Try to get through the *whole deck* before running out of piles. *Good luck!*" },
+        text: "You can also *swipe* on piles instead of tapping.\nSwipe *up* to guess higher\nSwipe *down* to guess lower\nSwipe *to the side* to guess same" },
     ],
 
     // That first guided deal just ended: one passive line, then free play.

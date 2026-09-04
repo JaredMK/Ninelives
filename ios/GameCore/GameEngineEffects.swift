@@ -366,20 +366,38 @@ extension GameEngine {
             recT("pillar", pillar.id, pillar.label, ["tells": 1])
 
         case "mostHeldRankTell" where v == mostCopiedRank():
-            // MOST-HELD TELL (v6.98, Rank Focus bench): the most-held rank
-            // landing arms a tell on its pile; a deck already missing
-            // `missingForPeek`+ ranks upgrades the same landing with a peek.
+            // MOST-HELD TELL (v7.01: the 3+-missing peek retired with its
+            // clause): the most-held rank landing arms a tell on its pile.
             run.tellPiles.insert(index)
-            var vals: [String: Double] = ["tells": 1]
-            if zeroCopyRankCount() >= pillar.int("missingForPeek", 3) {
-                run.revealNextActive = true
-                vals["peeks"] = 1
-                logLine("\(pillar.label): a tell arms on pile \(index + 1) — and 3+ ranks missing peeks the next card")
-            } else {
-                logLine("\(pillar.label): a tell arms on pile \(index + 1)")
-            }
             firePillar(col, "mostHeldRankTell", pillar.label, 0)
-            recT("pillar", pillar.id, pillar.label, vals)
+            recT("pillar", pillar.id, pillar.label, ["tells": 1])
+            logLine("\(pillar.label): a tell arms on pile \(index + 1)")
+
+        case "queenFinder" where v == 12:
+            // QUEEN-FINDER (v7.01 hybrid): a Queen landing in the column
+            // pays — the finder half stays campaign-side.
+            payPillar(col, "queenFinder", pillar.label,
+                      pillar.num("value", 1) == 0 ? 1 : pillar.value)
+
+        case "twoWard" where drawn.stickers.contains(where: { st in
+            guard stickerTypes.get(st.type)?.cursed == true else { return false }
+            // The Curse Harvest dormancy rule: a curse minted DURING this
+            // landing is a cursed departure, not a cursed landing.
+            return !run.freshCurses.contains { $0.cardId == drawn.id && $0.type == st.type }
+        }):
+            // BOUNCER (v7.01 hybrid): the cursed landing loses its curses
+            // for good — the Cleanse contract (.cursePeeled writes the
+            // campaign identity). Fresh conversions stay put (dormant).
+            let isStale: (StickerRecord) -> Bool = { [freshCurses = run.freshCurses] st in
+                self.stickerTypes.get(st.type)?.cursed == true
+                    && !freshCurses.contains { $0.cardId == drawn.id && $0.type == st.type }
+            }
+            let gone = drawn.stickers.filter(isStale)
+            drawn.stickers.removeAll(where: isStale)
+            firePillar(col, "twoWard", pillar.label, 0)
+            recT("pillar", pillar.id, pillar.label, ["cleansed": Double(gone.count)])
+            emit(.cursePeeled(index: index, cardId: drawn.id, types: gone.map(\.type)))
+            logLine("\(pillar.label): \(gone.count) curse\(gone.count == 1 ? "" : "s") removed from \(cardName(drawn))")
 
         case "pauperDiamondEqualize" where isDiamond && purseBelow(pillar):
             // PAUPER'S DIAMOND (v6.98 — a NEW item; the pile-size one stays

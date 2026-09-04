@@ -152,7 +152,7 @@ const OUTCOMES = {
   curseBuryPeek: ["Bury", ["Peek", "Curse Payoff"], "on a cursed landing"],
   // v6.98 — the Rank Focus bench + the new Pauper's Diamond.
   mostHeldRankBury: ["Bury", ["Deck Shaping"], "most-held rank, per empty rank"],
-  mostHeldRankTell: ["Tell", ["Peek", "Deck Shaping"], "most-held rank; 3+ missing peeks"],
+  mostHeldRankTell: ["Tell", ["Deck Shaping"], "most-held rank"],
   rankGapSafe: ["Safety & Saves", ["Deck Shaping"], "neighbour rank at zero"],
   missingRankDig: ["Bury", ["Deck Shaping"], "per missing rank, every alive pile"],
   pauperDiamondEqualize: ["Pile Size & Score", ["Pauper", "Deck Removal"], "♦ while broke; flat broke may purge"],
@@ -175,7 +175,7 @@ const OUTCOMES = {
   sameTell: ["Tell", [], "board-wide same-rank mark"], linkTell: ["Tell", [], "every alive pile, next draw"],
 
   // Coin Gain.
-  extraCoin: ["Coin Gain", [], "deal-end payout"], gainCoin: ["Coin Gain", [], "conditional: per matching-top pile"],
+  extraCoin: ["Coin Gain", [], "deal-end payout"], streakCoin: ["Coin Gain", [], "streak-grown"], gainCoin: ["Coin Gain", [], "conditional: per matching-top pile"],
   deathBounty: ["Coin Gain", [], "on a kill"], collector: ["Coin Gain", [], "per other sticker"],
   compound: ["Coin Gain", [], "streak-grown"], looseChange: ["Coin Gain", [], "random"],
   deepPockets: ["Coin Gain", [], "per deck card left"], heartSnob: ["Coin Gain", [], "on ♥ contact"],
@@ -238,8 +238,8 @@ const OUTCOMES = {
   // Loadout & Meta.
   ditto: ["Loadout & Meta", [], "mirrors the centre pillar"],
   refreshBases: ["Loadout & Meta", [], "recharges the other bases"],
-  twoWard: ["Loadout & Meta", [], "wards off a Just a Two"],
-  queenFinder: ["Loadout & Meta", [], "finds the Beheaded Queen"],
+  twoWard: ["Loadout & Meta", ["Curse Removal"], "wards a Two; cleanses cursed landings"],
+  queenFinder: ["Loadout & Meta", ["Coin Gain"], "finds the Queen; Queens pay on landing"],
 
   // Deal Control.
   lastResort: ["Deal Control", ["Bury"], "buries the deck, wins the deal"],

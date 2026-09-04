@@ -779,20 +779,22 @@ final class ItemBehaviorTests: XCTestCase {
     }
 
     func testEmptyPurseAndSameTell() {
-        // Empty Purse (v6.74 rework): 1 peek BASELINE + 1 more per 10 coins
-        // in the purse — 0 coins still peeks 1. The purse is threaded in by
-        // the caller (`purseCoins`) and drained from `res.purseSpent`.
-        for (coins, want) in [(0, 1), (9, 1), (10, 2), (25, 3)] {
+        // Empty Purse (v7.01 rework): the spend BURIES — 1 card per 5 coins,
+        // round-robin in its column — then ONE peek regardless of the spend.
+        for (coins, wantBuried) in [(0, 0), (4, 0), (10, 2), (25, 5)] {
             let e = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
                                runConfig: RunConfig(cols: [3, 3, 3]))
             e.start(seedOverride: 999)
             e.startRun(pillars: [nil, nil, nil], bases: ["emptyPurse", nil, nil], samePower: nil)
             XCTAssertTrue(e.baseAvailable(0), "no coin minimum — it fires broke too")
+            let before = e.deck.remaining()
             let res = e.baseActivate(col: 0, targetIndex: nil, purseCoins: coins)
-            XCTAssertEqual(res?.peekCount, want, "\(coins) coins → \(want) peek(s)")
-            XCTAssertEqual(res?.cards?.count, want, "\(coins) coins: the peek snapshot")
+            XCTAssertEqual(res?.buried, wantBuried, "\(coins) coins → \(wantBuried) buried")
+            XCTAssertEqual(e.deck.remaining(), before - wantBuried, "\(coins) coins: the deck paid")
+            XCTAssertEqual(res?.peekCount, 1, "\(coins) coins → ONE peek, always")
+            XCTAssertEqual(res?.cards?.count, 1, "\(coins) coins: the peek snapshot")
             XCTAssertEqual(res?.purseSpent, coins, "\(coins) coins: the result reports the exact spend")
-            XCTAssertGreaterThanOrEqual(e.run.kamikazeRevealLeft, want,
+            XCTAssertGreaterThanOrEqual(e.run.kamikazeRevealLeft, 1,
                                         "\(coins) coins: the peek window is armed")
         }
         // …and the purse EMPTIES: the flow drains exactly res.purseSpent

@@ -102,24 +102,31 @@ enum IVBases {
             ]
 
         case "spadePeek":
+            // v7.01: X = the column's ♠ tops (the all-♠ gate retired).
             return [
-                IV.Scenario("trigger-allSpadesColumn", allowed: .all,
+                IV.Scenario("trigger-twoSpadesPeekTwo", allowed: .all,
                     build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♠"), IV.spec(3, 6)]) },
-                    fire: { _ = $0.baseActivate(col: 0) },
+                    fire: { e in
+                        XCTAssertEqual(e.baseLiveCounter(0), 2, "badge: 2 ♠ tops")
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.peekCount, 2, "peeks scale with the ♠ tops")
+                    },
                     expect: { e, _, c in
-                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c): the peek armed")
+                        XCTAssertEqual(e.run.kamikazeRevealLeft, 2, "\(c): X = 2")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-deadPileIgnored", allowed: .all,
-                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), nil, IV.spec(3, 6)]) },
-                    fire: { _ = $0.baseActivate(col: 0) },
-                    expect: { e, _, c in
-                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0,
-                                             "\(c): only ALIVE piles gate the all-♠ check")
-                    }),
-                IV.Scenario("mustNotFire-mixedTops", allowed: [],
+                IV.Scenario("edge-oneSpadeAmongMixed", allowed: .all,
                     build: { baseEngine(def, tops: [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 6)]) },
-                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "mixed tops must refuse") },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.peekCount, 1, "one ♠ top → one peek (v7.01: mixed fires)")
+                    },
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.run.kamikazeRevealLeft, 1, "\(c)")
+                    }),
+                IV.Scenario("mustNotFire-noSpadeTop", allowed: [],
+                    build: { baseEngine(def, tops: [IV.spec(1, 5, "♥"), IV.spec(2, 8, "♥"), IV.spec(3, 6, "♠")]) },
+                    fire: { e in XCTAssertNil(e.baseActivate(col: 0), "no ♠ in ITS column must refuse") },
                     expect: { e, _, c in XCTAssertEqual(e.run.basesUsed?[0], false, "\(c)") }),
             ]
 
@@ -200,21 +207,35 @@ enum IVBases {
             ]
 
         case "emptyPurse":
+            // v7.01: the spend BURIES (1 per perCoins, round-robin in its
+            // column), then ONE peek regardless.
             return [
-                IV.Scenario("trigger", allowed: .all,
+                IV.Scenario("trigger-buriesPerFiveAndPeeks", allowed: .all,
                     build: { baseEngine(def) },
-                    fire: { _ = $0.baseActivate(col: 0) },
-                    expect: { e, _, c in
-                        XCTAssertGreaterThan(e.run.kamikazeRevealLeft, 0, "\(c): the look ahead")
+                    fire: { e in
+                        let r = e.baseActivate(col: 0, purseCoins: 12)
+                        XCTAssertEqual(r?.buried, 2, "12 coins ÷ 5 → 2 buried")
+                        XCTAssertEqual(r?.purseSpent, 12, "the whole purse drains")
+                        XCTAssertEqual(r?.peekCount, 1, "…and ONE peek, always")
+                    },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 2, "\(c)")
+                        XCTAssertEqual(e.run.kamikazeRevealLeft, 1, "\(c)")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-emptyDeck", allowed: .all,
-                    build: { baseEngine(def, deckOrder: []) },
-                    fire: { _ = $0.baseActivate(col: 0) },
-                    expect: { _, _, _ in }, skipSnapshot: true),
+                IV.Scenario("edge-brokeStillPeeks", allowed: .all,
+                    build: { baseEngine(def) },
+                    fire: { e in
+                        let r = e.baseActivate(col: 0, purseCoins: 0)
+                        XCTAssertEqual(r?.buried, 0, "0 coins bury nothing")
+                        XCTAssertEqual(r?.peekCount, 1, "…the peek is the floor")
+                    },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining, "\(c)")
+                    }),
                 IV.Scenario("mustNotFire-spent", allowed: .all,
                     build: { baseEngine(def) },
-                    fire: { e in _ = e.baseActivate(col: 0) },
+                    fire: { e in _ = e.baseActivate(col: 0, purseCoins: 7) },
                     expect: { e, _, c in assertSpent(e, c) }),
             ]
 

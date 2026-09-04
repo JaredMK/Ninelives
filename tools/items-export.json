@@ -1,6 +1,6 @@
 {
- "version": "v6.99",
- "generatedAt": "2026-09-04 00:50",
+ "version": "v7.01",
+ "generatedAt": "2026-09-04 04:06",
  "rows": [
   {
    "cls": "Stickers",
@@ -408,7 +408,7 @@
    "unlockStat": "zenGamesPlayed",
    "unlockCount": 4,
    "gated": true,
-   "suits": "♠",
+   "suits": "",
    "cursed": false,
    "packSize": null,
    "packKeep": null,
@@ -563,7 +563,7 @@
    "effectKey": "suitBounty",
    "id": "heartBounty",
    "label": "Heart Bonus",
-   "tier": "uncommon",
+   "tier": "common",
    "price": 6,
    "unlockType": "",
    "unlockStat": "",
@@ -619,7 +619,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "At deal end if no pile in this column survived → +3 coins",
+   "description": "At deal end if no pile in this column survived → +8 coins",
    "flags": "",
    "flagNotes": ""
   },
@@ -689,6 +689,29 @@
    "packSize": null,
    "packKeep": null,
    "description": "From the 4th consecutive correct guess in this column → bury 1 card per guess — resets on a wrong guess or a guess in another column",
+   "flags": "",
+   "flagNotes": ""
+  },
+  {
+   "cls": "Pillars",
+   "inactive": false,
+   "outcome": "Coin Gain",
+   "outcomeDetail": "streak-grown",
+   "outcomeAlso": [],
+   "effectKey": "streakCoin",
+   "id": "streakCoin",
+   "label": "Streak Coin",
+   "tier": "uncommon",
+   "price": 6,
+   "unlockType": "",
+   "unlockStat": "",
+   "unlockCount": null,
+   "gated": false,
+   "suits": "",
+   "cursed": false,
+   "packSize": null,
+   "packKeep": null,
+   "description": "From the 4th consecutive correct guess in this column → +1 coin per guess\nResets on a wrong guess or a guess in another column",
    "flags": "",
    "flagNotes": ""
   },
@@ -882,8 +905,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Loadout & Meta",
-   "outcomeDetail": "wards off a Just a Two",
-   "outcomeAlso": [],
+   "outcomeDetail": "wards a Two; cleanses cursed landings",
+   "outcomeAlso": [
+    "Curse Removal"
+   ],
    "effectKey": "twoWard",
    "id": "twoWard",
    "label": "Bouncer",
@@ -897,7 +922,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "30% chance to turn away a Just a Two mystery — 100% if your full deck has no 2s (no effect during deal)",
+   "description": "50% chance to turn away a Just a Two mystery\n100% if your full deck has no 2s\nWhen a cursed card lands in this column → remove that curse from the card",
    "flags": "",
    "flagNotes": ""
   },
@@ -905,8 +930,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Loadout & Meta",
-   "outcomeDetail": "finds the Beheaded Queen",
-   "outcomeAlso": [],
+   "outcomeDetail": "finds the Queen; Queens pay on landing",
+   "outcomeAlso": [
+    "Coin Gain"
+   ],
    "effectKey": "queenFinder",
    "id": "queenFinder",
    "label": "Queen-Finder",
@@ -920,7 +947,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "+30% chance to find a Beheaded Queen at a mystery stop — 100% if Queens are the most common rank in your full deck, ties don't count (no effect during deal)",
+   "description": "+50% chance to find a Beheaded Queen at a mystery node\n100% if Queens are your most-held rank\nWhen a Queen lands in this column → +1 coin",
    "flags": "",
    "flagNotes": ""
   },
@@ -966,7 +993,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When a {rank} lands correctly in this column → bury 1 card under that pile",
+   "description": "When a {rank} lands in this column → bury 1 card under that pile",
    "flags": "TEMPLATE",
    "flagNotes": "TEMPLATE: {rank} substituted live"
   },
@@ -1256,15 +1283,14 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Tell",
-   "outcomeDetail": "most-held rank; 3+ missing peeks",
+   "outcomeDetail": "most-held rank",
    "outcomeAlso": [
-    "Peek",
     "Deck Shaping"
    ],
    "effectKey": "mostHeldRankTell",
    "id": "mostHeldRankTell",
    "label": "Most-Held Tell",
-   "tier": "uncommon",
+   "tier": "rare",
    "price": 6,
    "unlockType": "behavior",
    "unlockStat": "removalsUsed",
@@ -1274,7 +1300,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "When your most-held rank ({rank}) lands in this column → it shows a tell\nIf 3+ ranks are missing → peek next card",
+   "description": "When your most-held rank ({rank}) lands in this column → it shows a tell",
    "flags": "TEMPLATE",
    "flagNotes": "TEMPLATE: {rank} substituted live"
   },
@@ -1784,7 +1810,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If every pile in this column has a ♠ top card → peek next card",
+   "description": "Peek the next X cards, where X is the number of piles in this column with a ♠ top card",
    "flags": "",
    "flagNotes": ""
   },
@@ -2137,7 +2163,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys any nearby Base)",
+   "description": "If not a boss deal → bury the whole deck under a pile in this column and win instantly (destroys itself and any adjacent Base)",
    "flags": "",
    "flagNotes": ""
   },
@@ -2160,7 +2186,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Spend all your coins → peek 1 card, +1 more per 10 coins spent",
+   "description": "Spend all your coins → bury 1 card per 5 coins spent, then peek the next card",
    "flags": "",
    "flagNotes": ""
   },
