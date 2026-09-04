@@ -2900,15 +2900,18 @@ public enum ItemArt {
             "............"],
         // ---- ARCHETYPE BATCH v6.76 (mirrors the web BASE_SYM symbols) ------
         // Purge Coupon: a ticket with a perforated stub (the Purge price cut).
+        // Purge Coupon (v7.02): a torn VOUCHER — a stub (with a coin) and a
+        // body joined by a perforated, notched seam. The old glyph read as a
+        // battery.
         "purgeDiscount": [
             "............",
             "............",
-            ".XXXXXXXXX..",
-            ".X..X....X..",
-            ".X..X....XX.",
-            ".X..X....XX.",
-            ".X..X....X..",
-            ".XXXXXXXXX..",
+            ".XXXXX.XXXX.",
+            ".X.C.X.X..X.",
+            ".XC.CXXX..X.",
+            ".XC.CX.X..X.",
+            ".X.C.XXX..X.",
+            ".XXXXX.XXXX.",
             "............",
             "............",
             "............",

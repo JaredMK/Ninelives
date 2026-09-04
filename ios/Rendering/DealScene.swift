@@ -1711,6 +1711,67 @@ public final class DealScene: SKScene {
         return true
     }
 
+    /// The HUD's coin-chip centre in scene coordinates — the flight target
+    /// for every coin popup. nil when the chip isn't showing (Zen).
+    private func coinChipPoint() -> CGPoint? {
+        guard let f = hud.chipFrame("coins") else { return nil }
+        return CGPoint(x: hud.position.x + f.midX, y: hud.position.y + f.midY)
+    }
+
+    /// A column's PILLAR plaque centre in scene coordinates (coin popups from
+    /// a pillar/base originate here).
+    public func pillarPlaquePoint(col: Int) -> CGPoint? {
+        guard col >= 0, col < pillarPlaques.count, let parent = pillarPlaques[col].parent else { return nil }
+        let f = pillarPlaques[col].calculateAccumulatedFrame()
+        return parent.convert(CGPoint(x: f.midX, y: f.midY), to: self)
+    }
+    public func basePlaquePoint(col: Int) -> CGPoint? {
+        guard col >= 0, col < basePlaques.count, let parent = basePlaques[col].parent else { return nil }
+        let f = basePlaques[col].calculateAccumulatedFrame()
+        return parent.convert(CGPoint(x: f.midX, y: f.midY), to: self)
+    }
+
+    /// COIN POPUP (v7.02): a "◉+N" (or "◉−N") mint at `origin` that arcs to
+    /// the HUD coin chip and fades. SKAction only, self-terminating, rides
+    /// floatLayer (so it pauses with the scene under any overlay). `delay`
+    /// staggers a batch; the counter itself updates on the next refresh.
+    /// With no coin chip on screen (Zen) it falls back to a plain rising
+    /// float so nothing pays silently.
+    public func coinPopup(atPoint origin: CGPoint, amount: Int, positive: Bool, delay: Double = 0) {
+        let color = positive ? CRT.gold : CRT.suitRed
+        let text = "◉\(positive ? "+" : "−")\(abs(amount))"
+        guard !reduceMotion, let target = coinChipPoint() else {
+            floatCue(text, atPoint: origin, color: color)
+            return
+        }
+        let n = PixelTexture.label(text, size: 16, color: color)
+        n.position = origin
+        n.zPosition = Layer.float
+        n.alpha = 0
+        n.setScale(0.7)
+        floatLayer.addChild(n)
+        // A gentle up-then-toward-counter arc: a control lift makes it read
+        // as a mint rising off the source before it's drawn to the purse.
+        let lift = CGPoint(x: origin.x + (target.x - origin.x) * 0.35,
+                           y: max(origin.y, target.y) + 24)
+        let path = CGMutablePath()
+        path.move(to: origin)
+        path.addQuadCurve(to: target, control: lift)
+        n.run(.sequence([
+            .wait(forDuration: delay),
+            .group([.fadeIn(withDuration: 0.08), .scale(to: 1.0, duration: 0.08)]),
+            .group([
+                .follow(path, asOffset: false, orientToPath: false, duration: 0.55),
+                .sequence([.wait(forDuration: 0.4), .fadeOut(withDuration: 0.15)]),
+            ]),
+            .removeFromParent(),
+        ]))
+    }
+    public func coinPopup(atPile pile: Int, amount: Int, positive: Bool, delay: Double = 0) {
+        guard let c = pileCenters[pile] else { return }
+        coinPopup(atPoint: c, amount: amount, positive: positive, delay: delay)
+    }
+
     /// Pulse a column's Pillar/Base plaque when its effect fires.
     /// A small cue floated beside a column's PILLAR plaque — Second Wind's
     /// saved-or-not verdict rides this (router batch 2).

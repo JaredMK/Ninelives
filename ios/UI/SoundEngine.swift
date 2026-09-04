@@ -780,6 +780,15 @@ public final class Sound {
         seq("coinBonus", [(1047, 0.07, 0, .triangle, 0.046, 1175), (1397, 0.13, 0.06, .triangle, 0.042, nil)],
             cutoff: 3600)
     }
+    /// COIN POPUP (v7.02): the light per-item coin-gain cue — a single short,
+    /// bright sine tick, quieter and thinner than coinBonus (the deal-clear
+    /// tally) and unrelated to purchase's till. One per popup BATCH.
+    public func coinPop() {
+        play("coinPop", [
+            Voice(freq: 1319, dur: 0.05, type: .sine, gain: 0.03, glideTo: 1568,
+                  attack: 0.004, release: 0.03, cutoff: 4000),
+        ])
+    }
     /// Coins SPENT or LOST: the same ting, falling.
     public func coinLoss() {
         seq("coinLoss", [(1175, 0.07, 0, .triangle, 0.044, 1047), (784, 0.15, 0.06, .triangle, 0.044, 698)],

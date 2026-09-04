@@ -712,15 +712,12 @@ public final class DealController {
             }
 
         case .stickerCoins(let index, _, let amount):
+            // v7.02: through the shared coin router — the popup arcs from the
+            // CARD to the counter, batched with any other grant this landing,
+            // coinPop for a gain / coinLoss for a loss (Leech & friends were
+            // already mirrored; they keep it, now via the one path).
             if amount != 0 {
-                scene.floatCue(amount > 0 ? "+\(Int(amount))" : "−\(Int(abs(amount)))",
-                               at: index, color: amount > 0 ? CRT.gold : CRT.suitRed)
-                // The audible coin ring, a beat after the resolution blip
-                // (throttling lives in the engine's own emit cadence).
-                let gain = amount > 0
-                scene.run(.sequence([.wait(forDuration: 0.11), .run {
-                    if gain { Sound.shared.coinBonus() } else { Sound.shared.coinLoss() }
-                }]))
+                coinGain(.pile(index), amount: Int(amount))
             } else {
                 scene.floatCue("+0", at: index, color: CRT.muted)
             }
@@ -813,12 +810,16 @@ public final class DealController {
             } else {
                 Sound.shared.pillarFire()
             }
-            if amount != 0, let p = firstPile(inColumn: col) {
-                scene.floatCue(amount > 0 ? "+\(Int(amount))" : "−\(Int(abs(amount)))",
-                               at: p, color: amount > 0 ? CRT.gold : CRT.suitRed)
+            if amount != 0 {
+                coinGain(.pillar(col), amount: Int(amount))   // v7.02: shared router
             }
-            if effect == "diamondDistribution", !moves.isEmpty {
+            // ANY pillar fire carrying a move list flies its cards pile →
+            // pile (v7.02: was gated to diamondDistribution — Pauper's
+            // Diamond equalize passed its moves through firePillar but
+            // snapped, the one redistribute effect missing its animation).
+            if !moves.isEmpty {
                 let capped = Array(moves.prefix(8))
+                Sound.shared.shufflePile()
                 animQueue.add(priority: 1) { [weak self] done in
                     guard let self else { done(); return }
                     var landed = 0
@@ -879,7 +880,7 @@ public final class DealController {
             // its total in res.amount — float the grant on the hub so it pops
             // like every other coin source (v6.57 resource pops).
             if res.effect == "linkCoins", res.amount > 0 {
-                scene.floatCue("+\(res.amount)", at: res.hub, color: CRT.gold)
+                coinGain(.pile(res.hub), amount: res.amount)   // v7.02: shared router
             }
             animQueue.add(priority: 1) { [weak self] done in
                 self?.scene.powerFeedback(hub: res.hub, targets: res.targets, label: res.label)
@@ -1005,7 +1006,7 @@ public final class DealController {
                 if current.stickers.contains(where: { $0.type == "compound" }) {
                     let step = GameData.shared.stickerTypes.get("compound")?.num("step", 1) ?? 1
                     let pay = Double(current.compoundHits - 1) * step
-                    if pay > 0 { self.scene.floatCue("+\(Int(pay))", at: index, color: CRT.gold) }
+                    if pay > 0 { self.coinGain(.pile(index), amount: Int(pay)) }   // v7.02: shared router
                 }
                 if drawn.joker {
                     Sound.shared.joker()
@@ -1020,7 +1021,7 @@ public final class DealController {
                 if bounties > 0 {
                     let each = GameData.shared.stickerTypes.get("deathBounty")?.value ?? 0
                     let amt = Double(bounties) * each
-                    if amt > 0 { self.scene.floatCue("+\(Int(amt))", at: index, color: CRT.gold) }
+                    if amt > 0 { self.coinGain(.pile(index), amount: Int(amt)) }   // v7.02: shared router
                 }
                 if fatalTie {
                     self.scene.shouldaNudge(at: index)
@@ -1062,9 +1063,8 @@ public final class DealController {
 
     private func handleBaseFired(_ res: BaseResult) {
         scene.pulseColumn(res.col, base: true)
-        if let gained = res.gained, gained != 0, let p = firstPile(inColumn: res.col) {
-            scene.floatCue(gained > 0 ? "+\(Int(gained))" : "−\(Int(abs(gained)))",
-                           at: p, color: gained > 0 ? CRT.gold : CRT.suitRed)
+        if let gained = res.gained, gained != 0 {
+            coinGain(.base(res.col), amount: Int(gained))   // v7.02: shared router
         }
         // Every base activation announces itself in the arcane family; the
         // destructive ones swap in the heavier destroy-family cue below.
@@ -2245,6 +2245,58 @@ public final class DealController {
             let batch = EventFeedLog.shared.drainPending()
             guard !batch.isEmpty else { return }
             self.scene.showFeed(batch)
+        }
+    }
+
+    /// COIN POPUP ROUTER (v7.02): the ONE path every coin-granting item takes
+    /// — a source, an amount, a sign. A landing that pays from several
+    /// sources at once batches: the grants accumulate synchronously and flush
+    /// on the next runloop tick, so overlapping popups STAGGER (0.12s apart,
+    /// one per source, each arcing from its own origin to the counter) and
+    /// the coin sound plays ONCE for the whole batch — no stacked cues, no
+    /// silent payer. Future coin items get this by calling coinGain(...).
+    enum CoinSource { case pile(Int); case pillar(Int); case base(Int); case point(CGPoint) }
+    private var coinGrants: [(source: CoinSource, amount: Int, positive: Bool)] = []
+    private var coinFlushScheduled = false
+
+    /// Route a coin grant/loss through the shared popup + sound. `positive`
+    /// nil is derived from the amount's sign; a 0 amount is dropped.
+    func coinGain(_ source: CoinSource, amount: Int, positive: Bool? = nil) {
+        let amt = abs(amount)
+        guard amt != 0 else { return }
+        coinGrants.append((source, amt, positive ?? (amount > 0)))
+        guard !coinFlushScheduled else { return }
+        coinFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in self?.flushCoinGrants() }
+    }
+
+    private func flushCoinGrants() {
+        coinFlushScheduled = false
+        let batch = coinGrants
+        coinGrants.removeAll()
+        guard !batch.isEmpty else { return }
+        if batch.contains(where: { $0.positive }) { Sound.shared.coinPop() }
+        if batch.contains(where: { !$0.positive }) { Sound.shared.coinLoss() }
+        for (i, g) in batch.enumerated() {
+            let delay = Double(i) * 0.12
+            switch g.source {
+            case .pile(let p):
+                scene.coinPopup(atPile: p, amount: g.amount, positive: g.positive, delay: delay)
+            case .pillar(let c):
+                if let pt = scene.pillarPlaquePoint(col: c) {
+                    scene.coinPopup(atPoint: pt, amount: g.amount, positive: g.positive, delay: delay)
+                } else if let p = firstPile(inColumn: c) {
+                    scene.coinPopup(atPile: p, amount: g.amount, positive: g.positive, delay: delay)
+                }
+            case .base(let c):
+                if let pt = scene.basePlaquePoint(col: c) {
+                    scene.coinPopup(atPoint: pt, amount: g.amount, positive: g.positive, delay: delay)
+                } else if let p = firstPile(inColumn: c) {
+                    scene.coinPopup(atPile: p, amount: g.amount, positive: g.positive, delay: delay)
+                }
+            case .point(let pt):
+                scene.coinPopup(atPoint: pt, amount: g.amount, positive: g.positive, delay: delay)
+            }
         }
     }
 
