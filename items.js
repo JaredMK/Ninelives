@@ -779,7 +779,7 @@ const NINELIVES_ITEMS = {
     // the shop; nothing in-deal.
     // Price 10 is USER-SPECIFIED (not an R4 proposal).
     { id: "purgeRank", label: "Rank Purge", icon: "🗑️",
-      kind: "meta", effect: "purgeRank", shopRoll: "rank", tier: "uncommon", price: 6,
+      kind: "meta", effect: "purgeRank", shopRoll: "rank", tier: "rare", price: 6,
       description: "On purchase → purge every {rank} from your deck (no effect during deal)" },
 
     // SIZE-ONE DIAMONDS (archetype batch v6.76 — ungated, data only):
@@ -956,14 +956,15 @@ const NINELIVES_ITEMS = {
       // generic fallback still reads "your deck's most common rank" where
       // no deck exists yet (unlock popup, Collection).
       description: "Set every top card in this column to {rank}" },
-    // MISSING RANK DIG (v6.98, Rank Focus bench): BOARD-WIDE — one fire
-    // buries the deck's empty-rank count under EVERY alive pile (deck-
-    // limited, walked pile by pile). UNCAPPED like the bench's bury leg —
-    // the scaling model is in the v6.98 batch report. Gate proposal on the
-    // removalsUsed ladder, STOP-FLAGGED.
+    // MISSING RANK DIG (v7.04 NEIGHBOR rework): per pile in THIS column,
+    // count how many of the pile top's two neighbour ranks (one above, one
+    // below) hold zero copies in the full deck, and bury that many under it
+    // — 0/1/2, capped by construction. Ace and 2 sit at the rank edges and
+    // have ONE real neighbour (no wrap — the Rank Gap precedent): a 2 checks
+    // only its 3, an Ace only its King, so an edge card buries at most 1.
     { id: "missingRankDig", unlock: { type: "behavior", stat: "removalsUsed", count: 35 }, label: "Missing Rank Dig", icon: "⛏️",
       kind: "active", effect: "missingRankDig", tier: "uncommon", price: 6,
-      description: "Bury 1 card under each pile per rank missing from your full deck" },
+      description: "For each pile in this column → bury 1 card per neighbor rank of its top card missing from your full deck" },
     // DIAMOND BOOST (v6.78: column-wide, no target pick) — value = the pile
     // size added to EVERY ♦-topped pile in the column.
     // TUNE: price 3 proposed (R4).

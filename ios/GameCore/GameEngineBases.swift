@@ -97,7 +97,7 @@ extension GameEngine {
         case "diamondBoost":      return alive.contains { matchesSuit(board.top($0), "♦") }
         // MISSING RANK DIG (v6.98): BOARD-WIDE (the Ballast scope rule) —
         // needs a rank actually missing, a deck card to bury, and a live board.
-        case "missingRankDig":    return !deck.isEmpty && board.aliveCount() > 0 && zeroCopyRankCount() > 0
+        case "missingRankDig":    return !deck.isEmpty && colAlivePiles(col).contains { missingNeighborCount(topRankOf: $0) > 0 }
         default:                   return false
         }
     }
@@ -160,10 +160,10 @@ extension GameEngine {
             // Total pile size it would add: value × ♦-topped alive piles.
             return topCount("♦") * base.int("value", 3)
         case "missingRankDig":
-            // Total cards it would bury: missing ranks × alive piles,
-            // board-wide (the fire is deck-limited; the badge shows intent —
-            // the suitDig convention).
-            return zeroCopyRankCount() * board.aliveCount()
+            // Total it would bury: per column pile, its top's missing-neighbour
+            // count (0/1/2), summed (deck-limited at fire; the badge shows
+            // intent — the suitDig convention).
+            return colAlivePiles(col).reduce(0) { $0 + missingNeighborCount(topRankOf: $1) }
         case "chorus":
             // Tops it would rewrite (jokers/blanks skipped, already-matching
             // skipped — the fire's exact rule).
@@ -731,21 +731,21 @@ extension GameEngine {
             logLine("\(boosted.count) ♦ pile\(boosted.count == 1 ? "" : "s") gain\(boosted.count == 1 ? "s" : "") +\(boost) pile size")
 
         case "missingRankDig":
-            // MISSING RANK DIG (v6.98): bury the deck's empty-rank count
-            // under EVERY alive pile, board-wide, walked pile by pile until
-            // the draw deck runs dry. Uncapped by design — the scaling model
-            // is in the v6.98 batch report.
-            let per = zeroCopyRankCount()
+            // MISSING RANK DIG (v7.04 NEIGHBOR rework): per pile in THIS
+            // column, bury one card for each of its top card's two neighbour
+            // ranks (±1) that hold zero copies in the full deck — 0/1/2,
+            // capped by construction. Ace/2 have one real neighbour (no
+            // wrap). Deck-limited, walked pile by pile.
             var digPiles = 0, dug = 0
-            if per > 0 {
-                for i in 0..<board.size where board.isActive(i) {
-                    if deck.isEmpty { break }
-                    let n = buryTribute(i, per, base.label)
-                    if n > 0 { digPiles += 1; dug += n }
-                }
+            for i in colAlivePiles(col) {
+                if deck.isEmpty { break }
+                let want = missingNeighborCount(topRankOf: i)
+                guard want > 0 else { continue }
+                let n = buryTribute(i, want, base.label)
+                if n > 0 { digPiles += 1; dug += n }
             }
             res.piles = digPiles; res.buried = dug
-            logLine("\(per) missing rank\(per == 1 ? "" : "s") → buried \(dug) card\(dug == 1 ? "" : "s") under \(digPiles) pile\(digPiles == 1 ? "" : "s")")
+            logLine("buried \(dug) card\(dug == 1 ? "" : "s") under \(digPiles) pile\(digPiles == 1 ? "" : "s") (missing-neighbour dig)")
 
         default:
             currentEntry = nil

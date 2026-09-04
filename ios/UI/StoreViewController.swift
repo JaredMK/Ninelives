@@ -732,9 +732,11 @@ public final class StoreViewController: UIViewController {
         if let n = res.purgedCount {
             let rl = rankLabel(campaign.shopRolls[s.id]?.rank ?? s.rollRank) ?? "?"
             let label = data.pillarTypes.get(s.id)?.label ?? "Rank Purge"
-            prompt.show("\(label): purged \(n) × \(rl)s from your deck.",
-                        help: n == 0 ? "No \(rl)s were in your deck — the slot is yours anyway."
-                                     : "Your deck is \(n) card\(n == 1 ? "" : "s") thinner, permanently.",
+            // v7.04: the "your deck is X cards thinner permanently" subtext is
+            // gone — the primary line is the whole confirmation now.
+            let title = n == 0 ? "\(label): no \(rl)s were in your deck."
+                               : "\(label): purged \(n) × \(rl)s from your deck."
+            prompt.show(title,
                         actions: [.init("OK", role: .plain) { [weak self] in self?.prompt.hide() }])
         } else if let n = res.transmutedCount {
             // v6.78: transmute recolors without re-ranking, so the deck's

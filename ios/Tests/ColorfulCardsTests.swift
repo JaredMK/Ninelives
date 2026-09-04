@@ -93,7 +93,40 @@ final class ColorfulCardsTests: XCTestCase {
         let clubClassic = PixelGlyph.suitImage("♣", size: 24, color: CRT.gold)
         CRT.colorfulCards = true
         let clubColorful = PixelGlyph.suitImage("♣", size: 24, color: CRT.gold)
-        XCTAssertFalse(clubClassic === clubColorful,
-                       "♣ self-tints suit-green in colorful mode, caller ink in classic")
+        // v7.04: ♣ takes the CALLER's colour in BOTH modes, exactly like ♠ —
+        // the felt/card distinction lives in what colour each surface passes
+        // (suitColor(onFelt:)), never in suitImage forcing one.
+        XCTAssertTrue(clubClassic === clubColorful,
+                      "♣ takes the run's ink in both modes (the caller resolves felt vs card)")
+    }
+
+    /// REGRESSION (v7.04): every suit's pip must render, and must render
+    /// VISIBLY on the cream card face, in BOTH colour modes. The v7.01 fix
+    /// forced ♣→cream inside suitImage, so a colorful club drew cream-on-cream
+    /// and vanished from every card. The guard: the pip drawn in the card's
+    /// resolved ink must NOT be bit-identical to the same glyph drawn in the
+    /// FACE colour (which would be invisible).
+    func testAllFourSuitsRenderVisiblyOnCardFacesInBothModes() {
+        for colorful in [false, true] {
+            CRT.colorfulCards = colorful
+            let mode = colorful ? "colorful" : "classic"
+            for suit in ["♠", "♥", "♦", "♣"] {
+                let ink = CRT.color(forSuit: suit)          // the card face's pip colour
+                let pip = PixelGlyph.suitImage(suit, size: 24, color: ink)
+                XCTAssertNotNil(pip, "\(suit) glyph resolves to an image (\(mode))")
+                XCTAssertNotEqual(ink, CRT.cardFace,
+                                  "\(suit) pip colour must differ from the card face (\(mode))")
+                // ♠/♣ take the CALLER colour — so a wrong override could paint
+                // them the face colour and vanish (the v7.01 club bug). ♥/♦
+                // self-tint red/blue and can never be the face colour, so the
+                // probe only applies to the caller-tinted suits.
+                if suit == "♠" || suit == "♣" {
+                    let invisible = PixelGlyph.suitImage(suit, size: 24, color: CRT.cardFace)
+                    XCTAssertNotEqual(pip?.pngData(), invisible?.pngData(),
+                                      "\(suit) must not render in the card-face colour (\(mode))")
+                }
+            }
+        }
+        CRT.colorfulCards = false
     }
 }

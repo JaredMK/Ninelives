@@ -441,50 +441,92 @@ enum IVBases {
             ]
 
         case "missingRankDig":
-            // MISSING RANK DIG (v6.98): board-wide — buries the empty-rank
-            // count under EVERY alive pile, deck-limited, walked in order.
-            // Fixture: tops 5/8/6 + deck 3,4,7,9,10,11,12,13 → present 3–13,
-            // empty {2, 14} = 2 → 2 per pile × 3 alive piles = 6 buried.
-            let digDeck = [IV.spec(50, 3, "♥"), IV.spec(51, 4, "♥"), IV.spec(52, 7, "♥"),
-                           IV.spec(53, 9, "♥"), IV.spec(54, 10, "♥"), IV.spec(55, 11, "♥"),
-                           IV.spec(56, 12, "♥"), IV.spec(57, 13, "♥")]
+            // MISSING RANK DIG (v7.04 NEIGHBOR rework): per pile in the base's
+            // COLUMN, bury one card for each of its top's two neighbour ranks
+            // (±1) at zero copies in the full deck — 0/1/2. Base on col 0
+            // (piles 0 & 1); pile 2 is col 1 and never touched.
+            //
+            // TRIGGER: pile0 top 5 with BOTH 4 and 6 absent → 2; pile1 top 8
+            // with 7 present, 9 absent → 1. Full deck = tops {5,8,11} + deck
+            // {7,3,10,12,13} — no 4, 6 or 9. Total 3 under 2 piles.
+            let neighborTops: [CardSpec?] = [IV.spec(1, 5, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 11, "♣")]
+            let neighborDeck = [IV.spec(50, 7, "♥"), IV.spec(51, 3, "♥"), IV.spec(52, 10, "♥"),
+                                IV.spec(53, 12, "♥"), IV.spec(54, 13, "♥"), IV.spec(55, 3, "♠")]
             return [
-                IV.Scenario("trigger-buriesPerMissingRankBoardWide", allowed: .all,
-                    build: { baseEngine(def, deckOrder: digDeck) },
+                IV.Scenario("trigger-buriesByNeighborCount", allowed: .all,
+                    build: { baseEngine(def, tops: neighborTops, deckOrder: neighborDeck) },
                     fire: { e in
-                        XCTAssertEqual(e.baseLiveCounter(0), 6, "badge: 2 empty ranks × 3 alive piles")
+                        XCTAssertEqual(e.baseLiveCounter(0), 3, "badge: 2 (pile0) + 1 (pile1)")
                         let r = e.baseActivate(col: 0)
-                        XCTAssertEqual(r?.buried, 6, "buried the full board's worth")
-                        XCTAssertEqual(r?.piles, 3, "…across every alive pile")
+                        XCTAssertEqual(r?.buried, 3, "2 under pile0 (both neighbours gone) + 1 under pile1")
+                        XCTAssertEqual(r?.piles, 2, "only the two column-0 piles dug")
                     },
                     expect: { e, f, c in
-                        for i in 0..<3 {
-                            XCTAssertEqual(e.board.piles[i].cards.count, f.pileCounts[i] + 2,
-                                           "\(c): pile \(i + 1) took 2 — the OTHER column too (board-wide)")
-                        }
-                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 6, "\(c)")
+                        XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 2,
+                                       "\(c): pile0 (top 5, no 4s or 6s) took 2")
+                        XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1] + 1,
+                                       "\(c): pile1 (top 8, no 9s) took 1")
+                        XCTAssertEqual(e.board.piles[2].cards.count, f.pileCounts[2],
+                                       "\(c): pile2 is column 1 — column-scoped, untouched")
+                        XCTAssertEqual(e.deck.remaining(), f.deckRemaining - 3, "\(c)")
                         assertSpent(e, c)
                     }),
-                IV.Scenario("edge-deckLimitedWalk", allowed: .all,
-                    build: { baseEngine(def, deckOrder: Array(digDeck.prefix(3))) },
-                    fire: { e in
-                        // Present 3,4,7 + tops 5,8,6 → many empty ranks; only
-                        // 3 deck cards exist — the walk stops when they run out.
-                        let r = e.baseActivate(col: 0)
-                        XCTAssertEqual(r?.buried, 3, "deck-limited: buried what was left")
-                    },
-                    expect: { e, _, c in
-                        XCTAssertEqual(e.deck.remaining(), 0, "\(c): the deck ran dry mid-walk")
-                    },
-                    skipSnapshot: true),   // an empty deck ends the deal
-                IV.Scenario("mustNotFire-noMissingRanks", allowed: .all,
+                // ACE EDGE, NO WRAP (the discriminator): pile0 = Ace(14) with
+                // BOTH its real neighbour (13) AND the rank a circular wrap
+                // would reach (2) ABSENT. No-wrap buries 1 (only 13 counts —
+                // 15 is off the top); a wrap would bury 2. pile1 = 8, both
+                // neighbours present → 0. Full deck = tops {14,8,11} + deck
+                // {7,9,10,12,3,5} — no 13, no 2, 7 & 9 present.
+                IV.Scenario("edge-aceCapsAtOneNeighborNoWrap", allowed: .all,
                     build: {
-                        // Deck holds every rank 2–14 → nothing missing.
+                        let tops: [CardSpec?] = [IV.spec(1, 14, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 11, "♣")]
+                        let deck = [IV.spec(50, 7, "♥"), IV.spec(51, 9, "♥"), IV.spec(52, 10, "♥"),
+                                    IV.spec(53, 12, "♥"), IV.spec(54, 3, "♥"), IV.spec(55, 5, "♥")]
+                        return baseEngine(def, tops: tops, deckOrder: deck)
+                    },
+                    fire: { e in
+                        XCTAssertEqual(e.baseLiveCounter(0), 1,
+                                       "badge: Ace → 1 (only its 13 neighbour; NO wrap to the also-absent 2), pile1 → 0")
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.buried, 1, "the Ace buries 1, NOT 2 — it has one real neighbour")
+                        XCTAssertEqual(r?.piles, 1)
+                    },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
+                                       "\(c): Ace top, 13 absent → 1; the absent rank 2 does NOT wrap in")
+                        XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1],
+                                       "\(c): pile1 (top 8, 7 & 9 present) → 0")
+                        assertSpent(e, c)
+                    }),
+                // TWO EDGE mirror: pile0 = 2 with its one real neighbour (3)
+                // ABSENT → 1 (rank 1 is off the bottom, no wrap to the Ace).
+                // pile1 = 8, both present → 0. Full deck = tops {2,8,11} +
+                // deck {7,9,10,12,5,6} — no 3.
+                IV.Scenario("edge-twoHasOneNeighbor", allowed: .all,
+                    build: {
+                        let tops: [CardSpec?] = [IV.spec(1, 2, "♠"), IV.spec(2, 8, "♥"), IV.spec(3, 11, "♣")]
+                        let deck = [IV.spec(50, 7, "♥"), IV.spec(51, 9, "♥"), IV.spec(52, 10, "♥"),
+                                    IV.spec(53, 12, "♥"), IV.spec(54, 5, "♥"), IV.spec(55, 6, "♥")]
+                        return baseEngine(def, tops: tops, deckOrder: deck)
+                    },
+                    fire: { e in
+                        XCTAssertEqual(e.baseLiveCounter(0), 1, "badge: the 2's missing 3 = 1")
+                        let r = e.baseActivate(col: 0)
+                        XCTAssertEqual(r?.buried, 1, "a 2 buries at most 1 — its only neighbour is 3")
+                    },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1, "\(c): 3 absent → 1")
+                        assertSpent(e, c)
+                    }),
+                IV.Scenario("mustNotFire-bothNeighborsPresent", allowed: .all,
+                    build: {
+                        // Every rank 2–14 in the deck → each top's both
+                        // neighbours are present → 0 for every pile → amber.
                         let full = (2...14).enumerated().map { IV.spec(50 + $0.offset, $0.element, "♥") }
                         return baseEngine(def, deckOrder: full)
                     },
                     fire: { e in
-                        XCTAssertFalse(e.baseCanActivate(0), "every rank held → amber")
+                        XCTAssertFalse(e.baseCanActivate(0), "no missing neighbour in the column → amber")
                         XCTAssertNil(e.baseActivate(col: 0))
                     },
                     expect: { e, f, c in

@@ -363,6 +363,21 @@ public final class GameEngine {
         return (minRank...maxRank).filter { (counts[$0] ?? 0) == 0 }.count
     }
 
+    /// MISSING RANK DIG (v7.04): how many of pile `i`'s TOP card's two
+    /// neighbour ranks (±1) hold zero copies in the full deck — 0, 1 or 2.
+    /// NO WRAP (the Rank Gap edge rule): a rank at the line's edge (2 or
+    /// Ace) has ONE real neighbour, so it can miss at most 1. A joker/blank
+    /// top is rankless — no neighbours, returns 0.
+    func missingNeighborCount(topRankOf i: Int) -> Int {
+        guard let t = board.top(i), !t.joker, !t.blank else { return 0 }
+        let counts = fullDeckRankCounts()
+        var missing = 0
+        for nb in [t.value - 1, t.value + 1] where nb >= minRank && nb <= maxRank {
+            if (counts[nb] ?? 0) == 0 { missing += 1 }
+        }
+        return missing
+    }
+
     /// Rank → copies among the full deck's RANKED cards (jokers/blanks are
     /// rankless and never count).
     func fullDeckRankCounts() -> [Int: Int] {

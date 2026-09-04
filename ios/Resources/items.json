@@ -1916,7 +1916,7 @@
       "kind": "meta",
       "effect": "purgeRank",
       "shopRoll": "rank",
-      "tier": "uncommon",
+      "tier": "rare",
       "price": 6,
       "description": "On purchase → purge every {rank} from your deck (no effect during deal)"
     },
@@ -2357,7 +2357,7 @@
       "effect": "missingRankDig",
       "tier": "uncommon",
       "price": 6,
-      "description": "Bury 1 card under each pile per rank missing from your full deck"
+      "description": "For each pile in this column → bury 1 card per neighbor rank of its top card missing from your full deck"
     },
     {
       "id": "diamondBoost",

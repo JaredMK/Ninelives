@@ -154,7 +154,7 @@ const OUTCOMES = {
   mostHeldRankBury: ["Bury", ["Deck Shaping"], "most-held rank, per empty rank"],
   mostHeldRankTell: ["Tell", ["Deck Shaping"], "most-held rank"],
   rankGapSafe: ["Safety & Saves", ["Deck Shaping"], "neighbour rank at zero"],
-  missingRankDig: ["Bury", ["Deck Shaping"], "per missing rank, every alive pile"],
+  missingRankDig: ["Bury", ["Deck Shaping"], "per pile, its top's missing-neighbour ranks"],
   pauperDiamondEqualize: ["Pile Size & Score", ["Pauper", "Deck Removal"], "♦ while broke; flat broke may purge"],
 
   // Peek — see the next card.

@@ -1,6 +1,6 @@
 {
- "version": "v7.03",
- "generatedAt": "2026-09-04 04:53",
+ "version": "v7.04",
+ "generatedAt": "2026-09-04 13:02",
  "rows": [
   {
    "cls": "Stickers",
@@ -1752,7 +1752,7 @@
    "effectKey": "purgeRank",
    "id": "purgeRank",
    "label": "Rank Purge",
-   "tier": "uncommon",
+   "tier": "rare",
    "price": 6,
    "unlockType": "",
    "unlockStat": "",
@@ -2430,7 +2430,7 @@
    "cls": "Bases",
    "inactive": false,
    "outcome": "Bury",
-   "outcomeDetail": "per missing rank, every alive pile",
+   "outcomeDetail": "per pile, its top's missing-neighbour ranks",
    "outcomeAlso": [
     "Deck Shaping"
    ],
@@ -2447,7 +2447,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Bury 1 card under each pile per rank missing from your full deck",
+   "description": "For each pile in this column → bury 1 card per neighbor rank of its top card missing from your full deck",
    "flags": "",
    "flagNotes": ""
   },

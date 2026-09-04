@@ -164,11 +164,15 @@ enum PixelGlyph {
     /// take the surrounding run's ink. Nil for a non-suit string.
     static func suitImage(_ symbol: String, size: CGFloat, color: UIColor) -> UIImage? {
         guard let rows = suits[symbol] else { return nil }
-        // v7.01: text runs sit on dark chrome everywhere this substitution
-        // reaches — a Colorful ♣ stays cream here (the felt-collision fix);
-        // card faces draw their own pips and keep the green.
-        let tint = (CRT.colorfulCards && symbol == "♣") ? CRT.cardFace
-            : (CRT.forcedSuitColor(symbol) ?? color)
+        // ♥ and ♦ are the only CONTEXT-INDEPENDENT suits — always red (♦ blue
+        // under Colorful Cards) — so they self-tint and read red even in a
+        // cream label. ♠ and ♣ take the CALLER's colour, which each surface
+        // resolves for its OWN background (a card face passes the card ink /
+        // colorful green; a felt label passes cream via suitColor(onFelt:)).
+        // v7.04: the v7.01 fix wrongly forced ♣→cream in this SHARED helper,
+        // erasing the club pip on the cream card face whenever Colorful Cards
+        // was on — the felt recolouring lives in suitColor(onFelt:), not here.
+        let tint = (symbol == "♥" || symbol == "♦") ? (CRT.forcedSuitColor(symbol) ?? color) : color
         return image(rows, color: tint, scale: max(1, (size / 12).rounded()), shadow: false)
     }
 
