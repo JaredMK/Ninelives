@@ -56,6 +56,7 @@ extension CampaignState {
             "sameCharge": .bool(sameCharge),
             "removalsBought": .number(Double(removalsBought)),
             "purgesBought": .number(Double(purgesBought)),   // v7.08: Bulk Rate's exact paid-purge count
+            "stickersBought": .number(Double(stickersBought)), // v7.09: Rare Hunter's per-climb sticker count
             "pillarRankVariants": .object(pillarRankVariants.reduce(into: [:]) { $0[$1.key] = .number(Double($1.value)) }),
             "purgeDiscount": .number(Double(purgeDiscount)),
             "purgeStepBonus": .number(Double(purgeStepBonus)),
@@ -281,6 +282,7 @@ extension CampaignState {
         // Absent in pre-v5.82 saves — an old climb simply restarts the ladder.
         removalsBought = Int(s["removalsBought"]?.asNumber ?? 0)
         purgesBought = Int(s["purgesBought"]?.asNumber ?? 0)
+        stickersBought = Int(s["stickersBought"]?.asNumber ?? 0)
         pillarRankVariants = (s["pillarRankVariants"]?.asObject ?? [:])
             .compactMapValues { $0.asNumber.map(Int.init) }
         purgeDiscount = Int(s["purgeDiscount"]?.asNumber ?? 0)

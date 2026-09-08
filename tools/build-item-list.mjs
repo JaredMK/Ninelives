@@ -142,7 +142,7 @@ const OUTCOMES = {
   rankBury: ["Bury", [], "on the locked rank"],
   clubSnob: ["Bury", [], "on ♣ contact"], clubRoots: ["Bury", [], "per rank-matching top"],
   clubTribute: ["Bury", [], "sticker-free ♣"], streakTribute: ["Bury", [], "streak-gated"],
-  denseBury: ["Bury", [], "sticker-heavy ♣"], clubZeroRanksBury: ["Bury", ["Deck Shaping"], "per empty rank"],
+  denseBury: ["Bury", [], "2+ stickers, any suit"], clubZeroRanksBury: ["Bury", ["Deck Shaping"], "per empty rank"],
   heartZeroRanksCoin: ["Coin Gain", ["Deck Shaping"], "per empty rank, most-held landing"],
   diamondZeroRanksSize: ["Pile Size & Score", ["Deck Shaping"], "per empty rank, ♦ landing"],
   absentSuitClubBury: ["Bury", ["Deck Shaping"], "if a suit is absent"],
@@ -200,7 +200,7 @@ const OUTCOMES = {
   pauperDiamondSize: ["Pile Size & Score", ["Pauper"], "while broke"],
   linkHeavy: ["Pile Size & Score", [], "board-wide + hub"], diamondBoost: ["Pile Size & Score", [], "♦ piles in column"],
   evenOut: ["Pile Size & Score", [], "equalises the whole board"],
-  bonusResetPeek: ["Peek", ["Coin Loss"], "trades the deal's banked bonus"],
+  bonusResetPeek: ["Bury", ["Peek", "Coin Loss"], "1 per 3 bonus coins, then peek; the bonus resets"],
   diamondDistribution: ["Pile Size & Score", [], "equalises on a ♦"],
   donate: ["Pile Size & Score", [], "equalises the board; curse on kill"],
   startPileSizeEight: ["Pile Size & Score", ["Deck Shaping"], "column opens at size 8"],
@@ -232,7 +232,7 @@ const OUTCOMES = {
   purgeHalve: ["Store Economy", ["Coin Gain"], "one-time Purge halving on purchase; deal-end +current Purge price"],
   purgeDiscount: ["Store Economy", [], "cuts the Purge price"],
   freebie: ["Store Economy", ["Coin Gain"], "one free shelf item; +1 per stickered landing"],
-  rareHunter: ["Store Economy", ["Coin Gain"], "rares twice as often; +1 per stickered landing"],
+  rareHunter: ["Store Economy", ["Coin Gain"], "rares twice as often; deal-end +1 per sticker bought this climb"],
   firstFree: ["Store Economy", ["Coin Gain"], "first restock + reshuffle free; +coins at deal end"],
 
   // Loadout & Meta.

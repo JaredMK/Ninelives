@@ -109,6 +109,10 @@ public final class CampaignState {
     /// Joker's purge-reset fakes up to 2 — that would pay free coins.
     /// Starts at 0 each climb; serialized.
     public internal(set) var purgesBought = 0
+    /// v7.09 RARE HUNTER's X: standalone stickers BOUGHT in the shop this
+    /// climb (sticker packs don't count — they buy a pack, not a sticker).
+    /// Starts at 0 each climb; serialized.
+    public internal(set) var stickersBought = 0
     /// THE OLD JOKER's purge bargain (see applyPurgeHalving): coins knocked off
     /// the slot's current price, and how much steeper each future step is.
     /// Both reset with the climb, like the ladder itself.
@@ -792,6 +796,30 @@ public final class CampaignState {
         saveStore.setPref("debugSmallRevealedPacks", on ? "1" : "0")
     }
 
+    /// v7.09 LIVE VALUE PREVIEWS — the UI appends these to an item's help so
+    /// the player sees the CURRENT number, not just the formula. Computed at
+    /// display time from live campaign state; nil when the item has no
+    /// live value. (House style: a parenthetical after the description.)
+    public func pillarPayoutPreview(_ def: ItemDef) -> String? {
+        var x = 0
+        if let mode = def.raw["payoutPurge"]?.asString {
+            x = mode == "price" ? Int(removalPrice()) : purgesBought
+        } else if let per = def.raw["payoutStickersBought"]?.asNumber, per > 0 {
+            x = Int(per) * stickersBought
+        } else {
+            return nil
+        }
+        return "(+\(x) coin\(x == 1 ? "" : "s") at deal end)"
+    }
+    /// The Snowballs' next-landing value for a card carrying X.
+    public static func stickerLandingPreview(_ def: ItemDef, snowball x: Int) -> String? {
+        switch def.behavior {
+        case "snowballCoins": return "(earn \(x) coin\(x == 1 ? "" : "s") on next landing)"
+        case "snowball":      return "(bury \(x) on next landing)"
+        default:              return nil
+        }
+    }
+
     /// v7.07 LONG ODDS (deferred): the flow banks a won deal's granted purges
     /// here, then `consumePendingPurge()` per picker confirm.
     public func addPendingPurges(_ n: Int) { pendingPurges += max(0, n) }
@@ -953,6 +981,7 @@ public final class CampaignState {
         phaseIndex = 0
         removalsBought = 0   // the removal price ladder is per climb
         purgesBought = 0     // v7.08: Bulk Rate's count is per climb too
+        stickersBought = 0   // v7.09: Rare Hunter's count, per climb
         purgeDiscount = 0
         purgeStepBonus = 0
         purgePriceCut = 0    // the Purge Coupon's cuts die with the climb (v6.76)
@@ -1732,6 +1761,9 @@ public final class CampaignState {
     func recordBuy(_ typeId: String) {
         TelemetryCore.shared.record("item_bought", ["item_id": typeId, "purse": String(coins)])
         DebugEventLog.shared.add("store: bought \(typeId) · purse \(coins)")
+        // v7.09 RARE HUNTER: every purchase funnels through here, so the
+        // per-climb sticker count lives here too — standalone stickers only.
+        if data.stickerTypes.get(typeId) != nil { stickersBought += 1 }
         guard !isExhibition() else { return }
         stats.bumpItemBought(typeId)
     }

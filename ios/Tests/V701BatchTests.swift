@@ -36,6 +36,15 @@ final class V701BatchTests: XCTestCase {
             ("samePower", "linkPurge", "Long Odds", ["purged": 1], "Card purged by Long Odds"),
             ("sticker", "malfunction", "Malfunction", ["kills": 1], "Pile destroyed by Malfunction"),
             ("pillar", "royalCourt", "Shuffler", ["shuffled": 2], "Shuffled by Shuffler"),
+            // v7.09 sweep: the bare-fire family now states its OUTCOME.
+            ("pillar", "suitShield", "Scarce Suit", ["fires": 1, "suits": Double(EventFeed.suitMask("♥♣"))],
+             "Scarce Suit will save ♥♣ this deal"),
+            ("pillar", "rankShield", "Rank Shield", ["fires": 1, "rank": 13], "Rank Shield will save K this deal"),
+            ("pillar", "eightStart", "Crazy Eights", ["fires": 1, "opensAt": 8], "Crazy Eights opens piles at size 8"),
+            ("sticker", "drainShield", "Shield Drain", ["fires": 1, "drainedShield": 1], "Same Shield drained by Shield Drain"),
+            ("sticker", "drainBase", "Base Drain", ["fires": 1, "drainedBase": 1], "Base spent by Base Drain"),
+            ("sticker", "jammer", "Jammer", ["fires": 1, "blocked": 1], "Pillar blocked by Jammer"),
+            ("samePower", "linkHeavy", "Same Heavy", ["fires": 1, "size": 8], "+8 pile size from Same Heavy"),
         ]
         for c in cases {
             XCTAssertEqual(EventFeed.message(klass: c.klass, id: c.id, label: c.label,

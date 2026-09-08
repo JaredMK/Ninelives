@@ -88,7 +88,7 @@ extension GameEngine {
             logLine("Shield Drain: the Same Shield empties")   // v6.96 rename
             emit(.curseFired(index: index, curse: "drainShield", label: "Shield Drain",
                              detail: "SHIELD DRAINED"))
-            recT("sticker", "drainShield", "Shield Drain", ["fires": 1])
+            recT("sticker", "drainShield", "Shield Drain", ["fires": 1, "drainedShield": 1])
         }
 
         // BASE DRAIN: the column's charged Base is spent for the deal.
@@ -98,7 +98,7 @@ extension GameEngine {
             logLine("Base Drain: the column's Base is spent")
             emit(.curseFired(index: index, curse: "drainBase", label: "Base Drain",
                              detail: "BASE DRAINED"))
-            recT("sticker", "drainBase", "Base Drain", ["fires": 1])
+            recT("sticker", "drainBase", "Base Drain", ["fires": 1, "drainedBase": 1])
         }
 
         // SPOILER: bonus coins earned this deal reset to 0. The wipe is an

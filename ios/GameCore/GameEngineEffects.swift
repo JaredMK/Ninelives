@@ -515,7 +515,8 @@ extension GameEngine {
                 firePillar(col, "clubTribute", pillar.label, 0)
                 recT("pillar", pillar.id, pillar.label, ["buried": Double(nb)])
             }
-        } else if pillar.effect == "denseBury" && isClub && nStk >= pillar.int("minStickers", 2) {
+        } else if pillar.effect == "denseBury" && nStk >= pillar.int("minStickers", 2) {
+            // v7.09: ANY suit — a card carrying `minStickers`+ stickers (the ♣ gate is gone).
             let nb = buryTribute(index, pillar.int("digCount", 1), pillar.label)
             if nb > 0 {
                 if run.denseBuryUsed != nil { run.denseBuryUsed![col] += 1 }
@@ -1053,13 +1054,23 @@ extension GameEngine {
             // LIVE through the provider at payout. Unwired (bare tests, Zen)
             // pays nothing.
             if let m = resolvePillarDef(col), let mode = m.raw["payoutPurge"]?.asString,
-               let info = purgeInfoProvider?() {
-                let amt = Double(mode == "price" ? info.price : info.bought)
+               let info = storeInfoProvider?() {
+                let amt = Double(mode == "price" ? info.purgePrice : info.purgesBought)
                 if amt > 0 {
                     bonus += amt
                     lines.append(PayoutLine(label: m.label,
                                             detail: mode == "price" ? "purge price" : "purges bought",
                                             amount: amt, col: col))
+                }
+            }
+            // v7.09 RARE HUNTER: `payoutStickersBought` coins per sticker bought
+            // in the shop this climb, read live off the same provider.
+            if let m = resolvePillarDef(col), let per = m.raw["payoutStickersBought"]?.asNumber, per > 0,
+               let info = storeInfoProvider?() {
+                let amt = per * Double(info.stickersBought)
+                if amt > 0 {
+                    bonus += amt
+                    lines.append(PayoutLine(label: m.label, detail: "stickers bought", amount: amt, col: col))
                 }
             }
             guard let t = resolvePillarDef(col), t.kind == "scoring" else { continue }

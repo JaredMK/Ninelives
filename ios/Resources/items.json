@@ -1188,7 +1188,6 @@
     },
     {
       "id": "denseBury",
-      "iconSuit": "♣",
       "unlock": {
         "type": "behavior",
         "stat": "stickersApplied",
@@ -1198,11 +1197,11 @@
       "icon": "🧊",
       "kind": "composition",
       "effect": "denseBury",
-      "minStickers": 3,
+      "minStickers": 2,
       "digCount": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "When a ♣ with 3+ stickers lands correctly in this column → bury 1 card under that pile"
+      "description": "When a card with 2+ stickers lands correctly in this column → bury 1 card under that pile"
     },
     {
       "id": "revive",
@@ -1265,10 +1264,10 @@
       "kind": "meta",
       "effect": "rareHunter",
       "value": 2,
-      "stickerLandCoin": 1,
+      "payoutStickersBought": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "Rare items appear in the store twice as often\nWhen a stickered card lands in this column → +1 coin"
+      "description": "Rare items appear in the store twice as often\nAt deal end → +1 coin per sticker bought in the shop this climb"
     },
     {
       "id": "twoWard",
@@ -2331,9 +2330,10 @@
       "icon": "🔄",
       "kind": "active",
       "effect": "bonusResetPeek",
+      "perCoins": 3,
       "tier": "uncommon",
       "price": 6,
-      "description": "Reset bonus coins earned this deal to 0 → peek next card"
+      "description": "Bury 1 card per 3 bonus coins earned this deal, spread across this column's piles → peek next card. Bonus coins earned this deal reset to 0"
     },
     {
       "id": "transmute",

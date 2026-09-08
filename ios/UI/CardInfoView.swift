@@ -65,9 +65,11 @@ enum CardInfo {
     static func rows(for c: CardSpec) -> [Row] {
         c.stickers.compactMap { rec in
             guard let def = GameData.shared.stickerTypes.get(rec.type) else { return nil }
+            // v7.09: the Snowballs show their CURRENT next-landing value.
+            let preview = CampaignState.stickerLandingPreview(def, snowball: c.snowball).map { "\n" + $0 } ?? ""
             return Row(name: def.label,
                        color: def.cursed ? CRT.suitRed : CRT.gold,
-                       desc: def.description + provenance(rec))
+                       desc: def.description + preview + provenance(rec))
         }
     }
 
@@ -87,8 +89,8 @@ enum CardInfo {
                 desc += "\nAlways safe when a \(suit) is involved"
             } else if t.id == "compound" {
                 desc += "\nBanked: +\(max(0, card.compoundHits - 1)) coins"
-            } else if t.id == "snowball" {
-                desc += "\nBuries next: \(card.snowball) card\(card.snowball == 1 ? "" : "s")"
+            } else if let preview = CampaignState.stickerLandingPreview(t, snowball: card.snowball) {
+                desc += "\n\(preview)"   // v7.09: both Snowballs, house-style
             }
             rows.append(Row(name: t.label + (n > 1 ? " ×\(n)" : ""),
                             color: t.cursed ? CRT.suitRed : CRT.gold,

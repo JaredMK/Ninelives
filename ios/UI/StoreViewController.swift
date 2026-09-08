@@ -546,6 +546,9 @@ public final class StoreViewController: UIViewController {
                 : data.stickerTypes.get(id)
             guard let def else { return }
             title = def.label; tier = def.tier; desc = campaign.itemDescription(def)
+            // v7.09: a pillar's live payout preview (Flat Purge / Bulk Rate /
+            // Rare Hunter) reads off the campaign's current store numbers.
+            if kind == "pillar", let preview = campaign.pillarPayoutPreview(def) { desc += "\n\(preview)" }
             if kind == "sticker" {
                 let suits = def.suits ?? []
                 suitLine = suits.isEmpty ? "Add to any card"

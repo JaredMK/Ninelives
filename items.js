@@ -435,10 +435,11 @@ const NINELIVES_ITEMS = {
     { id: "highestEven", inactive: true, unlock: { type: "milestone", stat: "bestCampaignScore", count: 220 }, label: "Highest Heart", icon: "💗",
       kind: "scoring", effect: "highestHeart", tier: "rare", price: 8,
       description: "At deal end → earn coins equal to the highest numbered ♥ top card in this column (2–10 face value, Ace pays 1, royals pay 0)" },
-    // minStickers = stickers a landing ♣ must carry; digCount = cards buried.
-    { id: "denseBury", iconSuit: "♣", unlock: { type: "behavior", stat: "stickersApplied", count: 140 }, label: "Dense Bury", icon: "🧊",
-      kind: "composition", effect: "denseBury", minStickers: 3, digCount: 1, tier: "uncommon", price: 6,
-      description: "When a ♣ with 3+ stickers lands correctly in this column → bury 1 card under that pile" },
+    // minStickers = stickers a landing card must carry (v7.09: ANY suit, 2+ —
+    // the ♣ gate is gone); digCount = cards buried.
+    { id: "denseBury", unlock: { type: "behavior", stat: "stickersApplied", count: 140 }, label: "Dense Bury", icon: "🧊",
+      kind: "composition", effect: "denseBury", minStickers: 2, digCount: 1, tier: "uncommon", price: 6,
+      description: "When a card with 2+ stickers lands correctly in this column → bury 1 card under that pile" },
     // trigger = the pile size (cards) that arms the one-shot revive offer.
     { id: "revive", unlock: { type: "milestone", stat: "dealsWonLegendary", count: 4 }, label: "Revive", icon: "♻️",
       kind: "guess", effect: "revive", trigger: 10, tier: "uncommon", price: 6,
@@ -453,16 +454,18 @@ const NINELIVES_ITEMS = {
     // FREEBIE: one random shelf item per store visit costs 0 — rolled from
     // the same seeded store stream, so a reload shows the same gift.
     // v7.08: meta items gain an IN-DEAL leg. stickerLandCoin = coins per
-    // STICKERED card landing correctly in the column (edit here to
-    // differentiate Freebie from Rare Hunter — no engine change needed).
+    // STICKERED card landing correctly in the column (Freebie's; Rare Hunter
+    // moved to a deal-end per-sticker-bought leg in v7.09).
     { id: "freebie", unlock: { type: "behavior", stat: "pinkyTipsSeen", count: 2 }, label: "Freebie", icon: "🎁",
       kind: "meta", effect: "freebie", stickerLandCoin: 1, tier: "uncommon", price: 6,
       description: "One random item in every store costs 0\nWhen a stickered card lands in this column → +1 coin" },
     // RARE HUNTER: the store's rare tier weight is multiplied by `value`
     // while equipped (20 → 40 against common 100 / uncommon 50).
+    // v7.09: payoutStickersBought = coins per sticker BOUGHT in the shop this
+    // climb, paid at deal end (standalone sticker purchases; packs don't count).
     { id: "rareHunter", unlock: { type: "behavior", stat: "pillarsPlaced", count: 25 }, label: "Rare Hunter", icon: "🦅",
-      kind: "meta", effect: "rareHunter", value: 2, stickerLandCoin: 1, tier: "uncommon", price: 6,
-      description: "Rare items appear in the store twice as often\nWhen a stickered card lands in this column → +1 coin" },
+      kind: "meta", effect: "rareHunter", value: 2, payoutStickersBought: 1, tier: "uncommon", price: 6,
+      description: "Rare items appear in the store twice as often\nAt deal end → +1 coin per sticker bought in the shop this climb" },
     // BOUNCER: a campaign-level ward — 30% to turn JUST A TWO away at a ?
     // node; CERTAIN when the deck holds no 2s at all (v6.87 — reads the
     // full deck at the node). He still appears, says "Ah, nothing for you
@@ -928,9 +931,12 @@ const NINELIVES_ITEMS = {
     // Only fireable while MORE than 1 bonus coin is banked and the deck
     // still holds a card to show. Rarity/cost/unlock proposed — STOP-FLAGGED
     // in the batch report.
+    // perCoins = bonus coins per card buried (v7.09: the reset now BURIES —
+    // floor(bonus ÷ perCoins) cards round-robin across the column's alive
+    // piles — before the peek; the >1-coin gate is unchanged).
     { id: "bonusResetPeek", unlock: { type: "milestone", stat: "coinsEarnedLifetime", count: 80 }, label: "Bonus Reset", icon: "🔄",
-      kind: "active", effect: "bonusResetPeek", tier: "uncommon", price: 6,
-      description: "Reset bonus coins earned this deal to 0 → peek next card" },
+      kind: "active", effect: "bonusResetPeek", perCoins: 3, tier: "uncommon", price: 6,
+      description: "Bury 1 card per 3 bonus coins earned this deal, spread across this column's piles → peek next card. Bonus coins earned this deal reset to 0" },
     // TRANSMUTE: an ON-PURCHASE base — it fires at BUY time and never in a
     // deal. Its target {rank} is DERIVED LIVE — the rank your full deck
     // holds the most copies of at buy time (ties → lowest; recomputed for

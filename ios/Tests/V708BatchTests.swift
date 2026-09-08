@@ -14,8 +14,10 @@ final class V708BatchTests: XCTestCase {
 
     // MARK: - 1/2. +1 coin per STICKERED card landing in the column
 
-    func testFreebieAndRareHunterPayPerStickeredLandingInTheirColumn() {
-        for pid in ["freebie", "rareHunter"] {
+    func testFreebiePaysPerStickeredLandingInItsColumn() {
+        // v7.09: Rare Hunter's leg moved to a deal-end per-sticker-bought
+        // payout (V709BatchTests) — Freebie alone keeps the landing leg.
+        for pid in ["freebie"] {
             let def = data.pillarTypes.get(pid)!
             let per = def.num("stickerLandCoin", 0)
             XCTAssertEqual(per, 1, "\(pid): the items.js leg is +1")

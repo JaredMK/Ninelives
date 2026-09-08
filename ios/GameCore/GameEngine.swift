@@ -319,11 +319,12 @@ public final class GameEngine {
     /// nil (unwired flows, fixtures, legacy tests) reads as "not broke": the
     /// paupers sleep and legacy rng streams stay untouched.
     public var purseCoinsProvider: (() -> Int)?
-    /// v7.08 PURGE LEGS: the store's CURRENT Purge price and the Purges
-    /// bought this climb, read LIVE at payout (Flat Purge / Bulk Rate).
-    /// Campaign-wired like the purse; a nil provider (bare engines, Zen)
-    /// pays nothing — the purse's own nil-dormancy rule.
-    public var purgeInfoProvider: (() -> (price: Int, bought: Int))?
+    /// v7.08/v7.09 STORE LEGS: the store's CURRENT Purge price, the Purges
+    /// bought this climb and the stickers bought this climb, read LIVE at
+    /// payout (Flat Purge / Bulk Rate / Rare Hunter). Campaign-wired like
+    /// the purse; a nil provider (bare engines, Zen) pays nothing — the
+    /// purse's own nil-dormancy rule.
+    public var storeInfoProvider: (() -> (purgePrice: Int, purgesBought: Int, stickersBought: Int))?
     /// Is the purse under this def's `purseBelow` ceiling RIGHT NOW?
     func purseBelow(_ def: ItemDef) -> Bool {
         guard let provider = purseCoinsProvider else { return false }
@@ -576,7 +577,10 @@ public final class GameEngine {
             for c in 0..<pillars.count {
                 if let def = resolvePillarDef(c), def.effect == "suitShieldDaily", !scarce.isEmpty {
                     run.dailySuits?[c] = scarce
-                    recT("pillar", def.id, def.label, ["fires": 1])
+                    // v7.09 feed sweep: the OUTCOME rides as a suit bitmask
+                    // (canonical DeckManager.suits order) — the feed says
+                    // "will save ♥♣ this deal", not that the pillar fired.
+                    recT("pillar", def.id, def.label, ["fires": 1, "suits": Double(EventFeed.suitMask(scarce))])
                 }
             }
         }
@@ -607,7 +611,9 @@ public final class GameEngine {
                 run.shopRolls["rankShield"] = ShopRoll(rank: chosen,
                                                        suit: run.shopRolls["rankShield"]?.suit)
                 if let def = pillarTypes.get("rankShield") {
-                    recT("pillar", def.id, def.label, ["fires": 1])
+                    // v7.09 feed sweep: the OUTCOME rides as the rank value —
+                    // "will save K this deal", not that the pillar fired.
+                    recT("pillar", def.id, def.label, ["fires": 1, "rank": Double(chosen)])
                 }
             }
         }
@@ -625,7 +631,8 @@ public final class GameEngine {
                 }
                 firePillar(c, def.effect ?? "startPileSizeEight", def.label, 0)
                 logLine("\(def.label): 8s lead the deck — column \(c + 1) opens at pile size 8")
-                recT("pillar", def.id, def.label, ["fires": 1])
+                // v7.09 feed sweep: state the outcome, not the fire.
+                recT("pillar", def.id, def.label, ["fires": 1, "opensAt": 8])
             }
         }
         let bound = (run.pillars ?? []).enumerated().compactMap { c, pid -> String? in
@@ -867,7 +874,7 @@ public final class GameEngine {
         if columnJammed(col), let col, run.pillars?[safe: col] ?? nil != nil {
             emit(.pillarBlocked(col: col))
             let jdef = stickerTypes.all().first { $0.behavior == "jammer" }
-            recT("sticker", jdef?.id ?? "jammer", jdef?.label ?? "Jammer", ["fires": 1])
+            recT("sticker", jdef?.id ?? "jammer", jdef?.label ?? "Jammer", ["fires": 1, "blocked": 1])
         }
 
         if malfunctioned {

@@ -4,8 +4,8 @@ import GameCore
 /// The ONE build stamp (the web's APP_VERSION footer line) — every footer and
 /// the debug panel read it here, never a retyped literal.
 enum BuildStamp {
-    static let version = "v7.08"
-    static let note = "KILL→CURSE: a flagged sticker converts only when its carrier KILLS its pile — failing a board condition converts nothing (Same-Safe/Guard/Scouts keep their gates; Bonus Coin, Donate, Quick Bury, Ripple, Tell, Twin Spark and the Same stickers fire on every landing); Snowball Bury is back (per-card X, uncommon/3) with its twin Snowball Coins; experiments behind one items.js flag each — Burrow under every pile, Sticker Spray every top, Long Odds grants a purge chosen at deal end; Scarce Suit ties shield every tied suit; suit/rank badges on item icons and plaques; the event feed no longer covers Pinky; debug: small revealed packs."
+    static let version = "v7.09"
+    static let note = "LIVE PREVIEWS: Snowball Coins/Bury show their next-landing value, Flat Purge/Bulk Rate/Rare Hunter their deal-end coins; Dense Bury fires on any 2+-sticker card; Bonus Reset buries 1 per 3 bonus coins across the column before the peek; Rare Hunter pays +1 per sticker bought this climb at deal end; the event feed states outcomes, never fires. v7.07 KILL→CURSE: a flagged sticker converts only when its carrier KILLS its pile — failing a board condition converts nothing (Same-Safe/Guard/Scouts keep their gates; Bonus Coin, Donate, Quick Bury, Ripple, Tell, Twin Spark and the Same stickers fire on every landing); Snowball Bury is back (per-card X, uncommon/3) with its twin Snowball Coins; experiments behind one items.js flag each — Burrow under every pile, Sticker Spray every top, Long Odds grants a purge chosen at deal end; Scarce Suit ties shield every tied suit; suit/rank badges on item icons and plaques; the event feed no longer covers Pinky; debug: small revealed packs."
     static let line = "build \(version) · \(note)"
 }
 

@@ -11,11 +11,33 @@ public enum EventFeed {
     /// One feed line for a recT entry, or nil when the entry isn't
     /// feed-worthy (pure misses, bookkeeping-only fires). Priority order:
     /// the most player-meaningful key wins — an entry never yields two lines.
+    /// v7.09: a suit SET as one number for the recT stream (values are
+    /// Doubles) — bit i = DeckManager.suits[i] is in the set.
+    public static func suitMask(_ suits: String) -> Int {
+        var mask = 0
+        for (i, s) in DeckManager.suits.enumerated() where suits.contains(s.symbol) { mask |= 1 << i }
+        return mask
+    }
+    static func suits(fromMask mask: Int) -> String {
+        DeckManager.suits.enumerated().filter { mask & (1 << $0.offset) != 0 }.map(\.element.symbol).joined()
+    }
+
     public static func message(klass: String, id: String, label: String,
                                values: [String: Double]) -> String? {
         func n(_ key: String) -> Int { Int(values[key] ?? 0) }
         // Conversions outrank everything — the bet failed, the curse is news.
         if values["converted"] != nil { return "\(label) became a curse" }
+        // v7.09 SWEEP: outcomes that used to fall through to "X fired". The
+        // feed states what an item DID, never that it fired.
+        if let m = values["suits"], m > 0 { return "\(label) will save \(suits(fromMask: Int(m))) this deal" }
+        if let r = values["rank"], r > 0 {
+            let lbl = DeckManager.ranks.first { $0.value == Int(r) }?.label ?? "\(Int(r))"
+            return "\(label) will save \(lbl) this deal"
+        }
+        if let s = values["opensAt"], s > 0 { return "\(label) opens piles at size \(Int(s))" }
+        if values["drainedShield"] != nil { return "Same Shield drained by \(label)" }
+        if values["drainedBase"] != nil { return "Base spent by \(label)" }
+        if values["blocked"] != nil { return "Pillar blocked by \(label)" }
         if values["saves"] != nil {
             return values["revived"] != nil ? "Pile revived by \(label)"
                                             : "Pile saved by \(label)"

@@ -156,6 +156,9 @@ extension GameEngine {
             // (campaign-wired only — no purse provider, no number).
             guard let purse = purseCoinsProvider?() else { return nil }
             return purse / max(1, base.int("perCoins", 5))
+        case "bonusResetPeek":
+            // v7.09: cards the reset would bury — banked bonus ÷ perCoins.
+            return max(0, Int(run.bonusCoins)) / max(1, base.int("perCoins", 3))
         case "diamondBoost":
             // Total pile size it would add: value × ♦-topped alive piles.
             return topCount("♦") * base.int("value", 3)
@@ -628,14 +631,28 @@ extension GameEngine {
             logLine("\(base.label): \(n) ♦-topped pile\(n == 1 ? "" : "s") → the store's Purge costs \(res.purgePriceCut!) less (never below \(res.purgePriceFloor!)) for the rest of the climb")
 
         case "bonusResetPeek":
-            // BONUS RESET (v6.88): the banked bonus goes to zero — through
-            // addBonus so the tally stays itemized (the Spoiler idiom) and
-            // the result's coins delta reports the trade — then one peek.
+            // BONUS RESET (v7.09 rework): the banked bonus BURIES first — 1
+            // card per `perCoins` of it, round-robin across this column's
+            // alive piles (deck-limited; the Empty Purse idiom) — then ONE
+            // peek, then the bonus goes to zero through addBonus so the tally
+            // stays itemized (the Spoiler idiom) and the result's coins delta
+            // reports the trade.
             let wiped = run.bonusCoins
+            let toBury = max(0, Int(wiped)) / max(1, base.int("perCoins", 3))
+            let targets = colAlivePiles(col)
+            var buried = 0
+            if !targets.isEmpty {
+                var t = 0
+                while buried < toBury && !deck.isEmpty {
+                    if buryTribute(targets[t % targets.count], 1, base.label) > 0 { buried += 1 }
+                    t += 1
+                }
+            }
+            res.buried = buried
             addBonus(base.label, -wiped)
             run.revealNextActive = true
             res.peekCount = 1
-            logLine("\(base.label): traded ◉\(Int(wiped)) banked bonus for a look at the next card")
+            logLine("\(base.label): traded ◉\(Int(wiped)) banked bonus for \(buried) buried card\(buried == 1 ? "" : "s") and a look at the next card")
 
         case "sacrifice":
             // SACRIFICE: the chosen pile's TOP card is purged from the game
@@ -946,7 +963,8 @@ extension GameEngine {
             for j in targets { board.addSizeBonus(j, per) }
             let hubBonus = def.int("hubValue", 5)
             board.addSizeBonus(hub, hubBonus)
-            recT("samePower", def.id, def.label, ["fires": 1])
+            // v7.09 feed sweep: report the OUTCOME (total size added), not the fire.
+            recT("samePower", def.id, def.label, ["fires": 1, "size": Double(per * targets.count + hubBonus)])
             result.targets = targets
             result.amount = per * targets.count + hubBonus
 

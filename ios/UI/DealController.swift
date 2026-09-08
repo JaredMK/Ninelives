@@ -291,7 +291,9 @@ public final class DealController {
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
         // v7.08: the purge legs (Flat Purge / Bulk Rate) read the store's live
         // Purge price and this climb's paid-purge count at payout.
-        engine.purgeInfoProvider = { [campaign] in (Int(campaign.removalPrice()), campaign.purgesBought) }
+        engine.storeInfoProvider = { [campaign] in
+            (Int(campaign.removalPrice()), campaign.purgesBought, campaign.stickersBought)
+        }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
         DebugEventLog.shared.resetEngineCursor()
@@ -359,7 +361,9 @@ public final class DealController {
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
         // v7.08: the purge legs (Flat Purge / Bulk Rate) read the store's live
         // Purge price and this climb's paid-purge count at payout.
-        engine.purgeInfoProvider = { [campaign] in (Int(campaign.removalPrice()), campaign.purgesBought) }
+        engine.storeInfoProvider = { [campaign] in
+            (Int(campaign.removalPrice()), campaign.purgesBought, campaign.stickersBought)
+        }
         // EVENT FEED (v7.05): ON BY DEFAULT for campaign deals — beta testers
         // get it without opting in; the debug toggle sets "0" to turn it off.
         // (Unset ⇒ on.)
@@ -2095,6 +2099,8 @@ public final class DealController {
         // suit, per deal) — the hold names THIS deal's read (the plaque
         // shows it too).
         var body = campaign.itemDescription(def)
+        // v7.09: the live payout preview (Flat Purge / Bulk Rate / Rare Hunter).
+        if let preview = campaign.pillarPayoutPreview(def) { body += "\n\(preview)" }
         if def.effect == "suitShieldDaily", let set = engine?.run.dailySuits?[col], !set.isEmpty {
             // v7.07: ties → every tied suit is safe, and the hold names them all.
             let suits = set.map(String.init)
@@ -2676,8 +2682,8 @@ enum CardInfoText {
                 row += "\nAlways safe when a \(suit) is involved"
             } else if t.id == "compound" {
                 row += "\nBanked: +\(max(0, card.compoundHits - 1)) coins"
-            } else if t.id == "snowball" {
-                row += "\nBuries next: \(card.snowball) card\(card.snowball == 1 ? "" : "s")"
+            } else if let preview = CampaignState.stickerLandingPreview(t, snowball: card.snowball) {
+                row += "\n\(preview)"   // v7.09: both Snowballs, house-style
             }
             rows.append(row)
         }

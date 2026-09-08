@@ -253,6 +253,8 @@ final class V707BatchTests: XCTestCase {
             badged += 1
             XCTAssertTrue(symbols.contains(s), "\(def.id): iconSuit '\(s)' is not a suit symbol")
         }
-        XCTAssertEqual(badged, 17, "the v7.07 sweep badged 17 pillars/bases")
+        // 17 in v7.07; 16 since v7.09 (Dense Bury fires on any suit now, so
+        // its ♣ badge is gone).
+        XCTAssertEqual(badged, 16, "the badge sweep: 17 in v7.07, minus Dense Bury (v7.09)")
     }
 }
