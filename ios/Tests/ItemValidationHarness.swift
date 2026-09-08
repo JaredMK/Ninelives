@@ -38,6 +38,7 @@ enum IV {
                        pillarRankVariants: [String: Int] = [:],
                        shopRolls: [String: ShopRoll] = [:],
                        purse: Int? = nil,
+                       purgePrice: Int? = nil, purgesBought: Int? = nil,
                        isBoss: Bool = false, isAmbush: Bool = false,
                        seed: UInt32 = 7) -> GameEngine {
         let n = tops.count
@@ -56,6 +57,11 @@ enum IV {
                    bases: bases ?? Array(repeating: nil, count: colCount),
                    samePower: .some(samePower))
         if let purse { e.purseCoinsProvider = { purse } }
+        // v7.08: the purge legs' provider (Flat Purge / Bulk Rate) — wired only
+        // when a test asks, so bare engines stay dormant like the purse.
+        if purgePrice != nil || purgesBought != nil {
+            e.purgeInfoProvider = { (purgePrice ?? 0, purgesBought ?? 0) }
+        }
         let live = tops.map { $0.map { DeckManager.toCard($0, data: GameData.shared) } }
         for i in 0..<n {
             if let c = live[i] {

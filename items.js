@@ -448,18 +448,21 @@ const NINELIVES_ITEMS = {
     // a full stop (an Old Joker-steepened ladder still creeps by the
     // difference). Pure derived pricing — no saved state of its own.
     { id: "bulkRate", unlock: { type: "behavior", stat: "removalsUsed", count: 16 }, label: "Bulk Rate", icon: "🏷️",
-      kind: "meta", effect: "purgeStepDiscount", value: 1, tier: "uncommon", price: 6,
-      description: "The store's Purge price does not climb (no effect during deal)" },
+      kind: "meta", effect: "purgeStepDiscount", value: 1, payoutPurge: "count", tier: "uncommon", price: 6,
+      description: "The store's Purge price does not climb\nAt deal end → +X coins, X = Purges bought this climb" },
     // FREEBIE: one random shelf item per store visit costs 0 — rolled from
     // the same seeded store stream, so a reload shows the same gift.
+    // v7.08: meta items gain an IN-DEAL leg. stickerLandCoin = coins per
+    // STICKERED card landing correctly in the column (edit here to
+    // differentiate Freebie from Rare Hunter — no engine change needed).
     { id: "freebie", unlock: { type: "behavior", stat: "pinkyTipsSeen", count: 2 }, label: "Freebie", icon: "🎁",
-      kind: "meta", effect: "freebie", tier: "uncommon", price: 6,
-      description: "One random item in every store costs 0 (no effect during deal)" },
+      kind: "meta", effect: "freebie", stickerLandCoin: 1, tier: "uncommon", price: 6,
+      description: "One random item in every store costs 0\nWhen a stickered card lands in this column → +1 coin" },
     // RARE HUNTER: the store's rare tier weight is multiplied by `value`
     // while equipped (20 → 40 against common 100 / uncommon 50).
     { id: "rareHunter", unlock: { type: "behavior", stat: "pillarsPlaced", count: 25 }, label: "Rare Hunter", icon: "🦅",
-      kind: "meta", effect: "rareHunter", value: 2, tier: "uncommon", price: 6,
-      description: "Rare items appear in the store twice as often (no effect during deal)" },
+      kind: "meta", effect: "rareHunter", value: 2, stickerLandCoin: 1, tier: "uncommon", price: 6,
+      description: "Rare items appear in the store twice as often\nWhen a stickered card lands in this column → +1 coin" },
     // BOUNCER: a campaign-level ward — 30% to turn JUST A TWO away at a ?
     // node; CERTAIN when the deck holds no 2s at all (v6.87 — reads the
     // full deck at the node). He still appears, says "Ah, nothing for you
@@ -708,9 +711,11 @@ const NINELIVES_ITEMS = {
     // purgeDiscount mechanism, without his steeper-step clawback). The old
     // always-costs-5 `purgeFlat` reader retired with the key. STOP-FLAGGED
     // in the batch report: a one-shot on a permanent pillar slot.
+    // v7.08: payoutPurge = the deal-end coin leg's source — "price" pays the
+    // store's CURRENT Purge price, "count" the Purges bought this climb.
     { id: "purgeFlatFive", label: "Flat Purge", icon: "✋",
-      kind: "meta", effect: "purgeHalve", value: 3, tier: "uncommon", price: 6,
-      description: "On purchase → halve the store's Purge price (minimum 3, no effect during deal)" },
+      kind: "meta", effect: "purgeHalve", value: 3, payoutPurge: "price", tier: "uncommon", price: 6,
+      description: "On purchase → halve the store's Purge price (minimum 3)\nAt deal end → +X coins, X = the store's current Purge price" },
     // ON THE HOUSE: covers the FIRST restock per store visit AND the FIRST
     // reshuffle per deal, and pays `value` coins at each cleared deal's end
     // (v7.05 — the coin leg is new; a flat deal-end bonus, no condition).
@@ -788,7 +793,7 @@ const NINELIVES_ITEMS = {
     // purchase, and every copy leaves the deck at buy time. Fires once, at
     // the shop; nothing in-deal.
     // Price 10 is USER-SPECIFIED (not an R4 proposal).
-    { id: "purgeRank", label: "Rank Purge", icon: "🗑️",
+    { id: "purgeRank", inactive: true, label: "Rank Purge", icon: "🗑️",
       kind: "meta", effect: "purgeRank", shopRoll: "rank", tier: "rare", price: 6,
       description: "On purchase → purge every {rank} from your deck (no effect during deal)" },
 
@@ -861,7 +866,7 @@ const NINELIVES_ITEMS = {
     // coinPerCard = coins gained per ♥ card counted in the column.
     { id: "tax", iconSuit: "♥", label: "Heart Tax", icon: "🧾",
       kind: "active", effect: "tax", suit: "♥", coinPerCard: 1, tier: "uncommon", price: 6,
-      description: "+1 coin per ♥ card in this column" },
+      description: "+1 coin per ♥ card in this column's piles — every card, not just the tops" },
     // ---- Same-charge / Same-power bases (activated, once per deal) ----
     { id: "rechargeSame", unlock: { type: "milestone", stat: "correctSames", count: 28 }, label: "Recharge Cell", icon: "🔋",
       kind: "active", effect: "rechargeSameShield", tier: "uncommon", price: 6,

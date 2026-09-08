@@ -121,7 +121,13 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         edgesView.layer.magnificationFilter = .nearest
         track.addSubview(edgesView)
 
-        dimView.backgroundColor = CRT.ink.withAlphaComponent(0.3)
+        // v7.08: 0.3 → 0.12. The map-wide ink dim (which makes the gold
+        // spotlight pop) was the whole reason the map read darker than the
+        // deal board — the dither tile underneath is already feltMid⊕feltDeep,
+        // lighter than the board's flat feltDeep. The lighter dim keeps the
+        // spotlight contrast and brings the map's average in line with the
+        // rest of the game, all within the palette.
+        dimView.backgroundColor = CRT.ink.withAlphaComponent(0.12)
         dimView.isUserInteractionEnabled = false
         spotView.isUserInteractionEnabled = false
 
@@ -553,25 +559,25 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         }
     }
 
-    /// v7.07 DEBUG (small revealed packs): a face-up +3 — three half-scale
-    /// cards fanned like composePack2 (the middle one upright), on the SAME
-    /// 64×62 canvas so node gaps never widen; the fan simply overlaps more.
-    /// Chips draw inside each card's rotated frame, as the pair does.
+    /// A face-up +3 (the small-revealed-packs debug flag). v7.08: a straight
+    /// HAND, not a fan — three upright 26×36 cards drawn left→right, each
+    /// overlapped by its right neighbour by 7pt, so every card's centred
+    /// numeral + suit stays fully readable (the rotated fan buried the back
+    /// two under the front one). Same 64×62 canvas, so node gaps never widen.
     private func composePackFan(_ cards: [CardSpec]) -> UIImage {
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: 64, height: 62), format: fmt).image { ctx in
             let cg = ctx.cgContext
+            let cw: CGFloat = 26, ch: CGFloat = 36
             let n = max(1, cards.count)
+            let step = n > 1 ? (64 - cw) / CGFloat(n - 1) : 0      // 19pt for three
+            let y = ((62 - ch) / 2).rounded()
             for (i, card) in cards.enumerated() {
-                let t = n == 1 ? 0 : CGFloat(i) / CGFloat(n - 1) - 0.5     // −0.5 … 0.5 across the fan
+                let x = (CGFloat(i) * step).rounded()
                 let img = CardArt.image(CardArt.Face(card), scale: .half)
-                cg.saveGState()
-                cg.translateBy(x: 32 + t * 26, y: 31 + abs(t) * 3)
-                cg.rotate(by: t * 20 * .pi / 180)
-                img.draw(in: CGRect(x: -17, y: -24, width: 34, height: 48))
-                drawStickerChips(cg, card: card, cardTopRight: CGPoint(x: 17, y: -24),
-                                 chip: 12, cardWidth: 34)
-                cg.restoreGState()
+                img.draw(in: CGRect(x: x, y: y, width: cw, height: ch))
+                drawStickerChips(cg, card: card, cardTopRight: CGPoint(x: x + cw, y: y),
+                                 chip: 9, cardWidth: cw)
             }
         }
     }

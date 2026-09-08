@@ -106,6 +106,14 @@ public enum OldJoker {
     }
 
     /// What the player chose. `decline` is always legal except on `collect`.
+    /// v7.08 THE CUT's paid branch: picking the card yourself needs the
+    /// coins to pay for it — the UI greys the option below this (with the
+    /// reason), so it is never selectable-then-refused; the resolver still
+    /// guards it.
+    public static func cutChoiceAffordable(coins: Int, chooseCost: Int) -> Bool {
+        coins >= chooseCost
+    }
+
     public enum Choice: Equatable {
         case decline
         /// Buyout: take the low offer or the high one.

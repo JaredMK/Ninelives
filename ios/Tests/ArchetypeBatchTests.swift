@@ -138,7 +138,8 @@ final class ArchetypeBatchTests: XCTestCase {
         // shelves; Majority Rule keeps the pillar suit axis exercised.
         XCTAssertNil(found["absentSuitClubBury"], "Void Tribute retired — never shelves")
         XCTAssertNotNil(found["suitMajoritySafe"], "the sweep shelved Majority Rule")
-        XCTAssertNotNil(found["purgeRank"], "…Rank Purge")
+        // v7.08: Rank Purge retired — a retired shopRoll pillar never shelves.
+        XCTAssertNil(found["purgeRank"], "Rank Purge retired — never shelves")
         // v6.91: Transmute retired — a retired shopRoll base never shelves;
         // Majority Rule keeps the suit axis exercised above.
         XCTAssertNil(found["transmute"], "Transmute retired — never shelves")
@@ -150,6 +151,10 @@ final class ArchetypeBatchTests: XCTestCase {
     func testShopRollLocksHoldForTheClimb() {
         let c = campaign()
         _ = c.addCoins(2000)
+        // v7.08: Rank Purge — the one UNGATED shopRoll pillar — is retired, so
+        // unlock Majority Rule (the remaining shopRoll item, gated on six
+        // bosses) for the shelves to have anything to lock.
+        c.stats.bump("bossesBeaten", 6)
         var first: (id: String, rank: Int?, suit: String?)?
         var seed: UInt32 = 100
         while first == nil, seed < 300 {

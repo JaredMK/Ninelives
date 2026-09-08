@@ -319,6 +319,11 @@ public final class GameEngine {
     /// nil (unwired flows, fixtures, legacy tests) reads as "not broke": the
     /// paupers sleep and legacy rng streams stay untouched.
     public var purseCoinsProvider: (() -> Int)?
+    /// v7.08 PURGE LEGS: the store's CURRENT Purge price and the Purges
+    /// bought this climb, read LIVE at payout (Flat Purge / Bulk Rate).
+    /// Campaign-wired like the purse; a nil provider (bare engines, Zen)
+    /// pays nothing — the purse's own nil-dormancy rule.
+    public var purgeInfoProvider: (() -> (price: Int, bought: Int))?
     /// Is the purse under this def's `purseBelow` ceiling RIGHT NOW?
     func purseBelow(_ def: ItemDef) -> Bool {
         guard let provider = purseCoinsProvider else { return false }
@@ -817,6 +822,18 @@ public final class GameEngine {
             addBonus(pillar.label, pillar.value)
             firePillar(pcol, "suitBounty", pillar.label, pillar.value)
             recT("pillar", pillar.id, pillar.label, ["coins": pillar.value])
+        }
+
+        // v7.08 META IN-DEAL LEG: +`stickerLandCoin` per STICKERED card landing
+        // correctly in this column (Freebie, Rare Hunter). Data-keyed, so the
+        // two can be told apart in items.js without an engine change.
+        if correct, let pillar, !drawn.stickers.isEmpty, let pcol = run.pileColumns?[index] {
+            let per = pillar.num("stickerLandCoin", 0)
+            if per > 0 {
+                addBonus(pillar.label, per)
+                firePillar(pcol, pillar.effect ?? "", pillar.label, per)
+                recT("pillar", pillar.id, pillar.label, ["coins": per])
+            }
         }
 
         // Snowballs (Bury + Coins, v7.07 — one shared per-card X): ANY wrong

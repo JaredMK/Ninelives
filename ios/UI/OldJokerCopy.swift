@@ -310,8 +310,13 @@ enum OldJokerCopy {
                              enabled: canPay))
         case .cut(let cost):
             out.append(.init(label: "LET HIM PICK", detail: "free", role: .plain, choice: .accept))
-            out.append(.init(label: "PICK IT YOURSELF", detail: "\(cost) coins",
-                             role: c.coins >= cost ? .gold : .plain, choice: .payToChoose))
+            // v7.08: short of the fee, PICK IT YOURSELF is shown DEAD with the
+            // reason (the Ride idiom) — never selectable-then-refused.
+            let canPay = OldJoker.cutChoiceAffordable(coins: c.coins, chooseCost: cost)
+            out.append(.init(label: "PICK IT YOURSELF",
+                             detail: canPay ? "\(cost) coins" : "you have \(c.coins), it costs \(cost)",
+                             role: canPay ? .gold : .plain, choice: .payToChoose,
+                             enabled: canPay))
         case .marker(let coins, _):
             out.append(.init(label: "TAKE THE MARKER", detail: "+\(coins) coins now",
                              role: .gold, choice: .accept))

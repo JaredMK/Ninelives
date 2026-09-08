@@ -185,7 +185,7 @@ const OUTCOMES = {
   prime: ["Coin Gain", [], "on prime ranks"], rankCoin: ["Coin Gain", [], "on the locked rank"],
   gambler: ["Coin Gain", [], "coin flip"], insurance: ["Coin Gain", [], "if one pile survives"],
   columnAllAlive: ["Coin Gain", [], "if all survive"], columnNoneAlive: ["Coin Gain", [], "if none survive"],
-  greedy: ["Coin Gain", ["Loadout"], "only pillar equipped"], tax: ["Coin Gain", [], "per ♥ in column"],
+  greedy: ["Coin Gain", ["Loadout"], "only pillar equipped"], tax: ["Coin Gain", [], "per ♥ in the column's piles, buried included"],
   heartDemolish: ["Coin Gain", ["Pile Destruction"], "kills ♥ piles for coins"],
   linkCoins: ["Coin Gain", [], "per alive pile"],
   pauperHeartSafe: ["Safety & Saves", ["Pauper", "Peek"], "♥ while broke; flat broke peeks"],
@@ -228,11 +228,11 @@ const OUTCOMES = {
   sameCleanseAll: ["Curse Removal", ["Same Shield & Power"], "board-wide, every correct Same"],
 
   // Store Economy — shop-side value, nothing in-deal.
-  purgeStepDiscount: ["Store Economy", [], "Purge ladder climbs slower"],
-  purgeHalve: ["Store Economy", [], "one-time Purge halving on purchase"],
+  purgeStepDiscount: ["Store Economy", ["Coin Gain"], "Purge ladder climbs slower; deal-end +purges bought this climb"],
+  purgeHalve: ["Store Economy", ["Coin Gain"], "one-time Purge halving on purchase; deal-end +current Purge price"],
   purgeDiscount: ["Store Economy", [], "cuts the Purge price"],
-  freebie: ["Store Economy", [], "one free shelf item"],
-  rareHunter: ["Store Economy", [], "rares twice as often"],
+  freebie: ["Store Economy", ["Coin Gain"], "one free shelf item; +1 per stickered landing"],
+  rareHunter: ["Store Economy", ["Coin Gain"], "rares twice as often; +1 per stickered landing"],
   firstFree: ["Store Economy", ["Coin Gain"], "first restock + reshuffle free; +coins at deal end"],
 
   // Loadout & Meta.

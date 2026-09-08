@@ -289,6 +289,9 @@ public final class DealController {
             self?.scheduleFeedFlush()
         }
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
+        // v7.08: the purge legs (Flat Purge / Bulk Rate) read the store's live
+        // Purge price and this climb's paid-purge count at payout.
+        engine.purgeInfoProvider = { [campaign] in (Int(campaign.removalPrice()), campaign.purgesBought) }
         engine.start(seedOverride: setup.seed)
         engine.startRun(pillars: pillars, bases: bases, samePower: .some(samePower))
         DebugEventLog.shared.resetEngineCursor()
@@ -354,6 +357,9 @@ public final class DealController {
         // this closure — never a snapshot (captures the shared campaign, not self,
         // so no retain cycle).
         engine.purseCoinsProvider = { [campaign] in campaign.getCoins() }
+        // v7.08: the purge legs (Flat Purge / Bulk Rate) read the store's live
+        // Purge price and this climb's paid-purge count at payout.
+        engine.purgeInfoProvider = { [campaign] in (Int(campaign.removalPrice()), campaign.purgesBought) }
         // EVENT FEED (v7.05): ON BY DEFAULT for campaign deals — beta testers
         // get it without opting in; the debug toggle sets "0" to turn it off.
         // (Unset ⇒ on.)
@@ -1921,11 +1927,13 @@ public final class DealController {
         promptActive = true
         var confirmDesc = liveBaseDescription(def, col: col)
         if def.effect == "emptyPurse" {
-            // v6.74: the yield AND the cost, brutally clear — the exact peek
-            // count and the exact number about to vanish, both computed live.
+            // v7.08: ONE statement of the effect (the description above) —
+            // this line is only the LIVE numbers, the Purge Coupon idiom. The
+            // old line restated the effect and quoted a peek count the v7.01
+            // rework no longer has (it always peeks exactly one).
             let purse = campaign.getCoins()
-            let peeks = 1 + purse / 10
-            confirmDesc += "\nPeek \(peeks) card\(peeks == 1 ? "" : "s"). This spends ALL your coins: ◉ \(purse). Every one."
+            let buries = engine?.baseLiveCounter(col) ?? purse / max(1, def.int("perCoins", 5))
+            confirmDesc += "\nRight now: spends ◉ \(purse) → buries \(buries) card\(buries == 1 ? "" : "s")."
         }
         if def.effect == "setValue" || def.effect == "setSuit" {
             // Live preview: the exact count about to change, and to what —

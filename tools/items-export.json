@@ -1,6 +1,6 @@
 {
- "version": "v7.07",
- "generatedAt": "2026-09-08 13:49",
+ "version": "v7.08",
+ "generatedAt": "2026-09-08 17:42",
  "rows": [
   {
    "cls": "Stickers",
@@ -882,8 +882,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Store Economy",
-   "outcomeDetail": "Purge ladder climbs slower",
-   "outcomeAlso": [],
+   "outcomeDetail": "Purge ladder climbs slower; deal-end +purges bought this climb",
+   "outcomeAlso": [
+    "Coin Gain"
+   ],
    "effectKey": "purgeStepDiscount",
    "id": "bulkRate",
    "label": "Bulk Rate",
@@ -897,7 +899,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "The store's Purge price does not climb (no effect during deal)",
+   "description": "The store's Purge price does not climb\nAt deal end → +X coins, X = Purges bought this climb",
    "flags": "",
    "flagNotes": ""
   },
@@ -905,8 +907,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Store Economy",
-   "outcomeDetail": "one free shelf item",
-   "outcomeAlso": [],
+   "outcomeDetail": "one free shelf item; +1 per stickered landing",
+   "outcomeAlso": [
+    "Coin Gain"
+   ],
    "effectKey": "freebie",
    "id": "freebie",
    "label": "Freebie",
@@ -920,7 +924,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "One random item in every store costs 0 (no effect during deal)",
+   "description": "One random item in every store costs 0\nWhen a stickered card lands in this column → +1 coin",
    "flags": "",
    "flagNotes": ""
   },
@@ -928,8 +932,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Store Economy",
-   "outcomeDetail": "rares twice as often",
-   "outcomeAlso": [],
+   "outcomeDetail": "rares twice as often; +1 per stickered landing",
+   "outcomeAlso": [
+    "Coin Gain"
+   ],
    "effectKey": "rareHunter",
    "id": "rareHunter",
    "label": "Rare Hunter",
@@ -943,7 +949,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "Rare items appear in the store twice as often (no effect during deal)",
+   "description": "Rare items appear in the store twice as often\nWhen a stickered card lands in this column → +1 coin",
    "flags": "",
    "flagNotes": ""
   },
@@ -1594,8 +1600,10 @@
    "cls": "Pillars",
    "inactive": false,
    "outcome": "Store Economy",
-   "outcomeDetail": "one-time Purge halving on purchase",
-   "outcomeAlso": [],
+   "outcomeDetail": "one-time Purge halving on purchase; deal-end +current Purge price",
+   "outcomeAlso": [
+    "Coin Gain"
+   ],
    "effectKey": "purgeHalve",
    "id": "purgeFlatFive",
    "label": "Flat Purge",
@@ -1609,7 +1617,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "On purchase → halve the store's Purge price (minimum 3, no effect during deal)",
+   "description": "On purchase → halve the store's Purge price (minimum 3)\nAt deal end → +X coins, X = the store's current Purge price",
    "flags": "",
    "flagNotes": ""
   },
@@ -1788,31 +1796,6 @@
    "description": "When a cursed card lands in this column → bury 1 card under that pile, then peek next card",
    "flags": "",
    "flagNotes": ""
-  },
-  {
-   "cls": "Pillars",
-   "inactive": false,
-   "outcome": "Deck Removal",
-   "outcomeDetail": "a whole rank, at purchase",
-   "outcomeAlso": [
-    "Deck Shaping"
-   ],
-   "effectKey": "purgeRank",
-   "id": "purgeRank",
-   "label": "Rank Purge",
-   "tier": "rare",
-   "price": 6,
-   "unlockType": "",
-   "unlockStat": "",
-   "unlockCount": null,
-   "gated": false,
-   "suits": "",
-   "cursed": false,
-   "packSize": null,
-   "packKeep": null,
-   "description": "On purchase → purge every {rank} from your deck (no effect during deal)",
-   "flags": "TEMPLATE",
-   "flagNotes": "TEMPLATE: {rank} substituted live"
   },
   {
    "cls": "Bases",
@@ -2125,7 +2108,7 @@
    "cls": "Bases",
    "inactive": false,
    "outcome": "Coin Gain",
-   "outcomeDetail": "per ♥ in column",
+   "outcomeDetail": "per ♥ in the column's piles, buried included",
    "outcomeAlso": [],
    "effectKey": "tax",
    "id": "tax",
@@ -2140,7 +2123,7 @@
    "cursed": false,
    "packSize": null,
    "packKeep": null,
-   "description": "+1 coin per ♥ card in this column",
+   "description": "+1 coin per ♥ card in this column's piles — every card, not just the tops",
    "flags": "",
    "flagNotes": ""
   },
@@ -3965,6 +3948,31 @@
    "description": "When a ♣ lands in this column → bury 1 card per 25 cards remaining in the deck",
    "flags": "",
    "flagNotes": ""
+  },
+  {
+   "cls": "Retired",
+   "inactive": true,
+   "outcome": "Deck Removal",
+   "outcomeDetail": "a whole rank, at purchase",
+   "outcomeAlso": [
+    "Deck Shaping"
+   ],
+   "effectKey": "purgeRank",
+   "id": "purgeRank",
+   "label": "Rank Purge",
+   "tier": "rare",
+   "price": 6,
+   "unlockType": "",
+   "unlockStat": "",
+   "unlockCount": null,
+   "gated": false,
+   "suits": "",
+   "cursed": false,
+   "packSize": null,
+   "packKeep": null,
+   "description": "On purchase → purge every {rank} from your deck (no effect during deal)",
+   "flags": "TEMPLATE",
+   "flagNotes": "TEMPLATE: {rank} substituted live"
   },
   {
    "cls": "Retired",

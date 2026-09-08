@@ -1047,6 +1047,21 @@ extension GameEngine {
                     lines.append(PayoutLine(label: m.label, detail: "on the house", amount: amt, col: col))
                 }
             }
+            // v7.08 PURGE LEGS (meta kind, ahead of the scoring switch): Flat
+            // Purge pays the store's CURRENT Purge price, Bulk Rate the Purges
+            // bought this climb — `payoutPurge` in items.js picks which, read
+            // LIVE through the provider at payout. Unwired (bare tests, Zen)
+            // pays nothing.
+            if let m = resolvePillarDef(col), let mode = m.raw["payoutPurge"]?.asString,
+               let info = purgeInfoProvider?() {
+                let amt = Double(mode == "price" ? info.price : info.bought)
+                if amt > 0 {
+                    bonus += amt
+                    lines.append(PayoutLine(label: m.label,
+                                            detail: mode == "price" ? "purge price" : "purges bought",
+                                            amount: amt, col: col))
+                }
+            }
             guard let t = resolvePillarDef(col), t.kind == "scoring" else { continue }
             switch t.effect {
             case "columnAllAlive":

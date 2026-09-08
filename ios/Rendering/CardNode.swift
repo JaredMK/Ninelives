@@ -3,9 +3,11 @@ import GameCore
 
 /// §5 Cards — the numeral IS the card.
 ///
-/// *"Corner pips are decoration at 100% ONLY — at ≤75% the oversized centered
-/// numeral carries everything (deals reach 40+ cards). Readability beats pip
-/// fidelity."* Every face is baked once into a texture and reused.
+/// *"The oversized centered numeral carries everything (deals reach 40+
+/// cards). Readability beats pip fidelity."* v7.08: the corner pips grew
+/// (20/16/10 by scale) and now draw at EVERY scale — sized and inset per
+/// scale so they stay clear of the numeral block even on a 12-pile deal.
+/// Every face is baked once into a texture and reused.
 public enum CardArt {
 
     /// The three sanctioned sizes from the styleguide, in points.
@@ -33,8 +35,17 @@ public enum CardArt {
         /// c50 halves the border AND the shadow.
         var shadow: CGFloat { self == .half ? 2 : CRT.shadowOffset }
         var border: CGFloat { CRT.px }
-        /// Corner pips are 100%-only decoration.
-        var showsPips: Bool { self == .full }
+        /// v7.08: corner pips at every scale (they were 100%-only and 14px,
+        /// which read as specks) — top-left and bottom-right, sized and inset
+        /// per scale so the smallest (c50, the 12-pile deal) stays clear of
+        /// the centred numeral block.
+        var showsPips: Bool { true }
+        var pipSize: CGFloat {
+            switch self { case .full: return 20; case .three: return 16; case .half: return 10 }
+        }
+        var pipInset: CGFloat {
+            switch self { case .full: return 4; case .three: return 3; case .half: return 2 }
+        }
     }
 
     /// What a face looks like, independent of which live card it came from.
@@ -142,15 +153,16 @@ public enum CardArt {
             UIGraphicsPushContext(cg)
             defer { UIGraphicsPopContext() }
 
-            // Corner pips — decoration at 100% only, 0.8 alpha. v6.68: the
-            // game's own 8px pixel suit mark (PixelGlyph) — the text draw fell
+            // Corner pips — 0.8 alpha, sized/inset per scale (v7.08). v6.68:
+            // the game's own pixel suit mark (PixelGlyph) — the text draw fell
             // through to the SYSTEM font (neither game font carries U+2660–6),
             // which is exactly where ♠ and ♣ blurred together.
             if scale.showsPips, face.kind == .normal,
-               let pip = PixelGlyph.suitImage(face.suit, size: 14, color: inkColor) {
-                pip.draw(at: CGPoint(x: 4, y: 4), blendMode: .normal, alpha: 0.8)
-                pip.draw(at: CGPoint(x: box.width - pip.size.width - 4,
-                                     y: box.height - pip.size.height - 4),
+               let pip = PixelGlyph.suitImage(face.suit, size: scale.pipSize, color: inkColor) {
+                let inset = scale.pipInset
+                pip.draw(at: CGPoint(x: inset, y: inset), blendMode: .normal, alpha: 0.8)
+                pip.draw(at: CGPoint(x: box.width - pip.size.width - inset,
+                                     y: box.height - pip.size.height - inset),
                          blendMode: .normal, alpha: 0.8)
             }
 

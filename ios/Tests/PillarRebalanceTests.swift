@@ -66,9 +66,11 @@ final class PillarRebalanceTests: XCTestCase {
                                     // v6.94: the flat pile-size family joins them.
                                     "streakBank", "stickerCount", "diamondZeroRanksSize",
                                     "eightStart", "diamondDupeSize", "pauperDiamond",
-                                    "sizeOneDiamonds"]
+                                    "sizeOneDiamonds",
+                                    // v7.08: Rank Purge.
+                                    "purgeRank"]
         XCTAssertEqual(Set(data.items.pillars.filter(\.inactive).map(\.id)), retired,
-                       "the v6.87 + v6.94 retirement sets, exactly")
+                       "the v6.87 + v6.94 + v7.08 retirement sets, exactly")
         // The chokepoint every class pools through now (the v6.87 fix —
         // grantableBase used to be consulted for stickers only):
         XCTAssertFalse(data.pillarTypes.grantableBase().contains { retired.contains($0.id) })

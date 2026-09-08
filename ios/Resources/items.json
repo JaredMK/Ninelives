@@ -1232,9 +1232,10 @@
       "kind": "meta",
       "effect": "purgeStepDiscount",
       "value": 1,
+      "payoutPurge": "count",
       "tier": "uncommon",
       "price": 6,
-      "description": "The store's Purge price does not climb (no effect during deal)"
+      "description": "The store's Purge price does not climb\nAt deal end → +X coins, X = Purges bought this climb"
     },
     {
       "id": "freebie",
@@ -1247,9 +1248,10 @@
       "icon": "🎁",
       "kind": "meta",
       "effect": "freebie",
+      "stickerLandCoin": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "One random item in every store costs 0 (no effect during deal)"
+      "description": "One random item in every store costs 0\nWhen a stickered card lands in this column → +1 coin"
     },
     {
       "id": "rareHunter",
@@ -1263,9 +1265,10 @@
       "kind": "meta",
       "effect": "rareHunter",
       "value": 2,
+      "stickerLandCoin": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "Rare items appear in the store twice as often (no effect during deal)"
+      "description": "Rare items appear in the store twice as often\nWhen a stickered card lands in this column → +1 coin"
     },
     {
       "id": "twoWard",
@@ -1835,9 +1838,10 @@
       "kind": "meta",
       "effect": "purgeHalve",
       "value": 3,
+      "payoutPurge": "price",
       "tier": "uncommon",
       "price": 6,
-      "description": "On purchase → halve the store's Purge price (minimum 3, no effect during deal)"
+      "description": "On purchase → halve the store's Purge price (minimum 3)\nAt deal end → +X coins, X = the store's current Purge price"
     },
     {
       "id": "firstFree",
@@ -1954,6 +1958,7 @@
     },
     {
       "id": "purgeRank",
+      "inactive": true,
       "label": "Rank Purge",
       "icon": "🗑️",
       "kind": "meta",
@@ -2178,7 +2183,7 @@
       "coinPerCard": 1,
       "tier": "uncommon",
       "price": 6,
-      "description": "+1 coin per ♥ card in this column"
+      "description": "+1 coin per ♥ card in this column's piles — every card, not just the tops"
     },
     {
       "id": "rechargeSame",

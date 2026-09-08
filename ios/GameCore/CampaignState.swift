@@ -104,6 +104,11 @@ public final class CampaignState {
     /// Removals bought this climb — each one lifts the next removal's price by
     /// `store.removal.priceStep`. Resets with the climb, not the shop visit.
     public internal(set) var removalsBought = 0
+    /// v7.08 BULK RATE's X: the exact number of Purges BOUGHT this climb.
+    /// Kept apart from `removalsBought` (the price ladder), which the Old
+    /// Joker's purge-reset fakes up to 2 — that would pay free coins.
+    /// Starts at 0 each climb; serialized.
+    public internal(set) var purgesBought = 0
     /// THE OLD JOKER's purge bargain (see applyPurgeHalving): coins knocked off
     /// the slot's current price, and how much steeper each future step is.
     /// Both reset with the climb, like the ladder itself.
@@ -947,6 +952,7 @@ public final class CampaignState {
         pendingPurges = 0    // v7.07: owed Long Odds purges die with the climb
         phaseIndex = 0
         removalsBought = 0   // the removal price ladder is per climb
+        purgesBought = 0     // v7.08: Bulk Rate's count is per climb too
         purgeDiscount = 0
         purgeStepBonus = 0
         purgePriceCut = 0    // the Purge Coupon's cuts die with the climb (v6.76)
@@ -2373,6 +2379,7 @@ public final class CampaignState {
         TelemetryCore.shared.record("purge_used", ["price": String(Int(price))])
         coins -= Int(price)
         removalsBought += 1   // the next one costs `priceStep` more
+        purgesBought += 1     // v7.08: Bulk Rate counts every PAID purge
         // The slot is SPENT for this shelf. It used to be endlessly repeatable
         // inside one visit, which let a full purse strip the deck to nothing
         // in a single stop. A REFRESH puts it back (see rerollStore).
