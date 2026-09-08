@@ -425,7 +425,8 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
         // +5) and EVERY pack is face-up on the map whatever its count (no
         // sealed packs). Persisted (ninelives.pref.debugSmallRevealedPacks);
         // the cap applies at the next map generation, the reveal at the next
-        // lock/render. A pure debug experiment.
+        // lock/render. v7.10: ON by default (unset = on) — this toggle is
+        // how to turn it OFF.
         buttonRow([
             Btn("small revealed packs: \(flow.campaign.debugSmallRevealedPacksOn() ? "on" : "off")",
                 role: flow.campaign.debugSmallRevealedPacksOn() ? .charged : .plain) { [weak self] in

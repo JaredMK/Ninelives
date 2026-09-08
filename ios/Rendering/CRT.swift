@@ -109,13 +109,14 @@ public enum CRT {
 
     // MARK: - Suits
 
-    /// COLORFUL CARDS (v6.96): the four-suit recolour, default OFF. OFF is
-    /// the classic red/black; ON paints ♦ suit-blue and ♣ suit-green so all
-    /// four suits read apart at a glance (♥ stays suit-red, ♠ unchanged).
-    /// App code flips this ONLY through `setColorfulCards` (ColorfulCards.swift
-    /// — persists the pref and flushes the baked-art caches); tests may set it
-    /// directly.
-    public static var colorfulCards = false
+    /// COLORFUL CARDS (v6.96; default ON since v7.10). OFF is the classic
+    /// red/black; ON paints ♦ suit-blue and ♣ suit-green so all four suits
+    /// read apart at a glance (♥ stays suit-red, ♠ unchanged). The boot load
+    /// (`loadColorfulCardsPref`) treats an unset pref as on, and this initial
+    /// value matches it so the pre-load window agrees. App code flips this
+    /// ONLY through `setColorfulCards` (ColorfulCards.swift — persists the
+    /// pref and flushes the baked-art caches); tests may set it directly.
+    public static var colorfulCards = true
 
     /// The suit colours that IGNORE the surrounding run's ink: ♥ always
     /// self-tints suit-red; Colorful Cards adds ♦ blue and ♣ green. Nil =

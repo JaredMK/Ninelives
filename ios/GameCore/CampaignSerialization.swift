@@ -57,6 +57,7 @@ extension CampaignState {
             "removalsBought": .number(Double(removalsBought)),
             "purgesBought": .number(Double(purgesBought)),   // v7.08: Bulk Rate's exact paid-purge count
             "stickersBought": .number(Double(stickersBought)), // v7.09: Rare Hunter's per-climb sticker count
+            "smallPacksRun": .bool(smallPacksRun),             // v7.10: the run's captured pack config, so restore regenerates the same map
             "pillarRankVariants": .object(pillarRankVariants.reduce(into: [:]) { $0[$1.key] = .number(Double($1.value)) }),
             "purgeDiscount": .number(Double(purgeDiscount)),
             "purgeStepBonus": .number(Double(purgeStepBonus)),
@@ -283,6 +284,9 @@ extension CampaignState {
         removalsBought = Int(s["removalsBought"]?.asNumber ?? 0)
         purgesBought = Int(s["purgesBought"]?.asNumber ?? 0)
         stickersBought = Int(s["stickersBought"]?.asNumber ?? 0)
+        // Absent in pre-v7.10 saves: those maps were generated with the +5
+        // packs (the flag was debug-only and off), so false is the faithful read.
+        smallPacksRun = s["smallPacksRun"]?.asBool ?? false
         pillarRankVariants = (s["pillarRankVariants"]?.asObject ?? [:])
             .compactMapValues { $0.asNumber.map(Int.init) }
         purgeDiscount = Int(s["purgeDiscount"]?.asNumber ?? 0)
@@ -348,6 +352,9 @@ extension CampaignState {
         // pickup/pack faces (nodeCards/packCards were restored above, so the
         // locks are re-asserted, never re-rolled) and re-clear the guaranteed
         // Joker's mystery flag (the flag itself re-rolls on regeneration).
+        // v7.10: the RUN's captured pack config, not the live pref — restore
+        // must rebuild the identical map whatever the toggle says now.
+        applyPackConfig(small: smallPacksRun)
         runMap = map.generateRun(seed: runSeed, entryDecks: stageEntryDecks,
                                  opts: RunMap.GenOptions(genVersion: savedGenVersion,
                                                          postBossJokerStages: fixedJokerStages() ?? []))

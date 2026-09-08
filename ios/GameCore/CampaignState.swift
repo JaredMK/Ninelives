@@ -113,6 +113,13 @@ public final class CampaignState {
     /// climb (sticker packs don't count — they buy a pack, not a sticker).
     /// Starts at 0 each climb; serialized.
     public internal(set) var stickersBought = 0
+    /// v7.10 SMALL PACKS, captured PER RUN: the pref's value when this run's
+    /// map was generated. Every pack gate (commit / reveal / resolve / suits)
+    /// and every REGENERATION of the map (next stage, restore) reads THIS,
+    /// never the live pref — so a resume rebuilds the identical map and a
+    /// mid-climb toggle can't change how existing packs resolve. The toggle
+    /// takes effect on the NEXT climb. Serialized.
+    public internal(set) var smallPacksRun = false
     /// THE OLD JOKER's purge bargain (see applyPurgeHalving): coins knocked off
     /// the slot's current price, and how much steeper each future step is.
     /// Both reset with the climb, like the ladder itself.
@@ -783,14 +790,16 @@ public final class CampaignState {
         saveStore.setPref("debugSingleSuitPacks", on ? "1" : "0")
     }
 
-    /// v7.07 DEBUG — SMALL, FULLY REVEALED PACKS: map card pickups cap at +3
-    /// (not +5) and EVERY pack commits its exact cards up front, so the map
-    /// shows what each node grants whatever its count (1, 2 or 3) — no
-    /// sealed packs. Persisted (ninelives.pref.debugSmallRevealedPacks);
-    /// the cap applies at the NEXT map generation, the reveal at the next
-    /// lock/render. Purely a debug experiment.
+    /// SMALL, FULLY REVEALED PACKS (v7.07, the DEFAULT since v7.10): map card
+    /// pickups cap at +3 (not +5) and EVERY pack commits its exact cards up
+    /// front, so the map shows what each node grants whatever its count (1,
+    /// 2 or 3) — no sealed packs. Persisted (ninelives.pref.
+    /// debugSmallRevealedPacks): UNSET reads as ON — a fresh install gets it
+    /// — and the debug panel's toggle writes "0" to turn it off. The cap
+    /// applies at the NEXT map generation, the reveal at the next
+    /// lock/render.
     public func debugSmallRevealedPacksOn() -> Bool {
-        saveStore.pref("debugSmallRevealedPacks") == "1"
+        saveStore.pref("debugSmallRevealedPacks") != "0"
     }
     public func setDebugSmallRevealedPacks(_ on: Bool) {
         saveStore.setPref("debugSmallRevealedPacks", on ? "1" : "0")
@@ -847,7 +856,7 @@ public final class CampaignState {
     /// the player learns WHICH suits are present, never how many of each.
     public func packSuits(for node: MapNode) -> [String] {
         var suits: [String]
-        if node.addOf == 2 || debugSmallRevealedPacksOn(), let pair = commitPackCards(node) {
+        if node.addOf == 2 || smallPacksRun, let pair = commitPackCards(node) {
             suits = pair.compactMap { id in
                 id == Self.specialBlank ? nil : (specialCardFor(id) ?? findById(id))?.suit
             }
@@ -893,7 +902,7 @@ public final class CampaignState {
             packCards[node.id] = []
             // v7.07 DEBUG (small revealed packs): commit EVERY slot, so a +3
             // pack is face-up on the map too. Flag off: the two of a +2.
-            let slots = debugSmallRevealedPacksOn() ? max(2, node.addOf) : 2
+            let slots = smallPacksRun ? max(2, node.addOf) : 2
             for slot in 0..<slots {
                 let id = packSlotIdFor(node, slot: slot)
                 packCards[node.id]!.append(id)
@@ -920,7 +929,7 @@ public final class CampaignState {
         for n in pickups { commitNodeCard(n) }
         // Every REVEALED +2 pack commits its exact pair right after the pickups.
         // v7.07 DEBUG (small revealed packs): every pack commits, not just +2.
-        let revealAll = debugSmallRevealedPacksOn()
+        let revealAll = smallPacksRun
         let packs = m.nodes.filter { $0.type == "pack" && ($0.packCount == 2 || revealAll) && !clearedNodes.contains($0.id) }
             .stableSorted { $0.id < $1.id }
         for n in packs { commitPackCards(n) }
@@ -929,18 +938,25 @@ public final class CampaignState {
 
     // MARK: - Map generation
 
-    func genRunMap() {
-        map.setDifficultyTier(difficultyTier)   // bands follow this campaign's tier
-        // v7.07 DEBUG: small packs — cap card grants at +3. BOTH branches set
-        // the config (it persists on `map`), so toggling off restores the
-        // registry defaults on the next generation.
+    /// The pack-size config for a run: the +3 cap (the weights table AND
+    /// packMax — sizes are drawn from the table at generation; packMax only
+    /// bounds the later raise/merge passes) when small packs are on, the
+    /// registry defaults otherwise. BOTH branches set the config (it persists
+    /// on `map`). Called before EVERY generateRun — fresh climb, next stage
+    /// and restore — with the RUN's captured flag, never the live pref.
+    func applyPackConfig(small: Bool) {
         let defaults = MapConfig()
-        let small = debugSmallRevealedPacksOn()
-        // Pack SIZES are drawn from the weight table at generation (the
-        // weightedPick in RunMap), so the table is what actually caps them —
-        // packMax only bounds the later raise/merge passes.
         map.config.packMax = small ? 3 : defaults.packMax
         map.config.packWeights = small ? defaults.packWeights.filter { $0.0 <= 3 } : defaults.packWeights
+    }
+
+    func genRunMap() {
+        map.setDifficultyTier(difficultyTier)   // bands follow this campaign's tier
+        // SMALL PACKS (v7.10): capture the pref for THIS run and apply its
+        // pack config before generating — every later regeneration of this
+        // map (next stage, restore) applies the SAME captured flag.
+        smallPacksRun = debugSmallRevealedPacksOn()
+        applyPackConfig(small: smallPacksRun)
         // THE WHOLE RUN generates up front (all 3 stages, rendered from the
         // start). Later stages use PREDICTED entry decks — entry + the average
         // route collection per stage — and the map stays FIXED for the run.
@@ -967,6 +983,7 @@ public final class CampaignState {
     func extendEndless() {
         stageEntryDecks.append(ownedIds.count)
         map.setDifficultyTier(difficultyTier)
+        applyPackConfig(small: smallPacksRun)   // v7.10: the run's captured flag, every regeneration
         runMap = map.generateRun(seed: runSeed, entryDecks: stageEntryDecks, opts: runGenOpts())
         lockAllPickupCards()
         ensureGuaranteedJoker()
@@ -1253,7 +1270,7 @@ public final class CampaignState {
         var granted: [Int] = []
         // v7.07 DEBUG (small revealed packs): a committed pack of ANY count
         // grants exactly what the map showed.
-        if count == 2 || debugSmallRevealedPacksOn(), let pair = commitPackCards(node) {
+        if count == 2 || smallPacksRun, let pair = commitPackCards(node) {
             granted = pair
         } else {
             let rng = rrng(.s("pack"), .n(node.id))

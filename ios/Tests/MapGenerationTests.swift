@@ -549,9 +549,13 @@ final class MapGenerationTests: XCTestCase {
             }
         }
 
-        // Toggling back off restores the stage-suit composition exactly.
+        // Toggling back off restores the stage-suit composition exactly — on
+        // the NEXT climb: since v7.10 every pack is committed the moment its
+        // map is built (small revealed packs are the default), so an existing
+        // run's packs are fixed and only a fresh campaign reads the toggle.
         c.setDebugSingleSuitPacks(false)
-        let cPack = c.runMap!.nodes.first { $0.id == offPack.id }!
-        XCTAssertEqual(c.packSuits(for: cPack), before)
+        let back = runCampaign(deck: "pink", store: store)
+        let backPack = back.runMap!.nodes.first { $0.id == offPack.id }!
+        XCTAssertEqual(back.packSuits(for: backPack), before)
     }
 }

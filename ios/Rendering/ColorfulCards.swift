@@ -12,9 +12,11 @@ import UIKit
 public extension CRT {
 
     /// Boot load (AppDelegate): reads the pref into the flag. The caches are
-    /// empty at boot, so no flush is needed here.
+    /// empty at boot, so no flush is needed here. v7.10: ON by default — an
+    /// UNSET pref (a fresh install) reads as on; only an explicit "0" (the
+    /// Settings / pause-menu toggle) turns it off.
     static func loadColorfulCardsPref() {
-        colorfulCards = UserDefaults.standard.string(forKey: "ninelives.pref.colorfulCards") == "1"
+        colorfulCards = UserDefaults.standard.string(forKey: "ninelives.pref.colorfulCards") != "0"
     }
 
     /// THE one toggle path: set the flag, persist, flush every suit-bearing
