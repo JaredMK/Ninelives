@@ -1,2 +1,5 @@
 event-shots/
 ios/Fixtures/.golden-record
+
+# Office lock stubs (Excel keeps item-list.xlsx open)
+~$*
