@@ -522,8 +522,10 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         case "home": return MapArt.homeHut(mama: true)
         case "pass": return MapArt.passDot(done: campaign.nodeCleared(n.id))
         case "pack":
-            let pair = campaign.packNodeCards(n)
-            if pair.count == 2 { return composePack2(pair) }
+            let cards = campaign.packNodeCards(n)
+            if cards.count == 2 { return composePack2(cards) }
+            // v7.07 DEBUG (small revealed packs): a committed +3 shows all three.
+            if cards.count >= 3 { return composePackFan(cards) }
             return composePackStack(n)
         default:
             if let card = campaign.nodeCard(n) ?? campaign.previewPickupCard(n) {
@@ -548,6 +550,29 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { _ in
             cluster.draw(at: CGPoint(x: (w - cluster.size.width) / 2, y: 0))
             chip.draw(at: CGPoint(x: (w - chip.size.width) / 2, y: cluster.size.height - 6))
+        }
+    }
+
+    /// v7.07 DEBUG (small revealed packs): a face-up +3 — three half-scale
+    /// cards fanned like composePack2 (the middle one upright), on the SAME
+    /// 64×62 canvas so node gaps never widen; the fan simply overlaps more.
+    /// Chips draw inside each card's rotated frame, as the pair does.
+    private func composePackFan(_ cards: [CardSpec]) -> UIImage {
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: 64, height: 62), format: fmt).image { ctx in
+            let cg = ctx.cgContext
+            let n = max(1, cards.count)
+            for (i, card) in cards.enumerated() {
+                let t = n == 1 ? 0 : CGFloat(i) / CGFloat(n - 1) - 0.5     // −0.5 … 0.5 across the fan
+                let img = CardArt.image(CardArt.Face(card), scale: .half)
+                cg.saveGState()
+                cg.translateBy(x: 32 + t * 26, y: 31 + abs(t) * 3)
+                cg.rotate(by: t * 20 * .pi / 180)
+                img.draw(in: CGRect(x: -17, y: -24, width: 34, height: 48))
+                drawStickerChips(cg, card: card, cardTopRight: CGPoint(x: 17, y: -24),
+                                 chip: 12, cardWidth: 34)
+                cg.restoreGState()
+            }
         }
     }
 
@@ -817,9 +842,9 @@ public final class MapViewController: UIViewController, UIScrollViewDelegate {
         case "pack":
             // A revealed +2 pack names its two exact cards (a Blank slot is a
             // Removal); sealed packs keep the hidden count.
-            let pair = campaign.packNodeCards(n)
-            if pair.count == 2 {
-                return "2 cards: \(nodeCardName(pair[0])) + \(nodeCardName(pair[1]))"
+            let cards = campaign.packNodeCards(n)
+            if cards.count >= 2 {   // a revealed pair — or, under the v7.07 debug flag, a revealed +3
+                return "\(cards.count) cards: " + cards.map(nodeCardName).joined(separator: " + ")
             }
             return "Pack · \(n.packCount ?? 3) cards · \(campaign.packSuits(for: n).joined()) (hidden)"
         default:

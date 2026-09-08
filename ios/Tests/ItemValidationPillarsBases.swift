@@ -1293,22 +1293,22 @@ enum IVPillarsBases {
         return [trigger, edge, mustNot]
     }
 
-    /// CURSE WARD (v6.88): a conditional sticker's missed bet does NOT
-    /// convert in this column — the sticker stays and simply didn't fire.
+    /// CURSE WARD (v6.88; v7.07 model): a KILL in this column does NOT
+    /// convert the carrier's killCurse stickers — they stay, buried with it.
     static func curseWardScenarios(_ def: ItemDef) -> [IV.Scenario] {
-        // The Tell carrier's ♠ bet misses on a ♥/♦ board — the canonical
-        // conversion setup from ConditionalStickerTests, with the ward.
+        // The canonical kill from ConditionalStickerTests — a 3♠ Tell carrier
+        // called HIGHER onto a 5♠ dies — with the ward on its column.
         let tops = [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")]
         let deck = [IV.spec(50, 3, "♠", ["tell"]), IV.spec(51, 4, "♥")]
-        let trigger = IV.Scenario("trigger-missedBetKeepsItsSticker", allowed: [.guesses, .deck, .board],
+        let trigger = IV.Scenario("trigger-killKeepsItsSticker", allowed: [.guesses, .deck, .board, .deaths],
             build: { IV.engine(tops: tops, deckOrder: deck, pillars: [def.id, nil, nil]) },
-            fire: { $0.guess(0, .lower) },
+            fire: { $0.guess(0, .higher) },
             expect: { e, _, c in
-                let top = e.board.top(0)!
-                XCTAssertTrue(top.stickers.contains { $0.type == "tell" },
-                              "\(c): the sticker STAYED — no conversion in a warded column")
-                XCTAssertEqual(top.stickers.count, 1, "\(c): and no curse arrived")
-                XCTAssertFalse(e.run.tellPiles.contains(0), "\(c): …but it did NOT fire either")
+                XCTAssertFalse(e.board.isActive(0), "\(c): the carrier killed its pile")
+                let buried = e.board.piles[0].cards.last!
+                XCTAssertTrue(buried.stickers.contains { $0.type == "tell" },
+                              "\(c): the sticker STAYED — no kill conversion in a warded column")
+                XCTAssertEqual(buried.stickers.count, 1, "\(c): and no curse arrived")
             })
         let edge = IV.Scenario("edge-fatalConversionWardedToo", allowed: [.guesses, .deck, .board, .deaths],
             build: { IV.engine(tops: [IV.spec(1, 9, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
@@ -1321,13 +1321,14 @@ enum IVPillarsBases {
                 XCTAssertTrue(buried.stickers.contains { $0.type == "suitImmunity" },
                               "\(c): the fatal-landing conversion is warded too")
             })
-        let mustNot = IV.Scenario("mustNotFire-otherColumnStillConverts", allowed: [.guesses, .deck, .board],
+        let mustNot = IV.Scenario("mustNotFire-otherColumnStillConverts", allowed: [.guesses, .deck, .board, .deaths],
             build: { IV.engine(tops: tops, deckOrder: deck, pillars: [nil, def.id, nil]) },
-            fire: { $0.guess(0, .lower) },
+            fire: { $0.guess(0, .higher) },
             expect: { e, _, c in
-                let top = e.board.top(0)!
-                XCTAssertFalse(top.stickers.contains { $0.type == "tell" },
-                               "\(c): the ward guards ITS column only — this one converted")
+                XCTAssertFalse(e.board.isActive(0), "\(c): the carrier killed its pile")
+                let buried = e.board.piles[0].cards.last!
+                XCTAssertFalse(buried.stickers.contains { $0.type == "tell" },
+                               "\(c): the ward guards ITS column only — this kill converted")
             })
         return [trigger, edge, mustNot]
     }

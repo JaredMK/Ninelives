@@ -460,7 +460,7 @@ public final class RunMap {
                     let tot = cardSum.reduce(0, +)
                     let mean = Double(tot) / Double(cardSum.count)
                     if mean >= mid - 0.5 { break }
-                    let cand = body.filter { ($0.type == "pack" || $0.type == "pickup") && $0.addOf < C.packMax }
+                    let cand = body.filter { ($0.type == "pack" || $0.type == "pickup") && $0.addOf < config.packMax }
                     if cand.isEmpty { break }
                     raiseNode(pickOne(rng, cand))
                 }
@@ -474,7 +474,7 @@ public final class RunMap {
                 }
                 if lo >= lightTarget { break }
                 let loRt = ROUTES[loIdx]
-                var raisable = loRt.map { byId[$0]! }.filter { ($0.type == "pack" || $0.type == "pickup") && $0.addOf < C.packMax }
+                var raisable = loRt.map { byId[$0]! }.filter { ($0.type == "pack" || $0.type == "pickup") && $0.addOf < config.packMax }
                 // prefer raising a node the HEAVIEST routes don't share
                 if hi >= heavyCap - 1 && raisable.count > 1 {
                     var heavyIds = Set<Int>()

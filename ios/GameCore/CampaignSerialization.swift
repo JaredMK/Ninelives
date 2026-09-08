@@ -51,6 +51,7 @@ extension CampaignState {
             "runScore": .number(Double(runScore)),
             "scoreBanked": .number(Double(scoreBanked)),
             "hudBestScore": .number(Double(hudBestScore)),   // v7.05: frozen toolbar HI, survives a mid-climb resume
+            "pendingPurges": .number(Double(pendingPurges)), // v7.07: owed Long Odds purges survive a mid-walk kill
             "endless": .bool(endless),
             "sameCharge": .bool(sameCharge),
             "removalsBought": .number(Double(removalsBought)),
@@ -273,6 +274,7 @@ extension CampaignState {
         runScore = Int(s["runScore"]?.asNumber ?? 0)
         scoreBanked = Int(s["scoreBanked"]?.asNumber ?? 0)
         hudBestScore = Int(s["hudBestScore"]?.asNumber ?? 0)
+        pendingPurges = Int(s["pendingPurges"]?.asNumber ?? 0)
         endless = s["endless"]?.asBool ?? false
         sameCharge = s["sameCharge"]?.asBool ?? false
         // Absent in pre-v5.82 saves — an old climb simply restarts the ladder.

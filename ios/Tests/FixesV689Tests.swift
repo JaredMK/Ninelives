@@ -8,8 +8,14 @@ final class FixesV689Tests: XCTestCase {
 
     func testLongOddsIsAFiftyFiftyNow() {
         let def = data.samePowerTypes.get("linkPurge")!
-        XCTAssertEqual(def.num("chance", 0), 0.5, "the approved v6.89 value")
-        XCTAssertTrue(def.description.hasPrefix("50%"), "the text names the new odds")
+        XCTAssertEqual(def.num("chance", 0), 0.5, "the approved v6.89 value (the flag-off roll)")
+        // v7.07 EXPERIMENT: with `deferred: true` the text names the deal-end
+        // grant instead of the odds. Flip the flag and the "50%" text returns.
+        if def.raw["deferred"]?.asBool == true {
+            XCTAssertTrue(def.description.hasPrefix("At deal end"), "the text names the deferred grant")
+        } else {
+            XCTAssertTrue(def.description.hasPrefix("50%"), "the text names the new odds")
+        }
     }
 
     func testFlypaperPoolNeverContainsACurse() {

@@ -7,19 +7,29 @@ import XCTest
 final class PeelHarvestProvenanceTests: XCTestCase {
     private let data = GameData.shared
 
-    func testCurseHarvestIgnoresASameLandingConversion() {
-        // The Tell carrier's ♠ bet misses on a ♥/♦ board — it CONVERTS at
-        // this landing. Curse Harvest must stay quiet: the card landed
-        // clean and left cursed; the conversion is not a cursed landing.
+    func testCurseHarvestIgnoresAKillConversion() {
+        // v7.07: a Tell carrier landing CORRECTLY on a ♥/♦ board converts
+        // nothing (the suit bet is gone) — the card landed clean, the
+        // sticker stays, and Curse Harvest stays quiet.
         let e = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")],
                           deckOrder: [IV.spec(50, 3, "♠", ["tell"]), IV.spec(51, 4, "♥"),
                                       IV.spec(52, 8, "♥")],
                           pillars: ["curseHarvest", nil, nil])
         let deckBefore = e.deck.remaining()
-        e.guess(0, .lower)                       // lands correct, then converts
-        XCTAssertFalse(e.board.top(0)!.stickers.isEmpty, "setup: the conversion happened")
-        XCTAssertFalse(e.run.revealNextActive, "no Harvest peek — the curse arrived AFTER landing")
+        e.guess(0, .lower)                       // lands correct — no conversion any more
+        XCTAssertEqual(e.board.top(0)!.stickers.map(\.type), ["tell"], "a correct landing keeps the sticker")
+        XCTAssertFalse(e.run.revealNextActive, "no Harvest peek — the card landed clean")
         XCTAssertEqual(e.deck.remaining(), deckBefore - 1, "…and no Harvest bury either")
+        // The conversion now happens on a KILL — and the Harvest still stays
+        // quiet: the curse arrived as the pile died, never on a cursed landing.
+        let kill = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")],
+                             deckOrder: [IV.spec(50, 3, "♠", ["tell"]), IV.spec(51, 4, "♥"),
+                                         IV.spec(52, 8, "♥")],
+                             pillars: ["curseHarvest", nil, nil])
+        kill.guess(0, .higher)                   // 3 on 5: wrong → dies → converts
+        XCTAssertFalse(kill.board.isActive(0))
+        XCTAssertFalse(kill.board.piles[0].cards.last!.stickers.isEmpty, "setup: the kill conversion happened")
+        XCTAssertFalse(kill.run.revealNextActive, "no Harvest peek on the fatal landing")
         // Contrast: a card that lands ALREADY cursed fires it.
         let cursed = IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")],
                                deckOrder: [IV.spec(50, 9, "♠", ["mute"]), IV.spec(51, 4, "♥"),
@@ -37,12 +47,13 @@ final class PeelHarvestProvenanceTests: XCTestCase {
                       deckOrder: [IV.spec(50, 3, "♠", ["tell"]), IV.spec(51, 4, "♥")])
         }
         let e = build()
-        e.guess(0, .lower)                       // the Tell converts
-        let converted = e.board.top(0)!.stickers.first!
+        e.guess(0, .higher)                      // v7.07: the KILL converts the Tell
+        XCTAssertFalse(e.board.isActive(0))
+        let converted = e.board.piles[0].cards.last!.stickers.first!
         XCTAssertEqual(converted.convertedFrom, "tell", "the live record carries provenance")
         let twin = build()
         XCTAssertTrue(twin.restoreSnapshot(e.snapshot()))
-        XCTAssertEqual(twin.board.top(0)!.stickers.first?.convertedFrom, "tell",
+        XCTAssertEqual(twin.board.piles[0].cards.last?.stickers.first?.convertedFrom, "tell",
                        "…and it survives the mid-deal snapshot")
         // CAMPAIGN save: the durable conversion write + serialize/restore.
         let c = CampaignState(store: MemoryStore())

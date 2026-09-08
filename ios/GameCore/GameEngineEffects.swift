@@ -64,9 +64,10 @@ extension GameEngine {
             guard total > 0, suited * 2 >= total else { return nil }
             return "suitMajoritySafe"
         case "suitShieldDaily":
-            // DAILY SUIT: the suit rolled at Start Run (run.dailySuits) is
-            // safe when it lands in this column.
-            guard let suit = run.dailySuits?[col], matchesSuit(drawn, suit) else { return nil }
+            // SCARCE SUIT: the deal's scarce suit SET (v7.07: ties → several,
+            // joined "♠♦") is safe when ANY of them lands in this column.
+            guard let set = run.dailySuits?[col],
+                  set.contains(where: { matchesSuit(drawn, String($0)) }) else { return nil }
             return "suitShieldDaily"
         case "pauperHeartSafe":
             // PAUPER'S HEART (v6.98): a ♥ landing is safe while the purse is
@@ -168,6 +169,28 @@ extension GameEngine {
             emit(.stickerConverted(index: index, cardId: card.id, from: type.id, to: nil))
         }
         recT("sticker", type.id, type.label, ["converted": 1])
+    }
+
+    /// v7.07 THE KILL→CURSE RULE — the ONE conversion trigger. When the
+    /// carrier KILLS ITS PILE (a wrong guess that dies, or a Malfunction
+    /// self-destruct), every sticker it wears that items.js flags
+    /// `killCurse` converts, per instance, through the shared
+    /// convertStickerToCurse (the "sticker" pathway, severe band excluded,
+    /// action-rng seeded, dormant until the card's next landing, recT
+    /// `converted`, Curse Ward respected). Failing a board condition no
+    /// longer converts anything — a keeper that missed its bet simply
+    /// didn't fire. Rank/suit changers and every unflagged sticker are
+    /// untouched: the flag, not the behavior, decides.
+    func convertKillCurses(_ index: Int, _ drawn: LiveCard) {
+        let victims = drawn.stickers.compactMap { st -> ItemDef? in
+            guard let t = stickerTypes.get(st.type), t.raw["killCurse"]?.asBool == true else { return nil }
+            return t
+        }
+        guard !victims.isEmpty else { return }
+        for t in victims { convertStickerToCurse(index, drawn, t) }
+        // The projected Same-Safe flag re-derives (Peeler's idiom) so a
+        // converted carrier stops saving ties the moment a revive surfaces it.
+        drawn.tieSafe = drawn.stickers.contains { stickerTypes.get($0.type)?.behavior == "tieSafe" }
     }
 
     /// Donate's v6.85 fire: equalise EVERY alive pile (the board-wide twin
@@ -630,16 +653,11 @@ extension GameEngine {
         for s in stickers {
             guard let t = stickerTypes.get(s.type) else { continue }
             if t.behavior == "gainCoin" {
-                // v6.85 CONDITIONAL: pays per matching-top pile (the
-                // carrier's own included); a missed bet converts.
-                if let m = conditionalSuitMatches(index, drawn) {
-                    if m.isEmpty { convertStickerToCurse(index, drawn, t) }
-                    else {
-                        let amt = t.value * Double(m.count + 1)
-                        pay("Bonus Coin", amt)
-                        recT("sticker", t.id, t.label, ["coins": amt])
-                    }
-                }
+                // v7.07: UNCONDITIONAL — a flat +value per instance (the v6.85
+                // per-matching-top scaling retired with its condition).
+                let amt = t.value > 0 ? t.value : 1
+                pay("Bonus Coin", amt)
+                recT("sticker", t.id, t.label, ["coins": amt])
             } else if t.behavior == "collector" {
                 // Hub pays per instance: +1 for each OTHER Imprint on this card.
                 let unit = t.num("value", 1) == 0 ? 1 : t.value
@@ -655,7 +673,8 @@ extension GameEngine {
     /// Order inside matters: coin payouts FIRST (Deep Pockets reads the deck
     /// before this landing's own burials), then burials, then projections,
     /// then the Scouts' peek.
-    func maybeExpansionStickers(_ index: Int, _ current: LiveCard, _ drawn: LiveCard, _ col: Int?) {
+    func maybeExpansionStickers(_ index: Int, _ current: LiveCard, _ drawn: LiveCard, _ col: Int?,
+                                savedLanding: Bool = false) {
         let stickers = drawn.stickers
         // The SNOB family reads the PILE TOP's stickers, so bail only when
         // NEITHER side carries a sticker (the common fast path).
@@ -796,149 +815,106 @@ extension GameEngine {
         }
 
         // --- burials ---
-        // Quick Bury (CONDITIONAL, v6.85): fires on the carrier's landing
-        // when another alive pile's top matches the carrier's suit — bury 1
-        // per instance under this pile. A missed bet converts; no other
-        // alive pile is exempt (the shared v6.85 rule).
+        // Quick Bury: bury 1 per instance under this pile on the carrier's
+        // landing. v7.07: UNCONDITIONAL (the v6.85 suit bet is gone).
         let qb = n("quickBury")
-        if qb > 0, let qdef = stickerTypes.get("quickBury"),
-           let qm = conditionalSuitMatches(index, drawn) {
-            if qm.isEmpty {
-                for _ in 0..<qb { convertStickerToCurse(index, drawn, qdef) }
-            } else {
-                var qbBuried = 0
-                for _ in 0..<qb { qbBuried += buryTribute(index, 1, "Quick Bury") }
-                recT("sticker", "quickBury", qdef.label, ["buried": Double(qbBuried)])
-            }
+        if qb > 0, let qdef = stickerTypes.get("quickBury") {
+            var qbBuried = 0
+            for _ in 0..<qb { qbBuried += buryTribute(index, 1, "Quick Bury") }
+            recT("sticker", "quickBury", qdef.label, ["buried": Double(qbBuried)])
         }
-        // Heavy (CONDITIONAL, v6.85): a LANDING effect now — +value latched
-        // pile size (the Same Heavy sizeBonus mechanism) to every
-        // matching-top alive pile, the carrier's own included. The old
-        // passive per-card weight retired with the rework (Shrink keeps
-        // its); old-save Massive carriers share this behavior key and fire
-        // the same way at their own value.
+        // Heavy (retired, old saves — KEEPS its v6.85 suit condition): a
+        // LANDING effect — +value latched pile size (the Same Heavy sizeBonus
+        // mechanism) to every matching-top alive pile, the carrier's own
+        // included. v7.07: a missed bet simply doesn't fire (no conversion —
+        // that moved to the kill→curse rule). Old-save Massive carriers share
+        // this behavior key and fire the same way at their own value.
         let heavies = stickers.compactMap { st -> ItemDef? in
             guard let t = stickerTypes.get(st.type), t.behavior == "heavy" else { return nil }
             return t
         }
-        if !heavies.isEmpty, let hm = conditionalSuitMatches(index, drawn) {
+        if !heavies.isEmpty, let hm = conditionalSuitMatches(index, drawn), !hm.isEmpty {
             for t in heavies {
-                if hm.isEmpty { convertStickerToCurse(index, drawn, t) }
-                else {
-                    let v = max(1, t.int("value", 1))
-                    for i in hm { board.addSizeBonus(i, v) }
-                    board.addSizeBonus(index, v)
-                    recT("sticker", t.id, t.label, ["size": Double(v * (hm.count + 1))])
-                }
+                let v = max(1, t.int("value", 1))
+                for i in hm { board.addSizeBonus(i, v) }
+                board.addSizeBonus(index, v)
+                recT("sticker", t.id, t.label, ["size": Double(v * (hm.count + 1))])
             }
         }
-        // Guard (CONDITIONAL, v6.85): the SAVE lives in the guess path —
-        // HERE the failed bet converts: a carrier that landed with no
-        // matching other top loses its Guard to the curse pool.
-        let guards = stickers.compactMap { st -> ItemDef? in
-            guard let t = stickerTypes.get(st.type), t.behavior == "suitImmunity" else { return nil }
-            return t
-        }
-        if !guards.isEmpty, let gm = conditionalSuitMatches(index, drawn), gm.isEmpty {
-            for t in guards { convertStickerToCurse(index, drawn, t) }
-        }
-        // Same-Safe (CONDITIONAL, v6.86): the SAVE lives in the tie
-        // resolution — HERE the failed bet converts: a carrier that landed
-        // with no other top showing its rank loses Same-Safe to the curse
-        // pool. The projected LiveCard flag re-derives afterward (Peeler's
-        // idiom) so a converted carrier stops saving ties immediately.
-        let tieSafes = stickers.compactMap { st -> ItemDef? in
-            guard let t = stickerTypes.get(st.type), t.behavior == "tieSafe" else { return nil }
-            return t
-        }
-        if !tieSafes.isEmpty, let rm = conditionalRankMatches(index, drawn), rm.isEmpty {
-            for t in tieSafes { convertStickerToCurse(index, drawn, t) }
-            drawn.tieSafe = drawn.stickers.contains {
-                stickerTypes.get($0.type)?.behavior == "tieSafe"
-            }
-        }
-        if n("snowball") > 0 {
-            // Per-card counter (duplicate Snowballs share it): bury X, then grow
-            // X by `step`. Persisted like compoundHits.
+        // (v7.07: Guard's and Same-Safe's missed-bet conversions are GONE —
+        // both keep their conditions for the SAVE (guess path / tie
+        // resolution) and convert only under the kill→curse rule.)
+
+        // --- SNOWBALLS (v7.07: Snowball Bury un-retired; Snowball Coins is
+        // its coin twin). ONE per-card counter X (the card's correct
+        // landings; duplicates and both twins share it): bury X / pay X,
+        // then grow X by `step` ONCE for this landing. Persisted like
+        // compoundHits; a wrong placement of the card resets it (guess()).
+        let sb = n("snowball"), sc = n("snowballCoins")
+        if sb > 0 || sc > 0 {
             let x = drawn.snowball
-            var sbBuried = 0
-            if x > 0 { sbBuried = buryTribute(index, x, "Snowball Bury") }
-            drawn.snowball = x + (stickerTypes.get("snowball")?.int("step", 1) ?? 1)
-            run.snowballUpdates[drawn.id] = drawn.snowball
-            recT("sticker", "snowball", "Snowball Bury", ["buried": Double(sbBuried)])
+            if sb > 0 {
+                var sbBuried = 0
+                if x > 0 { sbBuried = buryTribute(index, x, "Snowball Bury") }
+                recT("sticker", "snowball", "Snowball Bury", ["buried": Double(sbBuried)])
+            }
+            if sc > 0 {
+                let amt = Double(x)
+                payCoins("Snowball Coins", amt, always: true)
+                recT("sticker", "snowballCoins", "Snowball Coins", ["coins": amt])
+            }
+            // X counts CORRECT landings only: a Same-Shield-saved WRONG
+            // placement pays/buries the (just-reset) X but never grows it.
+            if !savedLanding {
+                let stepDef = stickerTypes.get(sb > 0 ? "snowball" : "snowballCoins")
+                drawn.snowball = x + (stepDef?.int("step", 1) ?? 1)
+                run.snowballUpdates[drawn.id] = drawn.snowball
+            }
         }
 
-        // --- Twin Spark (CONDITIONAL, v6.97): the last held-back sticker
-        // joins the shared template on the RANK axis — peek on a rank twin
-        // among the OTHER alive tops, convert on a miss (per instance),
-        // exempt with no other alive pile.
+        // --- Twin Spark: peek the next card. v7.07: UNCONDITIONAL (the
+        // v6.97 rank bet is gone).
         let ts = n("twinSpark")
-        if ts > 0, let tdef = stickerTypes.get("twinSpark") {
-            if let tm = conditionalRankMatches(index, drawn) {
-                if tm.isEmpty {
-                    for _ in 0..<ts { convertStickerToCurse(index, drawn, tdef) }
-                } else {
-                    run.revealNextActive = true
-                    firePillar(col, "twinSpark", "Twin Spark", 0)
-                    recT("sticker", "twinSpark", "Twin Spark", ["peeks": 1])
-                }
-            }
+        if ts > 0 {
+            run.revealNextActive = true
+            firePillar(col, "twinSpark", "Twin Spark", 0)
+            recT("sticker", "twinSpark", "Twin Spark", ["peeks": 1])
         }
 
         // --- scouts: only peek while THIS column has no Pillar/Base. ---
-        // Pillar/Base Scout (v6.85): the failure branch CONVERTS — landing
-        // in a column that HAS the item costs the sticker. Column-agnostic
-        // runs (zen, bare engines) can't answer the question and are exempt.
+        // Pillar/Base Scout KEEP their condition (v7.07); a filled slot
+        // simply doesn't fire — no conversion (that moved to the kill→curse
+        // rule). Column-agnostic runs (zen, bare engines) can't answer the
+        // question and never fire.
         let psCount = n("pillarScout"), bsCount = n("baseScout")
-        if psCount > 0, run.pillars != nil, let c = col, let pdef = stickerTypes.get("pillarScout") {
-            if run.pillars![c] == nil {
-                run.revealNextActive = true
-                recT("sticker", "pillarScout", pdef.label, ["peeks": 1])
-            } else {
-                for _ in 0..<psCount { convertStickerToCurse(index, drawn, pdef) }
-            }
+        if psCount > 0, run.pillars != nil, let c = col, let pdef = stickerTypes.get("pillarScout"),
+           run.pillars![c] == nil {
+            run.revealNextActive = true
+            recT("sticker", "pillarScout", pdef.label, ["peeks": 1])
         }
-        if bsCount > 0, run.bases != nil, let c = col, let bdef = stickerTypes.get("baseScout") {
-            if run.bases![c] == nil {
-                run.revealNextActive = true
-                recT("sticker", "baseScout", bdef.label, ["peeks": 1])
-            } else {
-                for _ in 0..<bsCount { convertStickerToCurse(index, drawn, bdef) }
-            }
+        if bsCount > 0, run.bases != nil, let c = col, let bdef = stickerTypes.get("baseScout"),
+           run.bases![c] == nil {
+            run.revealNextActive = true
+            recT("sticker", "baseScout", bdef.label, ["peeks": 1])
         }
 
-        // --- Same-charge / Same-power stickers (CONDITIONAL, v6.90) ---
-        // The last two held-back rank conditionals, on the shared template:
-        // fire on a rank match among the OTHER alive tops, convert on a
-        // miss (per instance), exempt with no other alive pile.
+        // --- Same-charge / Same-power stickers. v7.07: UNCONDITIONAL (the
+        // v6.90 rank bets are gone).
         let rc = n("rechargeSameShield")
-        if rc > 0, let rdef = stickerTypes.get("rechargeSameShield") {
-            if let rm = conditionalRankMatches(index, drawn) {
-                if rm.isEmpty {
-                    for _ in 0..<rc { convertStickerToCurse(index, drawn, rdef) }
-                } else {
-                    let was = sameCharge
-                    sameCharge = true
-                    if !was { logLine("Recharge Shield: banked a Same Shield") }   // v6.96 rename
-                    recT("sticker", "rechargeSameShield", "Recharge Shield", ["saves": was ? 0 : 1])
-                    emit(.sameBanked(index: index, sameCharge: sameCharge))
-                }
-            }
+        if rc > 0 {
+            let was = sameCharge
+            sameCharge = true
+            if !was { logLine("Recharge Shield: banked a Same Shield") }   // v6.96 rename
+            recT("sticker", "rechargeSameShield", "Recharge Shield", ["saves": was ? 0 : 1])
+            emit(.sameBanked(index: index, sameCharge: sameCharge))
         }
         // Tap Power: fire the equipped Same-Power on THIS pile, once per
         // instance. It banks NO charge, and fireSamePower is a no-op when
-        // nothing is equipped (a fed bet with no power is a quiet no-op —
-        // the sticker persists).
+        // nothing is equipped (the sticker persists).
         let tp = n("activateSamePower")
-        if tp > 0, let tdef = stickerTypes.get("activateSamePower") {
-            if let tm = conditionalRankMatches(index, drawn) {
-                if tm.isEmpty {
-                    for _ in 0..<tp { convertStickerToCurse(index, drawn, tdef) }
-                } else {
-                    for _ in 0..<tp { fireSamePower(index) }
-                    recT("sticker", "activateSamePower", "Tap Power", ["copies": Double(tp)])
-                }
-            }
+        if tp > 0 {
+            for _ in 0..<tp { fireSamePower(index) }
+            recT("sticker", "activateSamePower", "Tap Power", ["copies": Double(tp)])
         }
     }
 
@@ -960,7 +936,7 @@ extension GameEngine {
         // Tell (CONDITIONAL, v6.85): the carrier's suit is the bet.
         maybeConditionalTell(index, drawn)
         maybeLandingBonus(index, drawn)
-        maybeExpansionStickers(index, current, drawn, col)
+        maybeExpansionStickers(index, current, drawn, col, savedLanding: true)
         maybeStickerTribute(index, drawn)
         maybeStickerActions(index, drawn)
         // CROWD FAVORITE (v6.99): the locked rank PAID only on a correct
@@ -988,28 +964,18 @@ extension GameEngine {
                     run.pendingActions.append(PendingAction(kind: "shuffle", index: index, target: nil))
                 }
             } else if s.type == "donate" {
-                // Donate (CONDITIONAL, v6.85): a hit equalises EVERY alive
-                // pile, automatically; a missed bet converts.
+                // Donate: equalises EVERY alive pile, automatically. v7.07:
+                // UNCONDITIONAL (the v6.85 suit bet is gone).
                 guard let ddef = stickerTypes.get("donate") else { continue }
-                if let m = conditionalSuitMatches(index, drawn) {
-                    if m.isEmpty { convertStickerToCurse(index, drawn, ddef) }
-                    else {
-                        let eq = equalizeAllPiles()
-                        logLine("Donate: evened the board — \(eq.moved) buried card\(eq.moved == 1 ? "" : "s") moved (hidden)")
-                        recT("sticker", "donate", ddef.label, ["moved": Double(eq.moved)])
-                        emit(.donateEqualized(index: index, moves: eq.moves))
-                    }
-                }
+                let eq = equalizeAllPiles()
+                logLine("Donate: evened the board — \(eq.moved) buried card\(eq.moved == 1 ? "" : "s") moved (hidden)")
+                recT("sticker", "donate", ddef.label, ["moved": Double(eq.moved)])
+                emit(.donateEqualized(index: index, moves: eq.moves))
             } else if s.type == "diamondSnob" {
-                // Ripple (CONDITIONAL, v6.85): a hit OFFERS a shuffle of the
-                // matching piles; a missed bet converts.
-                guard let rdef = stickerTypes.get("diamondSnob") else { continue }
-                if let m = conditionalSuitMatches(index, drawn) {
-                    if m.isEmpty { convertStickerToCurse(index, drawn, rdef) }
-                    else {
-                        run.pendingActions.append(PendingAction(kind: "suitRipple", index: index, target: nil))
-                    }
-                }
+                // Ripple: always OFFERS the suit shuffle (the answer shuffles
+                // every alive pile topped by the carrier's suit, own pile
+                // included). v7.07: UNCONDITIONAL (the v6.85 bet is gone).
+                run.pendingActions.append(PendingAction(kind: "suitRipple", index: index, target: nil))
             }
         }
     }

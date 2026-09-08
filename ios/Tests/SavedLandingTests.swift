@@ -41,13 +41,14 @@ final class SavedLandingTests: XCTestCase {
     // MARK: - The matrix: beneficial landing stickers FIRE on the saved landing
 
     func testCoinStickersPayOnASameChargeSave() {
-        // ♠ carrier over the two 6♠ tops → the conditional pays per matching
-        // pile, own included = ×3.
+        // v7.07: Bonus Coin is a flat +value on any landing (the per-matching-
+        // pile scaling retired with its condition) — and a saved landing IS
+        // a landing.
         let e = savedEngine(drawnStickers: ["gainCoin"], drawnSuit: "♠")
         let v = data.stickerTypes.get("gainCoin")!.value
         e.guess(0, .higher)
         XCTAssertTrue(e.board.isActive(0), "the charge saved the pile")
-        XCTAssertEqual(e.run.bonusCoins, v * 3, "Bonus Coin pays — the card LANDED and its bet hit")
+        XCTAssertEqual(e.run.bonusCoins, v, "Bonus Coin pays its flat +\(Int(v)) — the card LANDED")
     }
 
     func testDeepPocketsPaysOnASameChargeSave() {
@@ -81,13 +82,13 @@ final class SavedLandingTests: XCTestCase {
         XCTAssertEqual(e.board.piles[0].cards.count, 2, "9 + the landed 2, nothing buried")
     }
 
-    func testSnowballGrowsFromZeroOnASameChargeSave() {
-        // The wrong placement resets X to 0 BEFORE the branch (pinned rule);
-        // the landing then grows it by `step` — no burial at X=0.
+    func testSnowballResetsAndDoesNotGrowOnASameChargeSave() {
+        // The wrong placement resets X to 0 BEFORE the branch (pinned rule).
+        // v7.07: X counts CORRECT landings only — a saved WRONG placement
+        // pays/buries the reset X (nothing at 0) but never grows it.
         let e = savedEngine(drawnStickers: ["snowball"])
-        let step = data.stickerTypes.get("snowball")?.int("step", 1) ?? 1
         e.guess(0, .higher)
-        XCTAssertEqual(e.run.snowballUpdates[50], step, "reset to 0, then the landing grew it")
+        XCTAssertEqual(e.run.snowballUpdates[50], 0, "reset to 0, and a saved wrong placement never grows it")
     }
 
     func testTellAndScoutArmOnASameChargeSave() {
@@ -245,8 +246,8 @@ final class SavedLandingTests: XCTestCase {
     // MARK: - Tie-safe: RESOLVES as correct, so it already fires (pin the route)
 
     func testTieSafeSaveFiresLandingStickersViaTheCorrectBranch() {
-        // v6.86: Same-Safe is rank-conditional — pile 3's 9♦ feeds the tie
-        // save. gainCoin's suit bet then matches pile 2's 6♠ only → ×2.
+        // Same-Safe keeps its rank condition (v7.07) — pile 3's 9♦ feeds the
+        // tie save. Bonus Coin then pays its flat +value on the landing.
         let e = IV.engine(tops: [IV.spec(1, 9, "♠"), IV.spec(2, 6), IV.spec(3, 9, "♦")],
                           deckOrder: [IV.spec(50, 9, "♠", ["tieSafe", "gainCoin"]), IV.spec(51, 3)])
         let v = data.stickerTypes.get("gainCoin")!.value
@@ -255,8 +256,8 @@ final class SavedLandingTests: XCTestCase {
         e.guess(0, .higher)   // 9♠ on 9♠ — a FED tie the sticker makes SAFE = correct
         XCTAssertTrue(tieSaved)
         XCTAssertTrue(e.board.isActive(0))
-        XCTAssertEqual(e.run.bonusCoins, v * 2,
-                       "a tie-safe save IS a correct landing — the coin conditional fires ×2 here")
+        XCTAssertEqual(e.run.bonusCoins, v,
+                       "a tie-safe save IS a correct landing — Bonus Coin pays its flat +\(Int(v))")
     }
 
     // MARK: - Fatal stays fatal (one representative; FatalLandingTests pins the rest)

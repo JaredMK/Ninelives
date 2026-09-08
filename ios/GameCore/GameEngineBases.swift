@@ -811,10 +811,11 @@ extension GameEngine {
         var result = SamePowerResult(power: def.id, label: def.label, hub: hub, effect: def.effect ?? "")
         switch def.effect {
         case "linkBury":
-            // Bury `value` card(s) under every alive pile whose TOP wears the
-            // climb's rolled suit (v6.38; Wild Suit counts). No variant on an
-            // old save → every alive pile, the pre-roll behaviour.
-            let suit = run.samePowerVariant
+            // v7.07 EXPERIMENT — `allPiles: true` in items.js (flip it to
+            // revert): bury under EVERY alive pile. Flag off: only the piles
+            // whose TOP wears the climb's rolled suit (v6.38; Wild Suit
+            // counts); no variant on an old save → every alive pile.
+            let suit = def.raw["allPiles"]?.asBool == true ? nil : run.samePowerVariant
             let targets = powerPiles("alive").filter { j in
                 guard let s = suit else { return true }
                 return CardRules.matchesSuit(board.top(j), s, data: data)
@@ -881,12 +882,18 @@ extension GameEngine {
             result.amount = alive.count
 
         case "linkSticker":
-            // A random sticker onto EVERY top card in the CALLED pile's column
-            // — a column-wide spray rather than a scatter across the board, so
-            // it rewards a built-up column the way the other column items do.
+            // v7.07 EXPERIMENT — `allPiles: true` in items.js (flip it to
+            // revert): a random sticker onto EVERY top card on the board.
+            // Flag off: the CALLED pile's column only (the column-wide spray
+            // that rewarded a built-up column like the other column items).
             let col = run.pileColumns?[safe: hub] ?? nil
-            let inCol = col.map { c in powerPiles("alive").filter { run.pileColumns?[$0] == c } }
-                ?? powerPiles("alive")
+            let inCol: [Int]
+            if def.raw["allPiles"]?.asBool == true {
+                inCol = powerPiles("alive")
+            } else {
+                inCol = col.map { c in powerPiles("alive").filter { run.pileColumns?[$0] == c } }
+                    ?? powerPiles("alive")
+            }
             var hit: [Int] = []
             for j in inCol {
                 guard let top = board.top(j),
@@ -904,18 +911,31 @@ extension GameEngine {
             result.amount = hit.count
 
         case "linkPurge":
-            // A CHANCE to burn one card out of the rest of the deck. Nothing
-            // on the board is touched — this only shortens what is coming.
-            // The roll reports its HIT/MISS (v6.57).
-            let odds = def.num("chance", 0.5)
-            if rollChance("samePower", def.id, def.label, odds, index: hub),
-               let gone = deck.removeRandomRemaining(rng) {
+            if def.raw["deferred"]?.asBool == true {
+                // v7.07 EXPERIMENT — `deferred: true` in items.js (flip it to
+                // revert): GRANT a purge that resolves AFTER the deal. The
+                // flow opens the existing purge picker once per queued grant
+                // at deal end (several Sames queue several). Nothing is
+                // rolled and nothing on the board or in the deck moves now.
+                run.pendingPurges += 1
+                result.pendingPurge = true
                 result.amount = 1
-                result.purgedCardId = gone.id   // v6.99: the popup shows the card
-                logLine("\(def.label): purged \(cardName(gone)) from the deck")
-                recT("samePower", def.id, def.label, ["purged": 1])
+                logLine("\(def.label): purge granted — choose a card at deal end (\(run.pendingPurges) queued)")
+                recT("samePower", def.id, def.label, ["granted": 1])
             } else {
-                logLine("\(def.label): the deck kept its card")
+                // (flag off) A CHANCE to burn one card out of the rest of the
+                // deck. Nothing on the board is touched — this only shortens
+                // what is coming. The roll reports its HIT/MISS (v6.57).
+                let odds = def.num("chance", 0.5)
+                if rollChance("samePower", def.id, def.label, odds, index: hub),
+                   let gone = deck.removeRandomRemaining(rng) {
+                    result.amount = 1
+                    result.purgedCardId = gone.id   // v6.99: the popup shows the card
+                    logLine("\(def.label): purged \(cardName(gone)) from the deck")
+                    recT("samePower", def.id, def.label, ["purged": 1])
+                } else {
+                    logLine("\(def.label): the deck kept its card")
+                }
             }
 
         case "linkHeavy":

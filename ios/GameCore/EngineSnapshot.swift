@@ -97,6 +97,7 @@ extension GameEngine {
                 .object(suits.reduce(into: [:]) { $0["\($1.key)"] = .string($1.value) })
             } ?? .null,
             "kamikazeRevealLeft": .number(Double(r.kamikazeRevealLeft)),
+            "pendingPurges": .number(Double(r.pendingPurges)),   // v7.07 Long Odds (deferred)
             "bonusCoins": .number(r.bonusCoins),
             "bonusEvents": .array(r.bonusEvents.pairs.map {
                 .object(["k": .string($0.label), "v": .number($0.amount)])
@@ -271,6 +272,7 @@ extension GameEngine {
             }
         }
         r.kamikazeRevealLeft = Int(rd["kamikazeRevealLeft"]?.asNumber ?? 0)
+        r.pendingPurges = Int(rd["pendingPurges"]?.asNumber ?? 0)
         r.bonusCoins = rd["bonusCoins"]?.asNumber ?? 0
         r.bonusEvents = OrderedTally()
         for e in rd["bonusEvents"]?.asArray ?? [] {

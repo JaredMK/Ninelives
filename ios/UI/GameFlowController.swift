@@ -891,6 +891,9 @@ public final class GameFlowController: UIViewController {
         for (id, n) in o.snowballUpdates { campaign.setSnowball(id, n) }
         for (id, n) in o.stickerPeels { _ = campaign.removeStickerInstances(id, "quickBury", n) }
         campaign.setSameCharge(o.sameCharge)
+        // v7.07 LONG ODDS (deferred): bank the deal's granted purges; the
+        // post-deal walk below drains them through the purge picker.
+        campaign.addPendingPurges(o.pendingPurges)
 
         var bonusEvents = o.bonusEvents
         var eventBonus = o.bonusCoins
@@ -1042,6 +1045,22 @@ public final class GameFlowController: UIViewController {
     /// cancel (nothing placed/discarded) ENDS the walk — stragglers wait for
     /// the next store's gate instead of trapping the player in a loop.
     private func showPostDealWalk(_ done: @escaping () -> Void) {
+        // v7.07 LONG ODDS (deferred): owed purges resolve FIRST, one picker
+        // each, through the EXISTING purge picker (the Blank-removal idiom:
+        // forced on a >1-card deck, so a granted purge can't be walked away
+        // from). The grant is consumed BEFORE the picker opens: the last
+        // durable save (persist above) still holds the full count, and the
+        // picker's own per-confirm checkpoint writes the decrement — so a
+        // kill mid-pick resumes owing exactly the rest, never a phantom.
+        if campaign.pendingPurges > 0 {
+            campaign.consumePendingPurge()
+            let picker = CardPickerViewController(campaign: campaign, mode: .removal(price: 0)) { [weak self] _ in
+                self?.showPostDealWalk(done)
+            }
+            picker.forced = campaign.deckSize() > 1
+            present(picker, animated: false)
+            return
+        }
         if campaign.packTrayCount() > 0 {
             let before = campaign.packTrayCount()
             let picker = CardPickerViewController(campaign: campaign,

@@ -125,7 +125,7 @@ const OUTCOMES = {
   rankFlood: ["Card Change", [], "every alive top → the called rank"],
 
   // Safety & Saves — makes a landing survivable, or brings a pile back.
-  tieSafe: ["Safety & Saves", [], "conditional: rank-matched tie save"], suitImmunity: ["Safety & Saves", [], "conditional: carrier safe on a matched bet"],
+  tieSafe: ["Safety & Saves", [], "rank-matched tie save; curse on kill"], suitImmunity: ["Safety & Saves", [], "carrier safe on a matched bet; curse on kill"],
   columnTieSafe: ["Safety & Saves", [], "any tie, in column"],
   sameTolerance: ["Safety & Saves", ["Same Shield & Power"], "relaxes what survives a Same"],
   rankShield: ["Safety & Saves", [], "deck's commonest rank"],
@@ -138,7 +138,7 @@ const OUTCOMES = {
   linkRevive: ["Safety & Saves", [], "revive on a Same"],
 
   // Bury — shrinks the remaining deck mid-deal.
-  quickBury: ["Bury", [], "conditional: carrier-suit bet"], snowball: ["Bury", [], "streak-grown"],
+  quickBury: ["Bury", [], "on landing; curse on kill"], snowball: ["Bury", [], "per-card growth; curse on kill"],
   rankBury: ["Bury", [], "on the locked rank"],
   clubSnob: ["Bury", [], "on ♣ contact"], clubRoots: ["Bury", [], "per rank-matching top"],
   clubTribute: ["Bury", [], "sticker-free ♣"], streakTribute: ["Bury", [], "streak-gated"],
@@ -147,7 +147,7 @@ const OUTCOMES = {
   diamondZeroRanksSize: ["Pile Size & Score", ["Deck Shaping"], "per empty rank, ♦ landing"],
   absentSuitClubBury: ["Bury", ["Deck Shaping"], "if a suit is absent"],
   pauperClubBury: ["Bury", ["Pauper"], "while broke"], clubThin: ["Bury", [], "scales with deck left"],
-  suitDig: ["Bury", [], "under each ♣ top"], linkBury: ["Bury", [], "under suit-topped piles"],
+  suitDig: ["Bury", [], "under each ♣ top"], linkBury: ["Bury", [], "under every pile (experiment)"],
   stickerHarvest: ["Bury", ["Sticker Removal"], "peels stickers to bury"],
   curseBuryPeek: ["Bury", ["Peek", "Curse Payoff"], "on a cursed landing"],
   // v6.98 — the Rank Focus bench + the new Pauper's Diamond.
@@ -158,7 +158,7 @@ const OUTCOMES = {
   pauperDiamondEqualize: ["Pile Size & Score", ["Pauper", "Deck Removal"], "♦ while broke; flat broke may purge"],
 
   // Peek — see the next card.
-  revealNext: ["Peek", [], "on landing"], twinSpark: ["Peek", [], "conditional: rank-twin bet"],
+  revealNext: ["Peek", [], "on landing"], twinSpark: ["Peek", [], "on landing; curse on kill"],
   pillarScout: ["Peek", [], "needs a pillar-free column"], baseScout: ["Peek", [], "needs a base-free column"],
   suitSnob: ["Peek", [], "on ♠ contact"], queensEye: ["Peek", [], "on a royal ♠"],
   static: ["Peek", [], "50% on a ♠"], lastRites: ["Peek", [], "on a pile death"],
@@ -170,12 +170,12 @@ const OUTCOMES = {
   samePeek: ["Peek", [], "on a Same"],
 
   // Tell — a higher/lower/same marker.
-  tell: ["Tell", [], "conditional: this pile, next draw"], spadeWhispers: ["Tell", [], "scales with ♠ tops"],
+  tell: ["Tell", [], "this pile, next draw; curse on kill"], spadeWhispers: ["Tell", [], "scales with ♠ tops"],
   pauperSpadeTell: ["Tell", ["Pauper"], "while broke"], clubTell: ["Tell", [], "each ♣ top in column"],
   sameTell: ["Tell", [], "board-wide same-rank mark"], linkTell: ["Tell", [], "every alive pile, next draw"],
 
   // Coin Gain.
-  extraCoin: ["Coin Gain", [], "deal-end payout"], streakCoin: ["Coin Gain", [], "streak-grown"], gainCoin: ["Coin Gain", [], "conditional: per matching-top pile"],
+  extraCoin: ["Coin Gain", [], "deal-end payout"], streakCoin: ["Coin Gain", [], "streak-grown"], gainCoin: ["Coin Gain", [], "flat +1; curse on kill"], snowballCoins: ["Coin Gain", [], "per-card growth; curse on kill"],
   deathBounty: ["Coin Gain", [], "on a kill"], collector: ["Coin Gain", [], "per other sticker"],
   compound: ["Coin Gain", [], "streak-grown"], looseChange: ["Coin Gain", [], "random"],
   deepPockets: ["Coin Gain", [], "per deck card left"], heartSnob: ["Coin Gain", [], "on ♥ contact"],
@@ -202,26 +202,26 @@ const OUTCOMES = {
   evenOut: ["Pile Size & Score", [], "equalises the whole board"],
   bonusResetPeek: ["Peek", ["Coin Loss"], "trades the deal's banked bonus"],
   diamondDistribution: ["Pile Size & Score", [], "equalises on a ♦"],
-  donate: ["Pile Size & Score", [], "conditional: equalises the board"],
+  donate: ["Pile Size & Score", [], "equalises the board; curse on kill"],
   startPileSizeEight: ["Pile Size & Score", ["Deck Shaping"], "column opens at size 8"],
 
   // Shuffle.
-  shuffle: ["Shuffle", [], "this pile, optional"], diamondSnob: ["Shuffle", [], "conditional: offered, matching piles"],
+  shuffle: ["Shuffle", [], "this pile, optional"], diamondSnob: ["Shuffle", [], "offered on landing; curse on kill"],
   diamondRipple: ["Shuffle", [], "every ♦-topped pile"], shuffler: ["Shuffle", [], "column, on a ♦"],
   shuffleColumn: ["Shuffle", [], "this column"], linkShuffle: ["Shuffle", [], "every alive pile"],
 
   // Same Shield & Power.
-  rechargeSameShield: ["Same Shield & Power", [], "conditional: rank-matched charge"],
-  activateSamePower: ["Same Shield & Power", [], "conditional: rank-matched power fire"],
+  rechargeSameShield: ["Same Shield & Power", [], "on landing; curse on kill"],
+  activateSamePower: ["Same Shield & Power", [], "on landing; curse on kill"],
 
   // Sticker Grant.
   flypaper: ["Sticker Grant", [], "chance, on landing"], randomSticker: ["Sticker Grant", [], "one column top"],
-  linkSticker: ["Sticker Grant", [], "every top in the column"],
+  linkSticker: ["Sticker Grant", [], "every top on the board (experiment)"],
 
   // Deck Removal (permanent) + curse cleanup.
   purgeRank: ["Deck Removal", ["Deck Shaping"], "a whole rank, at purchase"],
   sacrifice: ["Deck Removal", ["Pile Destruction"], "the chosen top card"],
-  linkPurge: ["Deck Removal", [], "chance, from the draw pile"],
+  linkPurge: ["Deck Removal", [], "granted per Same, chosen at deal end (experiment)"],
   cleanseColumn: ["Curse Removal", [], "strips curses in column"],
   stickerCurseWard: ["Curse Removal", [], "prevention: no conversions in column"],
   finalPilePurge: ["Deck Removal", ["Deck Shaping"], "the column's last death purges the killer"],

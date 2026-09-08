@@ -305,6 +305,21 @@ final class ProbabilityFeedTests: XCTestCase {
     // MARK: - Long Odds (linkPurge Same-Power)
 
     func testLinkPurgeHitAndMissBothReport() {
+        // v7.07 EXPERIMENT: with `deferred: true` Long Odds never ROLLS — a
+        // correct Same GRANTS a purge for deal end, so the probability feed
+        // sees nothing. Flip the flag in items.js and the roll (and the
+        // hit/miss sweep below) comes back.
+        if GameData.shared.samePowerTypes.get("linkPurge")?.raw["deferred"]?.asBool == true {
+            let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                              deckOrder: [IV.spec(50, 9), IV.spec(51, 3), IV.spec(52, 4)],
+                              samePower: "linkPurge")
+            let before = e.deck.remaining()
+            let rs = rolls(e) { e.debugFireSamePower(0) }
+            XCTAssertTrue(rs.isEmpty, "deferred Long Odds rolls nothing")
+            XCTAssertEqual(e.deck.remaining(), before, "…and purges nothing now")
+            XCTAssertEqual(e.run.pendingPurges, 1, "…it queues the purge for deal end")
+            return
+        }
         let chance = chanceOf("linkPurge", "chance", 0.25)
         var sawHit = false, sawMiss = false
         for s: UInt32 in 1...300 where !(sawHit && sawMiss) {

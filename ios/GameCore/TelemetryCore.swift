@@ -65,6 +65,7 @@ public final class TelemetryCore {
         "tieSafe", "suitImmunity", "gainCoin", "heavy", "donate", "quickBury",
         "diamondSnob", "tell", "pillarScout", "baseScout",
         "rechargeSameShield", "activateSamePower", "twinSpark",
+        "snowball", "snowballCoins",   // v7.07: the kill→curse set
     ]
 
     // MARK: - Recording

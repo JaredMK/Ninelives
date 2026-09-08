@@ -117,6 +117,11 @@ public final class RunState {
     /// How many of the NEXT draws still show the upcoming card on the deck.
     public var kamikazeRevealLeft = 0
     public var pendingActions: [PendingAction] = []
+    /// v7.07 LONG ODDS (deferred): purges GRANTED this deal, resolved by the
+    /// flow at deal end through the existing purge picker, one at a time.
+    /// Round-trips the mid-deal snapshot; the flow carries the count onto
+    /// the campaign (`pendingPurges`) when the deal is won.
+    public var pendingPurges = 0
     public var pendingTributes: [TributeOffer] = []
     /// Opt-in Diamond Ripple consent (iOS UI): when true, a landing that would
     /// auto-shuffle every ♦-topped pile instead records `pendingRipple` and
@@ -431,6 +436,9 @@ public struct SamePowerResult: Sendable, Equatable {
     /// names the power and SHOWS this card. nil on a miss (and for every
     /// other power). Deal-scoped: the campaign copy is untouched.
     public var purgedCardId: Int? = nil
+    /// v7.07 LONG ODDS (deferred): true when this fire QUEUED a purge for
+    /// deal end — the popup names the grant instead of a purged card.
+    public var pendingPurge = false
 
     public static func == (a: SamePowerResult, b: SamePowerResult) -> Bool {
         a.power == b.power && a.label == b.label && a.hub == b.hub && a.effect == b.effect
@@ -439,6 +447,6 @@ public struct SamePowerResult: Sendable, Equatable {
             && a.stickersApplied.map(\.typeId) == b.stickersApplied.map(\.typeId)
             && a.rankApplied.map(\.cardId) == b.rankApplied.map(\.cardId)
             && a.rankApplied.map(\.value) == b.rankApplied.map(\.value)
-            && a.purgedCardId == b.purgedCardId
+            && a.purgedCardId == b.purgedCardId && a.pendingPurge == b.pendingPurge
     }
 }

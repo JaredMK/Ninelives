@@ -75,6 +75,9 @@ public final class DealScene: SKScene {
     /// RANK SHIELD (v6.78): the rank label the shield protects this deal —
     /// one shared rank, drawn on every rankShield plaque.
     private var rankShieldRank: String?
+    /// v7.07: item id → its climb-locked {rank}; Majority Rule's rolled suit.
+    private var rankVariants: [String: Int] = [:]
+    private var majoritySuit: String?
     /// Zen deals run the slim chrome (the web hides `#dealStatus`, the coins
     /// and the SCORE chip in Zen): no reward band, a compacted centred board.
     public var isZen = false
@@ -777,7 +780,13 @@ public final class DealScene: SKScene {
     }
 
     public func setPillars(_ ids: [String?], bases: [String?], dailySuits: [Int: String]? = nil,
-                           rankShieldRank: String? = nil) {
+                           rankShieldRank: String? = nil,
+                           rankVariants: [String: Int] = [:], majoritySuit: String? = nil) {
+        // v7.07 PLAQUE BADGES: every {rank} pillar shows its climb-locked
+        // rank and Majority Rule its rolled suit — the Rank Shield / Scarce
+        // Suit treatment, extended to everything with a rank/suit target.
+        self.rankVariants = rankVariants
+        self.majoritySuit = majoritySuit
         // DAILY SUIT (v6.76): the suit each suitShieldDaily pillar shields THIS
         // deal, read live off the engine run state by the caller at deal start
         // / redeal (a redeal re-boots and re-calls this — no reset needed).
@@ -824,25 +833,38 @@ public final class DealScene: SKScene {
         // DAILY SUIT (v6.76): the plaque SHOWS this deal's shielded suit — the
         // pixel suit pip replaces the item's generic emblem, inked over the
         // same ink halo (geometry mirrors ItemArt.pillar's emblem spot).
-        if def.effect == "suitShieldDaily", let suit = dailySuits?[col] {
+        // v7.07: the SAME pip treatment for Scarce Suit's tied SET ("♠♦" →
+        // two pips in a row) and for Majority Rule's shop-rolled suit.
+        let suitSet: String? = def.effect == "suitShieldDaily" ? dailySuits?[col]
+                             : (def.effect == "suitMajoritySafe" ? majoritySuit : nil)
+        if let suitSet, !suitSet.isEmpty {
             let h = img.size.height
             let halo = (h * 0.46).rounded()
             let hx = (img.size.width - halo) / 2
             let hy = (h * 0.46 - halo / 2).rounded()
             let inset = halo * 0.10
-            if let pip = PixelGlyph.suitImage(suit, size: (halo - inset * 2) * 0.75,
-                                              color: CRT.gold) {
-                let rect = CGRect(x: hx + inset, y: hy + inset,
-                                  width: halo - inset * 2, height: halo - inset * 2)
+            let rect = CGRect(x: hx + inset, y: hy + inset,
+                              width: halo - inset * 2, height: halo - inset * 2)
+            let suits = suitSet.map(String.init)
+            // One pip fills the halo; a tied set shares its width.
+            let pipSize = suits.count == 1 ? rect.width * 0.75
+                                           : rect.width * 0.86 / CGFloat(suits.count)
+            let pips = suits.compactMap { PixelGlyph.suitImage($0, size: pipSize, color: CRT.gold) }
+            if !pips.isEmpty {
                 img = UIGraphicsImageRenderer(size: img.size).image { _ in
                     img.draw(at: .zero)
-                    // Repaint the halo so the generic 📅 emblem doesn't ghost
-                    // through behind the suit pip.
+                    // Repaint the halo so the generic emblem doesn't ghost
+                    // through behind the pip(s).
                     CRT.ink.setFill()
                     UIRectFill(rect)
-                    pip.draw(in: CGRect(x: rect.midX - pip.size.width / 2,
-                                        y: rect.midY - pip.size.height / 2,
-                                        width: pip.size.width, height: pip.size.height))
+                    let gap: CGFloat = 1
+                    let total = pips.reduce(0) { $0 + $1.size.width } + CGFloat(pips.count - 1) * gap
+                    var x = rect.midX - total / 2
+                    for pip in pips {
+                        pip.draw(in: CGRect(x: x, y: rect.midY - pip.size.height / 2,
+                                            width: pip.size.width, height: pip.size.height))
+                        x += pip.size.width + gap
+                    }
                 }
             }
         }
@@ -851,7 +873,15 @@ public final class DealScene: SKScene {
         // emblem halo — a two-glyph "10" at the 14pt display floor is wider
         // than the halo, so a fixed patch clipped it; the fitted band grows
         // with the text and stays centred on the emblem spot.
-        if def.effect == "rankShield", let rank = rankShieldRank {
+        // v7.07: the SAME fitted band for every {rank} pillar's climb-locked
+        // rank (Underdog, Crowd Favorite, the Most-Held family, Rank Purge…)
+        // — Rank Shield keeps its own per-deal read. Chorus (a Base) is
+        // deliberately NOT badged: its rank is computed at fire time.
+        let lockedRank: String? = rankVariants[def.id].map { r in
+            DeckManager.ranks.first { $0.value == r }?.label ?? "\(r)"
+        }
+        if let rank = def.effect == "rankShield" ? rankShieldRank
+                      : (def.description.contains("{rank}") ? lockedRank : nil) {
             let h = img.size.height
             let halo = (h * 0.46).rounded()
             let cx = img.size.width / 2
@@ -1545,7 +1575,12 @@ public final class DealScene: SKScene {
             batch = Array(batch.prefix(3)) + ["+\(extra) more…"]
         }
         feedPanel.removeAllChildren()
-        let w = size.width - 16
+        // v7.07: span ONLY the suit tallies + histogram — never the deck
+        // character or the peeked card riding over it (the full-width panel
+        // covered Pinky and the peek). Falls back to full width before the
+        // band's first sync.
+        let span = deckPanel.feedSpanWidth
+        let w = span >= 120 ? min(size.width - 16, span) : size.width - 16
         let lineH: CGFloat = 20
         let h = 12 + CGFloat(batch.count) * lineH + 6
         let bg = PixelTexture.panelNode(size: CGSize(width: w, height: h),

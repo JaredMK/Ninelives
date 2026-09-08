@@ -648,13 +648,13 @@ final class ItemValidationTests: IVCase {
         e9.guess(0, .higher)
         XCTAssertEqual(e9.run.totalGuesses, 1)
 
-        // 10. Economy stack: two coin stickers on one card both pay. The ♠
-        //     carrier over two ♠ tops feeds the conditional → ×3.
+        // 10. Economy stack: two coin stickers on one card both pay. v7.07:
+        //     Bonus Coin is a flat +value on the landing (no suit bet).
         let e10 = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
                             deckOrder: [IV.spec(50, 9, "♠", ["gainCoin", "extraCoin"]), IV.spec(51, 2)])
         e10.guess(0, .higher)
         let gc = data.stickerTypes.get("gainCoin")!.value
-        XCTAssertEqual(e10.run.bonusCoins, gc * 3, "gainCoin pays now, per matching-top pile")
+        XCTAssertEqual(e10.run.bonusCoins, gc, "gainCoin pays now, flat")
         // extraCoin units = instances x the PILE's weighted size (2 cards).
         XCTAssertEqual(e10.board.extraCoinUnits(), 2,
                        "extraCoin pays per pile size at the end - both live on one card")

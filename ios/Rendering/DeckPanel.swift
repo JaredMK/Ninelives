@@ -39,6 +39,11 @@ public final class DeckPanel: SKNode {
     private var barFrames: [(value: Int, label: String, x: CGFloat, w: CGFloat)] = []
     private var histMinX: CGFloat = 0
     private var histMaxX: CGFloat = 0
+    /// v7.07: the width of the band's LEFT content — suit tallies + rank
+    /// histogram — from the panel's left edge, padded. The event feed sizes
+    /// itself to this so it never covers the deck character or the peeked
+    /// card riding over it. Zero before the first sync.
+    public var feedSpanWidth: CGFloat { histMaxX > 0 ? histMaxX + 8 : 0 }
 
     /// The deck stack's hit box (tap = inspect, hold = quick peek).
     public private(set) var deckRect: CGRect = .zero

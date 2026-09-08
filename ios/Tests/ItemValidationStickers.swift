@@ -44,34 +44,48 @@ enum IVStickers {
         ]
     }
 
+    /// v7.07 THE KILL→CURSE RULE, per sticker: the carrier lands WRONG and
+    /// its pile dies — the sticker converts to ONE curse, buried with it.
+    static func killConverts(_ def: ItemDef, samePower: String? = nil) -> IV.Scenario {
+        IV.Scenario("edge-killConverts", allowed: [.guesses, .deck, .board, .deaths],
+            build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")],
+                               deckOrder: [IV.spec(50, 3, "♠", [def.id]), IV.spec(51, 4)],
+                               samePower: samePower) },
+            fire: { $0.guess(0, .higher) },   // 3 on 5: wrong — no Guard match, no charge → dies
+            expect: { e, _, c in
+                XCTAssertFalse(e.board.isActive(0), "\(c): the carrier killed its pile")
+                let buried = e.board.piles[0].cards.last!
+                XCTAssertFalse(buried.stickers.contains { $0.type == def.id }, "\(c): kill → converted")
+                XCTAssertEqual(buried.stickers.filter { data.stickerTypes.get($0.type)?.cursed == true }.count, 1,
+                               "\(c): exactly ONE curse took its place")
+            })
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func scenarios(for def: ItemDef) -> [IV.Scenario]? {
         let v = def.value
         switch def.behavior {
 
         case "gainCoin":
-            // CONDITIONAL (v6.85): the default family board is all-♠, so the
-            // carrier matches BOTH other tops → pays v × 3 (own pile counts).
+            // v7.07 UNCONDITIONAL: a flat +value per instance on any landing
+            // (the v6.85 per-matching-top scaling retired with its condition).
             return landingFamily(def, allowed: .coins,
                 expect: { e, f, c in
-                    XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + v * 3,
-                                   "\(c): +\(v) per matching-top pile, own included")
+                    XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + v, "\(c): +\(v), flat")
                 },
                 expectNoFire: { e, f, c in
                     XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): no sticker, no coins")
                 })
-                + [IV.Scenario("mustNotFire-noMatchConverts", allowed: [.guesses, .deck, .board, .coins],
+                + [IV.Scenario("trigger-noMatchStillPays", allowed: [.guesses, .deck, .board, .coins],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
                                        deckOrder: [IV.spec(50, 9, "♥", [def.id]), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
-                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): the missed bet pays nothing")
-                        let top = e.board.top(0)!
-                        XCTAssertFalse(top.stickers.contains { $0.type == def.id },
-                                       "\(c): the sticker converted away")
-                        XCTAssertEqual(top.stickers.filter { GameData.shared.stickerTypes.get($0.type)?.cursed == true }.count, 1,
-                                       "\(c): one curse took its place")
-                    })]
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + v, "\(c): no suit match needed any more")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): …and the sticker stays (no condition, no conversion)")
+                    }),
+                   killConverts(def)]
 
         case "extraCoin", "deathBounty", "compound":
             // extraCoin: end-of-deal coin units (board read); deathBounty:
@@ -284,14 +298,19 @@ enum IVStickers {
                     expect: { e, _, c in
                         XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): a decline drains the offer")
                     }),
-                IV.Scenario("mustNotFire-noMatchConverts", allowed: [.guesses, .deck, .board],
+                killConverts(def),
+                IV.Scenario("trigger-noMatchStillOffers", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
                                        deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
-                    fire: { $0.guess(0, .higher) },
+                    fire: { e in
+                        e.guess(0, .higher)
+                        XCTAssertEqual(e.run.pendingActions.map(\.kind), ["suitRipple"],
+                                       "v7.07: the offer comes on ANY landing — no suit bet")
+                        e.answerAction(false)
+                    },
                     expect: { e, _, c in
-                        XCTAssertTrue(e.run.pendingActions.isEmpty, "\(c): no offer on a missed bet")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
-                                       "\(c): the sticker converted away")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): …and the sticker stays (no condition, no conversion)")
                     }),
             ]
 
@@ -477,11 +496,15 @@ enum IVStickers {
                         expect: { e, f, c in
                             XCTAssertEqual(e.board.piles[0].cards.count, f.pileCounts[0] + 1,
                                            "\(c): a card landing ON the carrier does not fire it (v6.78 pin)")
-                        })]
+                        }),
+                   killConverts(def)]
 
         case "snowball":
+            // v7.07: un-retired on the PER-CARD model (X = this card's correct
+            // landings; a wrong placement resets it) + the kill→curse rule.
             let step = def.int("step", 1)
             return [
+                killConverts(def),
                 IV.Scenario("trigger-growsThenBuries", allowed: [.board, .deck, .guesses],
                     build: {
                         let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
@@ -517,6 +540,38 @@ enum IVStickers {
                     }),
             ]
 
+        case "snowballCoins":
+            // v7.07: Snowball Bury's coin twin on the SAME per-card X.
+            let step = def.int("step", 1)
+            return [
+                IV.Scenario("trigger-paysXThenGrows", allowed: [.coins, .deck, .guesses, .board],
+                    build: {
+                        let e = IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                          deckOrder: [IV.spec(50, 9, "♠", ["snowballCoins"]), IV.spec(51, 2)])
+                        e.deck.snapshotCards().first { $0.id == 50 }!.snowball = 2
+                        return e
+                    },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins + 2, "\(c): +X (2) coins on landing")
+                        XCTAssertEqual(e.run.snowballUpdates[50], 2 + step, "\(c): X grew by \(step)")
+                    }),
+                IV.Scenario("edge-firstLandingPaysZero", allowed: [.coins, .deck, .guesses, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9, "♠", ["snowballCoins"]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in
+                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): X=0 pays nothing")
+                        XCTAssertEqual(e.run.snowballUpdates[50], step, "\(c): X grew to \(step)")
+                    }),
+                IV.Scenario("mustNotFire-noSticker", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
+                                       deckOrder: [IV.spec(50, 9), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },
+                    expect: { e, f, c in XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)") }),
+                killConverts(def),
+            ]
+
         case "twinSpark":
             // CONDITIONAL (v6.97 — the last held-back sticker joins the
             // template): the rank bet — pile 2's 6 feeds the drawn 6; a
@@ -528,15 +583,16 @@ enum IVStickers {
                     XCTAssertTrue(e.run.revealNextActive, "\(c): a rank twin on pile 2 → peek")
                 },
                 expectNoFire: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
-                + [IV.Scenario("mustNotFire-noTwinConverts", allowed: [.guesses, .deck, .board],
+                + [IV.Scenario("trigger-noTwinStillPeeks", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 11), IV.spec(3, 3)],
                                        deckOrder: [IV.spec(50, 6, "♠", ["twinSpark"]), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
-                        XCTAssertFalse(e.run.revealNextActive, "\(c): the missed bet peeks nothing")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
-                                       "\(c): …and CONVERTS it (v6.97) — the twin bet missed")
-                    })]
+                        XCTAssertTrue(e.run.revealNextActive, "\(c): v7.07 — peeks on ANY landing, no rank bet")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): …and the sticker stays")
+                    }),
+                   killConverts(def)]
 
         case "revealNext":
             return landingFamily(def, allowed: [.deck],
@@ -544,18 +600,22 @@ enum IVStickers {
                 expectNoFire: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
 
         case "tell":
+            // v7.07 UNCONDITIONAL: arms on any landing.
             return landingFamily(def, allowed: [.deck],
                 expect: { e, _, c in XCTAssertTrue(e.run.tellPiles.contains(0), "\(c): the pile is told") },
                 expectNoFire: { e, _, c in XCTAssertTrue(e.run.tellPiles.isEmpty, "\(c)") })
+                + [killConverts(def)]
 
         case "pillarScout", "baseScout":
+            // KEEPERS (v7.07): the empty-slot condition stays; a filled slot
+            // simply doesn't fire — no conversion (that moved to the kill).
             let isPillar = def.behavior == "pillarScout"
             return landingFamily(def, allowed: [.deck],
                 expect: { e, _, c in
                     XCTAssertTrue(e.run.revealNextActive, "\(c): empty slot → peek")
                 },
                 expectNoFire: { e, _, c in XCTAssertFalse(e.run.revealNextActive, "\(c)") })
-                + [IV.Scenario("mustNotFire-slotFilledConverts", allowed: [.guesses, .deck, .board, .coins],
+                + [IV.Scenario("mustNotFire-slotFilledKeepsSticker", allowed: [.guesses, .deck, .board, .coins],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)],
                                        pillars: isPillar ? ["prime", nil, nil] : nil,
@@ -563,26 +623,27 @@ enum IVStickers {
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
                         XCTAssertFalse(e.run.revealNextActive, "\(c): a filled slot blocks the scout")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
-                                       "\(c): …and CONVERTS it (v6.85) — the scout's bet missed")
-                    })]
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): …and the sticker STAYS (v7.07) — a missed bet converts nothing")
+                    }),
+                   killConverts(def)]
 
         case "rechargeSameShield":
-            // CONDITIONAL (v6.90): the rank bet — pile 3's 9♦ feeds the
-            // default drawn 9; a board with no other 9 converts.
+            // v7.07 UNCONDITIONAL: banks the Same Shield on any landing.
             return landingFamily(def, boardTops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 9, "♦")],
                 allowed: [.charge],
-                expect: { e, _, c in XCTAssertTrue(e.sameCharge, "\(c): the fed bet banks the charge") },
+                expect: { e, _, c in XCTAssertTrue(e.sameCharge, "\(c): banks the charge") },
                 expectNoFire: { e, _, c in XCTAssertFalse(e.sameCharge, "\(c)") })
-                + [IV.Scenario("mustNotFire-noMatchConverts", allowed: [.guesses, .deck, .board],
+                + [IV.Scenario("trigger-noMatchStillBanks", allowed: [.guesses, .deck, .board, .charge],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♦")],
                                        deckOrder: [IV.spec(50, 9, "♠", [def.id]), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
-                        XCTAssertFalse(e.sameCharge, "\(c): the missed bet banks nothing")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
-                                       "\(c): the sticker converted away")
-                    })]
+                        XCTAssertTrue(e.sameCharge, "\(c): no rank twin needed any more")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): …and the sticker stays")
+                    }),
+                   killConverts(def)]
 
         case "activateSamePower":
             // CONDITIONAL (v6.90): the rank bet gates the power fire.
@@ -605,15 +666,15 @@ enum IVStickers {
                         XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
                                       "\(c): a FED bet with no power is a quiet no-op — it persists")
                     }),
-                IV.Scenario("edge-noMatchConverts", allowed: [.guesses, .deck, .board],
+                IV.Scenario("trigger-noMatchStillFires", allowed: [.guesses, .deck, .board, .coins],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 7, "♣")],
                                        deckOrder: [IV.spec(50, 9, "♠", ["activateSamePower"]), IV.spec(51, 2)],
                                        samePower: "linkCoins") },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in
-                        XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c): the missed bet fires nothing")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
-                                       "\(c): the sticker converted away")
+                        XCTAssertGreaterThan(e.run.bonusCoins, f.bonusCoins, "\(c): v7.07 — fires on ANY landing")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): …and the sticker stays")
                     }),
                 IV.Scenario("mustNotFire", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 9, "♥"), IV.spec(3, 6, "♣")],
@@ -621,6 +682,7 @@ enum IVStickers {
                                        samePower: "linkCoins") },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, f, c in XCTAssertEqual(e.run.bonusCoins, f.bonusCoins, "\(c)") }),
+                killConverts(def, samePower: "linkCoins"),
             ]
 
         case "tieSafe":
@@ -666,6 +728,15 @@ enum IVStickers {
                     expect: { e, _, c in
                         XCTAssertFalse(e.board.isActive(0), "\(c): no sticker — the tie kills even fed")
                     }),
+                // v7.07: a missed bet on a CORRECT landing converts nothing.
+                IV.Scenario("edge-unfedCorrectLandingKeepsSticker", allowed: [.guesses, .deck, .board],
+                    build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6), IV.spec(3, 9, "♦")],
+                                       deckOrder: [IV.spec(50, 7, "♥", ["tieSafe"]), IV.spec(51, 2)]) },
+                    fire: { $0.guess(0, .higher) },   // 7 on 5: correct, no other 7
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.top(0)!.stickers.map(\.type), ["tieSafe"],
+                                       "\(c): the keeper stays — failing its condition converts nothing")
+                    }),
             ]
 
         case "suitImmunity":
@@ -695,16 +766,25 @@ enum IVStickers {
                         XCTAssertFalse(buried.stickers.contains { $0.type == def.id },
                                        "\(c): the failed guard converted on the fatal landing")
                     }),
-                IV.Scenario("mustNotFire-lastPileIsExempt", allowed: [.guesses, .board, .deck, .deaths],
+                IV.Scenario("edge-lastPileCannotSaveAndStillConverts", allowed: [.guesses, .board, .deck, .deaths],
                     build: { IV.engine(tops: [IV.spec(1, 9, "♠"), nil, nil],
                                        deckOrder: [IV.spec(50, 2, "♠", [def.id]), IV.spec(51, 3)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
                         XCTAssertFalse(e.board.isActive(0),
-                                       "\(c): no OTHER alive pile — the exempt guard cannot save")
+                                       "\(c): no OTHER alive pile — the guard cannot save")
                         let buried = e.board.piles[0].cards.last!
-                        XCTAssertTrue(buried.stickers.contains { $0.type == def.id },
-                                      "\(c): exempt — the sticker does NOT convert either")
+                        XCTAssertFalse(buried.stickers.contains { $0.type == def.id },
+                                       "\(c): v7.07 — the kill rule has no last-pile exemption: it converted")
+                    }),
+                // v7.07: a missed bet on a CORRECT landing converts nothing.
+                IV.Scenario("mustNotFire-unfedCorrectLandingKeepsSticker", allowed: [.guesses, .board, .deck],
+                    build: { IV.engine(tops: [IV.spec(1, 9, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
+                                       deckOrder: [IV.spec(50, 2, "♠", [def.id]), IV.spec(51, 3)]) },
+                    fire: { $0.guess(0, .lower) },    // 2 on 9: correct, no ♠ top anywhere else
+                    expect: { e, _, c in
+                        XCTAssertEqual(e.board.top(0)!.stickers.map(\.type), [def.id],
+                                       "\(c): the keeper stays — failing its condition converts nothing")
                     }),
             ]
 
@@ -781,15 +861,16 @@ enum IVStickers {
                         XCTAssertEqual(e.board.pileSize(1), 1 + w, "\(c): the matching pile latched too")
                         XCTAssertEqual(e.board.pileSize(2), 1, "\(c): the off-suit pile untouched")
                     }),
-                IV.Scenario("edge-noMatchConverts", allowed: [.guesses, .deck, .board],
+                IV.Scenario("edge-noMatchKeepsSticker", allowed: [.guesses, .deck, .board],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♠"), IV.spec(2, 6, "♥"), IV.spec(3, 6, "♣")],
                                        deckOrder: [IV.spec(50, 9, "♦", [def.id]), IV.spec(51, 2)]) },
                     fire: { $0.guess(0, .higher) },
                     expect: { e, _, c in
                         XCTAssertEqual(e.board.pileSize(0), 2, "\(c): no latch on a missed bet")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == def.id },
-                                       "\(c): the sticker converted")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == def.id },
+                                      "\(c): v7.07 — a keeper's missed bet converts nothing; the sticker stays")
                     }),
+                killConverts(def),
                 IV.Scenario("mustNotFire-passiveWeightRetired", allowed: [],
                     build: { IV.engine(tops: [IV.spec(1, 5, "♦", [def.id]), IV.spec(2, 6), IV.spec(3, 6)],
                                        deckOrder: [IV.spec(50, 9)]) },
@@ -827,13 +908,14 @@ enum IVStickers {
                         e.board.piles[0].cards.append(DeckManager.toCard(IV.spec(91, 8), data: data))
                         return e
                     },
-                    fire: { $0.guess(0, .higher) },   // ♠ carrier, ♠ top elsewhere → equalise
+                    fire: { $0.guess(0, .higher) },   // ♠ carrier → equalise (v7.07: any landing)
                     expect: { e, _, c in
                         let sizes = (0..<3).filter { e.board.isActive($0) }.map { e.board.pileSize($0) }
                         XCTAssertLessThanOrEqual((sizes.max() ?? 0) - (sizes.min() ?? 0), 1,
                                                  "\(c): every alive pile within 1 of the rest")
                     }),
-                IV.Scenario("edge-noMatchConverts", allowed: [.board, .deck, .guesses],
+                killConverts(def),
+                IV.Scenario("trigger-noMatchStillEqualises", allowed: [.board, .deck, .guesses],
                     build: {
                         let e = IV.engine(tops: [IV.spec(1, 5, "♥"), IV.spec(2, 6, "♦"), IV.spec(3, 6, "♣")],
                                           deckOrder: [IV.spec(50, 9, "♠", ["donate"]), IV.spec(51, 2)])
@@ -842,11 +924,12 @@ enum IVStickers {
                         return e
                     },
                     fire: { $0.guess(0, .higher) },
-                    expect: { e, f, c in
-                        XCTAssertEqual(e.board.piles[1].cards.count, f.pileCounts[1], "\(c): no donation up")
-                        XCTAssertEqual(e.board.piles[2].cards.count, f.pileCounts[2], "\(c)")
-                        XCTAssertFalse(e.board.top(0)!.stickers.contains { $0.type == "donate" },
-                                       "\(c): the missed bet converted the sticker")
+                    expect: { e, _, c in
+                        let sizes = (0..<3).filter { e.board.isActive($0) }.map { e.board.pileSize($0) }
+                        XCTAssertLessThanOrEqual((sizes.max() ?? 0) - (sizes.min() ?? 0), 1,
+                                                 "\(c): v7.07 — equalises on ANY landing, no suit bet")
+                        XCTAssertTrue(e.board.top(0)!.stickers.contains { $0.type == "donate" },
+                                      "\(c): …and the sticker stays")
                     }),
                 IV.Scenario("mustNotFire", allowed: [.board, .deck, .guesses],
                     build: { IV.engine(tops: [IV.spec(1, 5), IV.spec(2, 6), IV.spec(3, 6)],

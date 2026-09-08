@@ -561,10 +561,15 @@ public final class GameEngine {
         // snapshot's value).
         if let pillars = run.pillars, run.dailySuits != nil {
             let counts = fullDeckSuitCounts()
-            let scarce = DeckManager.suits.map(\.symbol)
-                .min { (counts[$0] ?? 0) < (counts[$1] ?? 0) }
+            let order = DeckManager.suits.map(\.symbol)
+            let low = order.map { counts[$0] ?? 0 }.min() ?? 0
+            // v7.07 TIES: EVERY suit at the minimum is safe. The column's value
+            // is the tied suits JOINED in canonical order ("♠♦"), so the
+            // snapshot format (one string per column) is unchanged and an old
+            // save's single-suit string still reads as a one-suit set.
+            let scarce = order.filter { (counts[$0] ?? 0) == low }.joined()
             for c in 0..<pillars.count {
-                if let def = resolvePillarDef(c), def.effect == "suitShieldDaily", let scarce {
+                if let def = resolvePillarDef(c), def.effect == "suitShieldDaily", !scarce.isEmpty {
                     run.dailySuits?[c] = scarce
                     recT("pillar", def.id, def.label, ["fires": 1])
                 }
@@ -814,9 +819,10 @@ public final class GameEngine {
             recT("pillar", pillar.id, pillar.label, ["coins": pillar.value])
         }
 
-        // Snowball Bury: ANY wrong placement of the carrying card resets its X to
-        // 0 (even when a Guard/Second Wind saves the pile).
-        if !correct, drawn.stickers.contains(where: { $0.type == "snowball" }) {
+        // Snowballs (Bury + Coins, v7.07 — one shared per-card X): ANY wrong
+        // placement of the carrying card resets its X to 0 (even when a
+        // Guard/Second Wind/Same Shield saves the pile).
+        if !correct, drawn.stickers.contains(where: { $0.type == "snowball" || $0.type == "snowballCoins" }) {
             drawn.snowball = 0
             run.snowballUpdates[drawn.id] = 0
         }
@@ -850,6 +856,10 @@ public final class GameEngine {
         if malfunctioned {
             board.push(index, drawn)
             curseTouch(index: index, current: current, drawn: drawn)
+            // v7.07: the carrier blew its OWN pile — it killed it, so its
+            // killCurse stickers convert here too (one rule, no exceptions).
+            // Dormant this landing, like every conversion.
+            convertKillCurses(index, drawn)
             board.kill(index)
             let t = stickerTypes.all().first { $0.behavior == "malfunction" }
             logLine("MALFUNCTION: \(cardName(drawn)) blew the pile as it landed")
@@ -925,8 +935,9 @@ public final class GameEngine {
             // GUARD (v6.85): carrier-only and CONDITIONAL — the wrong-landing
             // carrier is absorbed (returned to the deck, unlimited, unspent)
             // when another alive pile's top matches ITS suit. The old
-            // bidirectional any-♠ save retired with the rework; the failed
-            // bet converts below instead.
+            // bidirectional any-♠ save retired with the rework. v7.07: a
+            // missed bet converts nothing — the card never lands here, and
+            // only a KILL converts (applyPileDeath).
             deck.returnCard(drawn)
             logLine("Guard saved the pile (\(drawn.suit) matched another top; card returned to the deck)")
             emit(.guarded(index: index, guess: g, current: current, drawn: drawn))
@@ -1012,19 +1023,14 @@ public final class GameEngine {
         return !m.isEmpty
     }
 
-    /// Tell (CONDITIONAL, v6.85): a hit arms the one-draw hint on the
-    /// carrier's pile; a missed bet converts, per instance. Shared by the
-    /// correct-landing and saved-landing paths.
+    /// Tell: arms the one-draw hint on the carrier's pile. Shared by the
+    /// correct-landing and saved-landing paths. v7.07: UNCONDITIONAL — the
+    /// v6.85 suit bet is gone; the kill→curse rule is its only downside now.
     func maybeConditionalTell(_ index: Int, _ drawn: LiveCard) {
         let tellCount = drawn.stickers.filter { $0.type == "tell" }.count
         guard tellCount > 0, let tdef = stickerTypes.get("tell") else { return }
-        guard let m = conditionalSuitMatches(index, drawn) else { return }
-        if m.isEmpty {
-            for _ in 0..<tellCount { convertStickerToCurse(index, drawn, tdef) }
-        } else {
-            run.tellPiles.insert(index)
-            recT("sticker", "tell", tdef.label, ["peeks": 1])
-        }
+        run.tellPiles.insert(index)
+        recT("sticker", "tell", tdef.label, ["peeks": 1])
     }
 
     /// Second Wind (v6.93 — the Phoenix shape): the pile's TOP CARD STAYS in
@@ -1063,29 +1069,11 @@ public final class GameEngine {
         // fatal-landing audit; Death Bounty below is the one deliberate
         // on-death payout).
         board.push(index, drawn)
-        // v6.85: a Guard that failed exactly when it was needed converts
-        // even on the fatal landing — the card is buried wearing its new
-        // curse (a revive surfaces it). Exempt landings (no other alive
-        // pile) convert nothing, the shared rule.
-        let fatalGuards = drawn.stickers.compactMap { st -> ItemDef? in
-            guard let t = stickerTypes.get(st.type), t.behavior == "suitImmunity" else { return nil }
-            return t
-        }
-        if !fatalGuards.isEmpty, let gm = conditionalSuitMatches(index, drawn), gm.isEmpty {
-            for t in fatalGuards { convertStickerToCurse(index, drawn, t) }
-        }
-        // v6.86: Same-Safe converts the same way — an unfed tie that KILLED
-        // the pile is exactly the bet the sticker missed.
-        let fatalTieSafes = drawn.stickers.compactMap { st -> ItemDef? in
-            guard let t = stickerTypes.get(st.type), t.behavior == "tieSafe" else { return nil }
-            return t
-        }
-        if !fatalTieSafes.isEmpty, let rm = conditionalRankMatches(index, drawn), rm.isEmpty {
-            for t in fatalTieSafes { convertStickerToCurse(index, drawn, t) }
-            drawn.tieSafe = drawn.stickers.contains {
-                stickerTypes.get($0.type)?.behavior == "tieSafe"
-            }
-        }
+        // v7.07 THE KILL→CURSE RULE: the carrier killed its pile — every
+        // killCurse-flagged sticker it wears converts, buried with it
+        // wearing its new curse (a revive surfaces it). The ONE conversion
+        // trigger in the engine; see convertKillCurses.
+        convertKillCurses(index, drawn)
         board.kill(index)
         emit(.pileKilled(index: index))
         logLine("→ \(cardName(drawn)) landed on \(cardName(current)) · pile died")

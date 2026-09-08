@@ -421,6 +421,23 @@ final class DebugPanelViewController: UIViewController, UIGestureRecognizerDeleg
                 self.build()
             },
         ], height: 32)
+        // v7.07 — small, fully revealed packs: card pickups cap at +3 (not
+        // +5) and EVERY pack is face-up on the map whatever its count (no
+        // sealed packs). Persisted (ninelives.pref.debugSmallRevealedPacks);
+        // the cap applies at the next map generation, the reveal at the next
+        // lock/render. A pure debug experiment.
+        buttonRow([
+            Btn("small revealed packs: \(flow.campaign.debugSmallRevealedPacksOn() ? "on" : "off")",
+                role: flow.campaign.debugSmallRevealedPacksOn() ? .charged : .plain) { [weak self] in
+                guard let self else { return }
+                let c = self.flow.campaign
+                c.setDebugSmallRevealedPacks(!c.debugSmallRevealedPacksOn())
+                self.note(c.debugSmallRevealedPacksOn()
+                    ? "small revealed packs on; +3 cap and every pack face-up from the next climb"
+                    : "small revealed packs off")
+                self.build()
+            },
+        ], height: 32)
         y += 6
     }
 

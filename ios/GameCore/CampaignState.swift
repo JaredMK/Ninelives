@@ -83,6 +83,11 @@ public final class CampaignState {
     /// keeps the record), which made the top-bar HI climb the moment the
     /// running score passed it. Frozen here, it only moves between climbs.
     public internal(set) var hudBestScore = 0
+    /// v7.07 LONG ODDS (deferred): purges granted by correct Sames that are
+    /// still owed — the flow drains them through the purge picker after a
+    /// won deal, one at a time, decrementing per pick. Serialized, so a
+    /// climb killed mid-walk resumes owing the rest.
+    public internal(set) var pendingPurges = 0
     public internal(set) var endless = false
     public internal(set) var sameCharge = false
 
@@ -769,6 +774,24 @@ public final class CampaignState {
         saveStore.setPref("debugSingleSuitPacks", on ? "1" : "0")
     }
 
+    /// v7.07 DEBUG — SMALL, FULLY REVEALED PACKS: map card pickups cap at +3
+    /// (not +5) and EVERY pack commits its exact cards up front, so the map
+    /// shows what each node grants whatever its count (1, 2 or 3) — no
+    /// sealed packs. Persisted (ninelives.pref.debugSmallRevealedPacks);
+    /// the cap applies at the NEXT map generation, the reveal at the next
+    /// lock/render. Purely a debug experiment.
+    public func debugSmallRevealedPacksOn() -> Bool {
+        saveStore.pref("debugSmallRevealedPacks") == "1"
+    }
+    public func setDebugSmallRevealedPacks(_ on: Bool) {
+        saveStore.setPref("debugSmallRevealedPacks", on ? "1" : "0")
+    }
+
+    /// v7.07 LONG ODDS (deferred): the flow banks a won deal's granted purges
+    /// here, then `consumePendingPurge()` per picker confirm.
+    public func addPendingPurges(_ n: Int) { pendingPurges += max(0, n) }
+    public func consumePendingPurge() { pendingPurges = max(0, pendingPurges - 1) }
+
     /// The ONE suit a pack node's slots all draw from while the debug toggle
     /// is on — its own keyed substream (SEED1), so the roll is stable per node
     /// for the whole run and the map badge and the grant can never disagree.
@@ -791,7 +814,7 @@ public final class CampaignState {
     /// the player learns WHICH suits are present, never how many of each.
     public func packSuits(for node: MapNode) -> [String] {
         var suits: [String]
-        if node.addOf == 2, let pair = commitPackCards(node) {
+        if node.addOf == 2 || debugSmallRevealedPacksOn(), let pair = commitPackCards(node) {
             suits = pair.compactMap { id in
                 id == Self.specialBlank ? nil : (specialCardFor(id) ?? findById(id))?.suit
             }
@@ -835,7 +858,10 @@ public final class CampaignState {
         guard let node else { return nil }
         if packCards[node.id] == nil {
             packCards[node.id] = []
-            for slot in 0..<2 {
+            // v7.07 DEBUG (small revealed packs): commit EVERY slot, so a +3
+            // pack is face-up on the map too. Flag off: the two of a +2.
+            let slots = debugSmallRevealedPacksOn() ? max(2, node.addOf) : 2
+            for slot in 0..<slots {
                 let id = packSlotIdFor(node, slot: slot)
                 packCards[node.id]!.append(id)
                 // v6.73: a revealed +2 pair is FACE-UP ON THE MAP — what the
@@ -860,7 +886,9 @@ public final class CampaignState {
             }
         for n in pickups { commitNodeCard(n) }
         // Every REVEALED +2 pack commits its exact pair right after the pickups.
-        let packs = m.nodes.filter { $0.type == "pack" && $0.packCount == 2 && !clearedNodes.contains($0.id) }
+        // v7.07 DEBUG (small revealed packs): every pack commits, not just +2.
+        let revealAll = debugSmallRevealedPacksOn()
+        let packs = m.nodes.filter { $0.type == "pack" && ($0.packCount == 2 || revealAll) && !clearedNodes.contains($0.id) }
             .stableSorted { $0.id < $1.id }
         for n in packs { commitPackCards(n) }
         unveilJokerNodes()
@@ -870,6 +898,16 @@ public final class CampaignState {
 
     func genRunMap() {
         map.setDifficultyTier(difficultyTier)   // bands follow this campaign's tier
+        // v7.07 DEBUG: small packs — cap card grants at +3. BOTH branches set
+        // the config (it persists on `map`), so toggling off restores the
+        // registry defaults on the next generation.
+        let defaults = MapConfig()
+        let small = debugSmallRevealedPacksOn()
+        // Pack SIZES are drawn from the weight table at generation (the
+        // weightedPick in RunMap), so the table is what actually caps them —
+        // packMax only bounds the later raise/merge passes.
+        map.config.packMax = small ? 3 : defaults.packMax
+        map.config.packWeights = small ? defaults.packWeights.filter { $0.0 <= 3 } : defaults.packWeights
         // THE WHOLE RUN generates up front (all 3 stages, rendered from the
         // start). Later stages use PREDICTED entry decks — entry + the average
         // route collection per stage — and the map stays FIXED for the run.
@@ -906,6 +944,7 @@ public final class CampaignState {
         // Freeze the toolbar's HI at the pre-climb best — the live stat will
         // fold this run's score in per cleared deal, but the display holds.
         hudBestScore = stats.get().deckTierBest["\(deckId).\(difficultyTier)"] ?? 0
+        pendingPurges = 0    // v7.07: owed Long Odds purges die with the climb
         phaseIndex = 0
         removalsBought = 0   // the removal price ladder is per climb
         purgeDiscount = 0
@@ -1177,7 +1216,9 @@ public final class CampaignState {
         guard let node else { return [] }
         let count = node.addOf
         var granted: [Int] = []
-        if count == 2, let pair = commitPackCards(node) {
+        // v7.07 DEBUG (small revealed packs): a committed pack of ANY count
+        // grants exactly what the map showed.
+        if count == 2 || debugSmallRevealedPacksOn(), let pair = commitPackCards(node) {
             granted = pair
         } else {
             let rng = rrng(.s("pack"), .n(node.id))

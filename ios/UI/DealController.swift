@@ -19,6 +19,9 @@ public struct DealOutcome {
     public var compoundUpdates: [Int: Int]
     public var snowballUpdates: [Int: Int]
     public var stickerPeels: [Int: Int]
+    /// v7.07 LONG ODDS (deferred): purges this deal GRANTED — the flow banks
+    /// them on the campaign and drains them through the purge picker.
+    public var pendingPurges: Int = 0
     /// The guess that would have survived the fatal draw ("higher"/"lower"/
     /// "same") — the web's `survivingGuessWord(lastResolvedDraw)`; nil on a win.
     public var survivingGuessWord: String?
@@ -297,7 +300,8 @@ public final class DealController {
         scene.isZen = false
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
         scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits,
-                         rankShieldRank: rankShieldLabel())
+                         rankShieldRank: rankShieldLabel(),
+                         rankVariants: plaqueRankVariants(), majoritySuit: plaqueMajoritySuit())
         refreshAll()
         startCascade()
     }
@@ -407,7 +411,8 @@ public final class DealController {
         assistGate.dealOutStarted()
         scene.buildBoard(pileCount: layout.piles, cols: layout.cols)
         scene.setPillars(pillars, bases: bases, dailySuits: engine.run.dailySuits,
-                         rankShieldRank: rankShieldLabel())
+                         rankShieldRank: rankShieldLabel(),
+                         rankVariants: plaqueRankVariants(), majoritySuit: plaqueMajoritySuit())
         refreshAll()
         onCheckpoint?(self)   // "run" durability point: a kill now resumes this deal
         if restoredMidDeal {
@@ -680,7 +685,8 @@ public final class DealController {
                 self.scene.setPillars(self.isZen ? [] : self.campaign.columnPillars,
                                       bases: self.isZen ? [] : self.campaign.columnBases,
                                       dailySuits: self.engine?.run.dailySuits ?? nil,
-                                      rankShieldRank: self.rankShieldLabel())
+                                      rankShieldRank: self.rankShieldLabel(),
+                                      rankVariants: self.plaqueRankVariants(), majoritySuit: self.plaqueMajoritySuit())
                 done()
             }
 
@@ -860,8 +866,21 @@ public final class DealController {
             // rewrite or a Long Odds purge changed it (v6.99, the Chorus
             // staleness fix's twin).
             if !res.rankApplied.isEmpty || res.purgedCardId != nil { noteDeckCompositionChanged() }
-            // LONG ODDS (v6.99): a hit names itself and SHOWS the purged
-            // card — the deal-scoped removal was invisible beyond a log line.
+            // LONG ODDS (v7.07, deferred): the GRANT names itself — the purge
+            // itself resolves at deal end through the purge picker.
+            if res.effect == "linkPurge", res.pendingPurge {
+                let queued = engine.run.pendingPurges
+                animQueue.add(priority: 1) { [weak self] done in
+                    guard let self else { done(); return }
+                    self.scene.showHelp(title: res.label.uppercased(),
+                                        body: "Purge granted — choose a card at deal end"
+                                            + (queued > 1 ? " (\(queued) queued)" : ""))
+                    done()
+                }
+            }
+            // LONG ODDS (v6.99, flag off): a hit names itself and SHOWS the
+            // purged card — the deal-scoped removal was invisible beyond a
+            // log line.
             if res.effect == "linkPurge", let pid = res.purgedCardId {
                 let spec = isCampaign ? campaign.findById(pid) : nil
                 animQueue.add(priority: 1) { [weak self] done in
@@ -1106,7 +1125,8 @@ public final class DealController {
                 if let old = res.demolishedPillar { _ = campaign.discardPillarFromInventory(old) }
                 scene.setPillars(campaign.columnPillars, bases: campaign.columnBases,
                                  dailySuits: engine?.run.dailySuits ?? nil,
-                                 rankShieldRank: rankShieldLabel())
+                                 rankShieldRank: rankShieldLabel(),
+                         rankVariants: plaqueRankVariants(), majoritySuit: plaqueMajoritySuit())
             }
         case "shuffleColumn", "evenOut":
             // A column being reshuffled is still a SHUFFLE — the riffle's
@@ -1179,7 +1199,8 @@ public final class DealController {
                 }
                 scene.setPillars(campaign.columnPillars, bases: campaign.columnBases,
                                  dailySuits: engine?.run.dailySuits ?? nil,
-                                 rankShieldRank: rankShieldLabel())
+                                 rankShieldRank: rankShieldLabel(),
+                         rankVariants: plaqueRankVariants(), majoritySuit: plaqueMajoritySuit())
             }
             if let target = res.index {
                 Sound.shared.bury()
@@ -1328,6 +1349,7 @@ public final class DealController {
             compoundUpdates: engine.run.compoundUpdates,
             snowballUpdates: engine.run.snowballUpdates,
             stickerPeels: engine.run.stickerPeels,
+            pendingPurges: engine.run.pendingPurges,
             survivingGuessWord: win ? nil : lastSurvivingWord,
             suitsLanded: suitsLanded)
     }
@@ -2065,11 +2087,20 @@ public final class DealController {
         // suit, per deal) — the hold names THIS deal's read (the plaque
         // shows it too).
         var body = campaign.itemDescription(def)
-        if def.effect == "suitShieldDaily", let suit = engine?.run.dailySuits?[col] {
-            body += "\nThis deal shields \(suit)."
+        if def.effect == "suitShieldDaily", let set = engine?.run.dailySuits?[col], !set.isEmpty {
+            // v7.07: ties → every tied suit is safe, and the hold names them all.
+            let suits = set.map(String.init)
+            body += "\nThis deal shields \(suits.joined(separator: " and "))."
         }
         return (def.label, body)
     }
+
+    /// v7.07 PLAQUE BADGES: every {rank} pillar's climb-locked rank and the
+    /// Majority Rule's shop-rolled suit, read off the engine run (threaded
+    /// from the campaign at deal creation), so the plaques show them the way
+    /// Rank Shield and Scarce Suit already do.
+    private func plaqueRankVariants() -> [String: Int] { engine?.run.pillarRankVariants ?? [:] }
+    private func plaqueMajoritySuit() -> String? { engine?.run.shopRolls["suitMajoritySafe"]?.suit }
 
     /// The Base plaque's hold-help (the web's basePeekHtml): name + effect and
     /// this deal's charged/spent state. v6.53 batch 3: no column number (the

@@ -157,14 +157,12 @@ public enum PlacementLog {
         case "randomFixedValue", "tieSafe": return [("rank", "sticker:\(def.id)")]
         case "changeSuitTo", "changeSuitRandom", "wildSuit": return [("suit", "sticker:\(def.id)")]
         case "collector": return [("load", "sticker:\(def.id)")]
-        // v6.85 CONDITIONALS: the carrier's suit IS the bet, so placement
-        // reads the suit axis by definition.
-        case "quickBury", "gainCoin", "donate", "heavy", "diamondSnob", "tell", "suitImmunity":
+        // v7.07: only the KEEPERS still bet on an axis — Guard (suit) and
+        // Heavy (old saves; suit); Same-Safe is on the rank list above. The
+        // droppers (Quick Bury, Bonus Coin, Donate, Ripple, Tell, the Same
+        // stickers) fire unconditionally now and read no axis.
+        case "heavy", "suitImmunity":
             return [("suit", "sticker:\(def.id)")]
-        // v6.90: the Same stickers joined the RANK conditional — placement
-        // reads the rank axis by definition now.
-        case "rechargeSameShield", "activateSamePower":
-            return [("rank", "sticker:\(def.id)")]
         default: return []
         }
     }

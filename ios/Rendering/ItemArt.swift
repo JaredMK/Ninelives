@@ -3464,7 +3464,30 @@ public enum ItemArt {
                 drawIcon(cg, def, at: CGRect(x: hx + inset, y: hy + inset,
                                              width: halo - inset * 2, height: halo - inset * 2),
                          color: CRT.gold, size: halo * 0.6, perId: pillarGlyphs)
+                drawIconSuitBadge(cg, def, in: CGRect(x: hx, y: hy, width: halo, height: halo), scale: 0.42)
             }
+        }
+    }
+
+    /// v7.07 SUIT BADGE (items.js `iconSuit`): a small pixel suit pip in the
+    /// bottom-right corner of `rect`, over an ink patch so it never fights
+    /// the emblem — for every pillar/base whose effect is keyed to ONE suit
+    /// but whose icon is a generic mark. (A suit-glyph icon — Heart Bonus ♥,
+    /// Club Dig ♣ — already reads its suit and carries no badge.) The pip's
+    /// colour resolves through the suit-colour chokepoint (onFelt — dark
+    /// chrome), never an authored letter.
+    private static func drawIconSuitBadge(_ cg: CGContext, _ def: ItemDef, in rect: CGRect, scale: CGFloat) {
+        guard let suit = def.raw["iconSuit"]?.asString, !suit.isEmpty else { return }
+        let side = (min(rect.width, rect.height) * scale).rounded()
+        guard side >= 6 else { return }
+        let box = CGRect(x: rect.maxX - side - 1, y: rect.maxY - side - 1, width: side, height: side)
+        cg.setFillColor(CRT.ink.cgColor)
+        cg.fill(box.insetBy(dx: -1, dy: -1))
+        if let pip = PixelGlyph.suitImage(suit, size: side * 0.9, color: CRT.suitColor(suit, onFelt: true)) {
+            UIGraphicsPushContext(cg)
+            pip.draw(in: CGRect(x: box.midX - pip.size.width / 2, y: box.midY - pip.size.height / 2,
+                                width: pip.size.width, height: pip.size.height))
+            UIGraphicsPopContext()
         }
     }
 
@@ -3504,6 +3527,9 @@ public enum ItemArt {
                 drawIcon(cg, def, at: CGRect(x: 0, y: (CGFloat(h) - sh) / 2,
                                              width: CGFloat(w), height: sh),
                          color: baseSymbolColor(def), size: sh * 0.8, perId: baseGlyphs)
+                // The badge sits in the plate's bottom-right, small enough to
+                // clear the charge LED the deal plaque hangs at mid-right.
+                drawIconSuitBadge(cg, def, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)), scale: 0.34)
             }
         }
     }

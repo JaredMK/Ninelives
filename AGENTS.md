@@ -72,10 +72,13 @@ text edit follows these rules — no more sweeps:
 - Lead with the condition or timing, then "→", then the effect. No filler
   words; drop articles where the meaning survives ("+1 rank (stops at Ace)",
   not "Adds +1 to the card's rank").
-- CONDITIONAL stickers use exactly two rows:
-  `"If another pile shows this {suit|rank} → {effect}\nOtherwise → this
-  becomes a curse"`. The failure row is ALWAYS "Otherwise → this becomes a
-  curse" — never "sticker becomes cursed" or any other variant.
+- KILL→CURSE stickers (v7.07 — every sticker flagged `killCurse: true`) use
+  exactly two rows: `"{effect row}\nIf this card kills its pile → this
+  becomes a curse"`. The effect row is either a bare effect ("+1 coin") or a
+  gate + effect ("If another pile shows this rank → safe"). The second row is
+  ALWAYS "If this card kills its pile → this becomes a curse" — never any
+  other variant. (The pre-v7.07 "Otherwise → this becomes a curse" row is
+  retired: failing a board condition no longer converts anything.)
 - Deal-end effects: "At deal end [if condition] → {effect}".
 - Column-scoped triggers: "When a {X} lands in this column → {effect}".
 - Gates state the condition plainly: "If purse <10 coins →", "If in column

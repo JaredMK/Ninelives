@@ -147,9 +147,11 @@ final class ItemBehaviorTests: XCTestCase {
         e.board.piles[1].cards = [DeckManager.toCard(CardSpec(id: 901, suit: "♦", originalRank: 6, currentRank: 6), data: data)]
         e.board.piles[2].cards = [DeckManager.toCard(CardSpec(id: 902, suit: "♣", originalRank: 6, currentRank: 6), data: data)]
         e.debug.setNextCardObj(DeckManager.toCard(specs[i], data: data))
-        e.guess(0, .higher)   // the ♦ carrier lands; pile 1's ♦ top matches
-        XCTAssertEqual(e.run.bonusCoins, t.value * 2,
-                       "the items.js `value` per matching-top pile, own pile included")
+        e.guess(0, .higher)   // the ♦ carrier lands
+        // v7.07: a flat +value per instance on any landing — the per-matching-
+        // top-pile scaling retired with the sticker's condition.
+        XCTAssertEqual(e.run.bonusCoins, t.value,
+                       "the items.js `value`, flat — no per-matching-pile scaling any more")
     }
 
     func testCollectorPaysPerOtherStickerOnTheCard() {
@@ -635,11 +637,15 @@ final class ItemBehaviorTests: XCTestCase {
                      "Second Sight's colour roll retired in v6.78 — its tell is colour-blind")
         XCTAssertNil(c.samePowerVariant("linkCoins"), "fixed powers roll nothing")
         // …and the substituted description names it (no leaked template).
+        // v7.07 EXPERIMENT (`allPiles`): the text no longer names a suit at
+        // all — only the flag-off text carries {suit}.
+        let burrowAll = data.samePowerTypes.get("linkBury")?.raw["allPiles"]?.asBool == true
         if let def = data.items.samePowers.first(where: { $0.id == "linkBury" }), let suit {
-            XCTAssertTrue(c.itemDescription(def).contains(suit))
+            if !burrowAll { XCTAssertTrue(c.itemDescription(def).contains(suit)) }
             XCTAssertFalse(c.itemDescription(def).contains("{suit}"))
         }
-        // ENGINE: Burrow buries only under alive piles wearing the suit.
+        // ENGINE: flag off — Burrow buries only under alive piles wearing the
+        // suit; flag on (v7.07 experiment) — under EVERY alive pile.
         let e = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
                            runConfig: RunConfig(cols: [3, 3, 3], samePower: "linkBury",
                                                 samePowerVariant: "♠"))
@@ -650,8 +656,10 @@ final class ItemBehaviorTests: XCTestCase {
         e.debugFireSamePower(0)
         guard let res = fired else { XCTFail("Burrow did not fire"); return }
         let spadeTops = (0..<9).filter { e.board.isActive($0) && e.board.top($0)?.suit == "♠" }
-        XCTAssertEqual(Set(res.targets), Set(spadeTops),
-                       "Burrow's targets are exactly the ♠-topped alive piles")
+        let aliveAll = (0..<9).filter { e.board.isActive($0) }
+        XCTAssertEqual(Set(res.targets), Set(burrowAll ? aliveAll : spadeTops),
+                       burrowAll ? "Burrow (allPiles) targets every alive pile"
+                                 : "Burrow's targets are exactly the ♠-topped alive piles")
         // Second Sight (v6.78): one draw of total vision — every alive pile.
         let e2 = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 9,
                             runConfig: RunConfig(cols: [3, 3, 3], samePower: "linkTell"))
@@ -847,11 +855,19 @@ final class ItemBehaviorTests: XCTestCase {
         }
         e.debugFireSamePower(hub)
         guard let res = fired else { XCTFail("the power did not fire"); return }
-        // Every target is in the SAME column as the pile it was called on.
-        for t in res.targets {
-            XCTAssertEqual(e.run.pileColumns?[t], 1, "pile \(t) is outside the called column")
+        if def.raw["allPiles"]?.asBool == true {
+            // v7.07 EXPERIMENT (`allPiles`): EVERY alive top on the board is a
+            // target, whatever column the Same was called in. Flip the flag
+            // and the column-only scope below returns.
+            let alive = (0..<9).filter { e.board.isActive($0) }
+            XCTAssertEqual(Set(res.targets), Set(alive), "every alive top on the board gets sprayed")
+        } else {
+            // Every target is in the SAME column as the pile it was called on.
+            for t in res.targets {
+                XCTAssertEqual(e.run.pileColumns?[t], 1, "pile \(t) is outside the called column")
+            }
         }
-        XCTAssertFalse(res.targets.isEmpty, "a live column gets sprayed")
+        XCTAssertFalse(res.targets.isEmpty, "a live board gets sprayed")
         // …and each one is reported for the durable write.
         XCTAssertEqual(res.stickersApplied.count, res.targets.count,
                        "every sprayed sticker is reported so it can be persisted")

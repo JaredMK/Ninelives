@@ -297,19 +297,19 @@ final class ArchetypeBatchTests: XCTestCase {
     }
 
     /// v6.86 regression pin for the batch report: ZERO beats one — a suit at
-    /// zero copies is never excluded from candidacy — and a two-zero tie
-    /// takes the FIRST zero suit in canonical ♦♥♣♠ order.
+    /// zero copies is never excluded from candidacy — and (v7.07 TIES) a
+    /// two-zero tie shields BOTH, joined in canonical ♦♥♣♠ order.
     func testScarceSuitZeroCountIsEligibleAndWinsOutright() {
         // ♥ absent, ♦ held once: the shield must read ♥ (0 < 1), not ♦.
         let e = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 6, "♣")],
                           deckOrder: [spec(50, 9, "♠"), spec(51, 3, "♣")],
                           pillars: ["suitShield", nil, nil])
         XCTAssertEqual(e.run.dailySuits?[0], "♥", "zero copies beats one copy")
-        // ♥ AND ♣ both absent: the first zero in canonical ♦♥♣♠ order wins.
+        // ♥ AND ♣ both absent: nothing breaks the tie any more — both shield.
         let tie = IV.engine(tops: [spec(1, 5, "♠"), spec(2, 6, "♦"), spec(3, 6, "♠")],
                             deckOrder: [spec(50, 9, "♦"), spec(51, 3, "♠")],
                             pillars: ["suitShield", nil, nil])
-        XCTAssertEqual(tie.run.dailySuits?[0], "♥", "the canonical order breaks a zero-zero tie")
+        XCTAssertEqual(tie.run.dailySuits?[0], "♥♣", "a zero-zero tie shields both suits (canonical order)")
     }
 
     /// With every suit present it takes the strict minimum — and re-reads the
@@ -330,15 +330,16 @@ final class ArchetypeBatchTests: XCTestCase {
         XCTAssertEqual(b.run.dailySuits?[0], "♦", "each deal re-reads the deck")
     }
 
-    /// A full standard deck ties all four at 13 → the canonical suit order
-    /// breaks it, deterministically, with no rng draw.
-    func testScarceSuitTieBreaksCanonically() {
+    /// A full standard deck ties all four at 13 → v7.07 TIES: every suit is
+    /// shielded — the set joins in canonical order, deterministically, with
+    /// no rng draw.
+    func testScarceSuitFullTieShieldsEverySuit() {
         let tie = GameEngine(deckSpecs: DeckManager.buildStandardDeck(), pileCount: 3,
                              runConfig: RunConfig(cols: [1, 1, 1]))
         tie.start(seedOverride: 7)
         tie.startRun(pillars: ["suitShield", nil, nil], bases: [nil, nil, nil], samePower: nil)
-        XCTAssertEqual(tie.run.dailySuits?[0], DeckManager.suits[0].symbol,
-                       "a full tie breaks to the first canonical suit")
+        XCTAssertEqual(tie.run.dailySuits?[0], DeckManager.suits.map(\.symbol).joined(),
+                       "a full tie shields all four suits, in canonical order")
     }
 
     func testScarceSuitReadsTheFullOwnedDeckThroughTheHook() {
